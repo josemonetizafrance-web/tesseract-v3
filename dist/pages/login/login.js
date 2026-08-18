@@ -101,20 +101,30 @@ async function doLogin() {
   btnDoLogin.disabled = true;
 
   try {
-    var isAdmin = email === 'chevyadmin@tesseract.com';
-    var fakeToken = btoa(email + ':' + Date.now() + ':tess_secret');
+    const res = await fetch(TESSERACT_API + '/api/tess/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email, password: pass })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || ('Error ' + res.status));
+    }
+
+    const user = data.user || {};
+    const isAdmin = !!user.isAdmin;
     var items = {
-      tess_jwt: fakeToken,
-      tess_refresh: '',
+      tess_jwt: data.token,
+      tess_refresh: data.refreshToken || '',
       tess_auth: true,
-      tess_user: email,
-      user_email: email,
+      tess_user: user.email || email,
+      user_email: user.email || email,
       isAdmin: isAdmin,
-      isDeveloper: false,
-      isOfficeAdmin: false,
-      user_office: null,
-      isApproved: true,
-      subscriptionStatus: isAdmin ? 'admin' : 'active'
+      isDeveloper: !!user.isDeveloper,
+      isOfficeAdmin: !!user.isOfficeAdmin,
+      user_office: user.office || null,
+      isApproved: !!user.isApproved,
+      subscriptionStatus: (user.subscription && user.subscription.status) || 'active'
     };
     await chrome.storage.local.set(items);
 

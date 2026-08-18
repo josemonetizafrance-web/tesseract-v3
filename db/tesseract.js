@@ -109,7 +109,9 @@ function toObjectId(id) {
 
 // Queries
 async function findUserByEmail(email) {
-  return await db.collection('tess_users').findOne({ email: email.toLowerCase() });
+  const escaped = String(email).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const regex = new RegExp('^' + escaped + '$', 'i');
+  return await db.collection('tess_users').findOne({ email: regex });
 }
 
 async function findUserById(id) {
