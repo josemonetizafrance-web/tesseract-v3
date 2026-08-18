@@ -626,22 +626,30 @@ function detectLanguage(text) {
   if (!text) return null;
   var t = text.toLowerCase().trim();
   var words = t.split(/\s+/).filter(function (w) { return w.length > 2; });
-  var scores = { en: 0, es: 0, fr: 0, pt: 0 };
+  if (words.length === 0) return null;
   var dicts = {
-    en: ['the', 'you', 'and', 'for', 'are', 'but', 'not', 'was', 'have', 'has', 'had', 'your', 'with', 'from', 'they', 'this', 'that', 'she', 'her', 'what', 'all', 'can'],
-    es: ['que', 'las', 'los', 'por', 'para', 'con', 'del', 'como', 'mas', 'pero', 'esta', 'este', 'esto', 'muy', 'todo', 'bien', 'cuando', 'si', 'solo', 'cada'],
-    fr: ['les', 'des', 'que', 'pas', 'pour', 'dans', 'avec', 'vous', 'elle', 'ils', 'sur', 'nous', 'plus', 'tout', 'mais', 'fait', 'faire'],
-    pt: ['que', 'para', 'com', 'dos', 'das', 'mais', 'como', 'muito', 'isso', 'esta', 'este', 'aqui', 'tudo', 'bem', 'sua', 'seu', 'voce', 'ela']
+    en: ['the', 'you', 'and', 'for', 'are', 'but', 'not', 'was', 'have', 'has', 'had', 'your', 'with', 'from', 'they', 'this', 'that', 'she', 'her', 'what', 'all', 'can', 'want', 'know', 'love', 'like'],
+    es: ['que', 'las', 'los', 'por', 'para', 'con', 'del', 'como', 'mas', 'pero', 'esta', 'este', 'esto', 'muy', 'todo', 'bien', 'cuando', 'si', 'solo', 'cada', 'quiero', 'estoy', 'eres', 'hola'],
+    fr: ['les', 'des', 'que', 'pas', 'pour', 'dans', 'avec', 'vous', 'elle', 'ils', 'sur', 'nous', 'plus', 'tout', 'mais', 'fait', 'faire', 'suis', 'veux', 'aime', 'bonjour'],
+    pt: ['que', 'para', 'com', 'dos', 'das', 'mais', 'como', 'muito', 'isso', 'esta', 'este', 'aqui', 'tudo', 'bem', 'sua', 'seu', 'voce', 'ela', 'quero', 'estou', 'amo', 'olá'],
+    de: ['der', 'die', 'das', 'und', 'ich', 'nicht', 'mit', 'ein', 'auf', 'auch', 'sich', 'für', 'den', 'sie', 'bei', 'von', 'ist', 'wie', 'du', 'zu', 'mich', 'dich', 'dass', 'hallo'],
+    it: ['che', 'per', 'con', 'non', 'una', 'sono', 'più', 'della', 'delle', 'cosa', 'come', 'bene', 'molto', 'ti', 'mi', 'tu', 'il', 'gli', 'dove', 'voglio', 'amo', 'ciao'],
+    nl: ['het', 'een', 'van', 'dat', 'ik', 'je', 'niet', 'met', 'voor', 'ook', 'maar', 'die', 'zijn', 'we', 'op', 'aan', 'dan', 'zo', 'jij', 'mij', 'mijn', 'houden', 'hallo']
   };
+  var scores = {};
+  for (var lang in dicts) scores[lang] = 0;
   for (var wi = 0; wi < words.length; wi++) {
     for (var lang in dicts) {
       if (dicts[lang].indexOf(words[wi]) !== -1) scores[lang]++;
     }
   }
-  if (scores.en > scores.es && scores.en >= 1) return 'en';
-  if (scores.fr > scores.es && scores.fr >= 1) return 'fr';
-  if (scores.pt > scores.es && scores.pt >= 1) return 'pt';
-  return null;
+  var best = null, bestScore = 0;
+  for (var lang in scores) {
+    if (scores[lang] > bestScore) { bestScore = scores[lang]; best = lang; }
+  }
+  if (!best || bestScore === 0) return null;
+  if (best === 'es') return null;
+  return best;
 }
 
 

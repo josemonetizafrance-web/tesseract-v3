@@ -378,6 +378,7 @@ function createMainPanel() {
 <option value="es">🇪🇸 ES</option>
 </select>
 </div>
+<button id="btnTranslateClient" style="width:100%;padding:8px;margin-top:6px;border:1px solid #2196F3;border-radius:6px;background:rgba(33,150,243,0.15);color:#e0e0e0;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:9px;letter-spacing:1px;" title="Traduce la respuesta generada al mismo idioma del mensaje del cliente">🌐 TRADUCIR AL IDIOMA DEL CLIENTE</button>
 </div>
 </div>
 </div>
@@ -632,6 +633,7 @@ function setupAllEvents() {
     selectedLangCode = Tesseract.set('selectedLangCode', this.value);
     translateEaterResponse();
   });
+  document.getElementById('btnTranslateClient').addEventListener('click', function() { if (typeof translateEaterToClientLang === 'function') translateEaterToClientLang(); });
 
   // Saludo Push
   document.getElementById('btnSPToggle').addEventListener('click', function() {

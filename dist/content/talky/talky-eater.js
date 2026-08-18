@@ -681,7 +681,12 @@ function generateFromMessage(msgText) {
   ensurePanelVisible();
   
   const clientName = currentClientName || 'Cliente';
-  
+  var _clientMsgFull = _selectedEaterMessages.length > 0 ? _selectedEaterMessages.join(' | ') : msgText;
+  window._eaterClientMsgText = _clientMsgFull;
+  var _detectedLang = typeof detectLanguage === 'function' ? detectLanguage(_clientMsgFull) : null;
+  window._eaterClientMsgLang = _detectedLang;
+  if (_detectedLang && _detectedLang !== 'es') clientDetectedLang = Tesseract.set('clientDetectedLang', _detectedLang);
+
   if (!window._lastClientProfile) {
     const profileEl = document.querySelector(TALK_Y.PROFILE_DETAIL) || document.body;
     window._lastClientProfile = {
@@ -945,7 +950,6 @@ function displaySuggestions(name) {
       sel.value = clientDetectedLang;
       selectedLangCode = Tesseract.set('selectedLangCode', clientDetectedLang);
     }
-    translateEaterResponse();
   }
 }
 
@@ -1010,6 +1014,53 @@ async function translateEaterResponse() {
   }
 }
 
+// ============ TRADUCIR AL IDIOMA DEL CLIENTE (GROQ detecta y traduce) ============
+async function translateEaterToClientLang() {
+  const area = document.getElementById('eaterResponseArea');
+  if (!area || !area.value || area.value === 'Esperando mensaje...') return;
+  const sourceText = window._eaterOriginalResponse || area.value;
+  if (!sourceText || sourceText === 'Esperando mensaje...') return;
+  const clientMsg = window._eaterClientMsgText || '';
+  if (!clientMsg || clientMsg.trim().length < 3) {
+    showTessToast('No hay mensaje del cliente para detectar el idioma', 'warning');
+    return;
+  }
+  if (window._eaterClientMsgLang === 'es') {
+    showTessToast('El cliente escribe en español, no hace falta traducir', 'info');
+    return;
+  }
+  area.value = '🌐 Traduciendo al idioma del cliente...';
+  try {
+    var sysMsg = 'Eres un traductor profesional. Detecta el idioma del mensaje del cliente que se te indica y traduce el texto de respuesta a ESE mismo idioma. Responde SOLO con la traducción, sin explicaciones ni notas.';
+    var userMsg = 'Mensaje del cliente:\n\n"' + clientMsg.substring(0, 1200) + '"\n\n' +
+      'Texto de respuesta a traducir:\n\n"' + sourceText.substring(0, 1800) + '"';
+    var groqData = await Tesseract.callGroq(
+      [{ role: 'system', content: sysMsg }, { role: 'user', content: userMsg }],
+      'llama-3.1-8b-instant',
+      400
+    );
+    var translated = groqData?.choices?.[0]?.message?.content;
+    if (translated && translated.trim()) {
+      var trimmed = translated.trim();
+      var ta = document.querySelector('textarea#form-textarea');
+      var ml = ta ? parseInt(ta.getAttribute('maxlength')) : 300;
+      if (ml && trimmed.length > ml) trimmed = trimmed.substring(0, ml);
+      area.value = trimmed;
+      eaterResponse = Tesseract.set('eaterResponse', trimmed);
+      window._eaterTranslated = true;
+      console.log('[TRANSLATE] Traducido al idioma del cliente:', trimmed.substring(0, 50));
+      showTessToast('🌐 Respuesta traducida al idioma del cliente', 'success');
+    } else {
+      area.value = sourceText;
+      showTessToast('⚠ Error de traducción', 'error');
+    }
+  } catch (e) {
+    console.warn('[TRANSLATE] Error:', e.message);
+    area.value = sourceText;
+    showTessToast('⚠ Error de traducción', 'error');
+  }
+}
+
 // ============ REFRESH EATER ============
 function refreshEaterSuggestions() {
   const clientName = currentClientName || 'Cliente';
@@ -1043,6 +1094,10 @@ function refreshEaterSuggestions() {
   if (!currentText || currentText.length < 3) {
     currentText = eaterResponse || '';
   }
+  window._eaterClientMsgText = currentText;
+  var _detectedLang2 = typeof detectLanguage === 'function' ? detectLanguage(currentText) : null;
+  window._eaterClientMsgLang = _detectedLang2;
+  if (_detectedLang2 && _detectedLang2 !== 'es') clientDetectedLang = Tesseract.set('clientDetectedLang', _detectedLang2);
   generateWithAI(clientName, profile, currentText).then(response => {
     eaterResponse = Tesseract.set('eaterResponse', response || generateLocalResponse(clientName, profile));
     window._eaterOriginalResponse = eaterResponse;
