@@ -2,7 +2,7 @@
 // NOTA: Este archivo se carga como script normal (no ES module)
 // Las funciones se exponen globalmente para uso desde otros scripts
 
-var TESSERACT_API = (typeof TESSERACT_API_OVERRIDE !== 'undefined') ? TESSERACT_API_OVERRIDE : 'https://tesseract-api.onrender.com';
+var TESSERACT_API = (typeof TESSERACT_API_OVERRIDE !== 'undefined') ? TESSERACT_API_OVERRIDE : 'https://tesseract-v3-production.up.railway.app';
 var _refreshLock = false;
 
 function getToken() {

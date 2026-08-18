@@ -1,4 +1,4 @@
-var TESSERACT_API = 'https://tesseract-api.onrender.com';
+var TESSERACT_API = 'https://tesseract-v3-production.up.railway.app';
 
 let currentToken = '';
 let currentAdminEmail = '';

@@ -1,5 +1,5 @@
 var Tesseract = (function () {
-  var API = typeof TESSERACT_CONFIG !== 'undefined' ? TESSERACT_CONFIG.API : 'https://tesseract-api.onrender.com';
+  var API = typeof TESSERACT_CONFIG !== 'undefined' ? TESSERACT_CONFIG.API : 'https://tesseract-v3-production.up.railway.app';
 
   var state = {
     isAuthenticated: false,

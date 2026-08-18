@@ -1,5 +1,5 @@
 // login.js - TESSERACT v24.0 (Login System)
-var TESSERACT_API = 'https://tesseract-api.onrender.com';
+var TESSERACT_API = 'https://tesseract-v3-production.up.railway.app';
 
 const loginEmail = document.getElementById('login-email');
 const loginPass = document.getElementById('login-password');

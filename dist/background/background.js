@@ -1,6 +1,6 @@
 // background.js - TESSERACT v24.0 (Backend Integrado)
 // API URL: defined in dist/modules/config.js, loaded via service worker registration
-var TESSERACT_API = (typeof TESSERACT_API_OVERRIDE !== 'undefined') ? TESSERACT_API_OVERRIDE : 'https://tesseract-api.onrender.com';
+var TESSERACT_API = (typeof TESSERACT_API_OVERRIDE !== 'undefined') ? TESSERACT_API_OVERRIDE : 'https://tesseract-v3-production.up.railway.app';
 
 chrome.runtime.onInstalled.addListener(() => {
   console.log('TESSERACT v24.0 installed');

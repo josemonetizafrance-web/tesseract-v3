@@ -6,7 +6,7 @@
     "permissions": ["storage", "tabs", "alarms", "webNavigation", "scripting", "webRequest"],
     "host_permissions": [
         "https://api.groq.com/*",
-        "https://tesseract-api.onrender.com/*",
+        "https://tesseract-v3-production.up.railway.app/*",
         "https://talkytimes.com/*",
         "https://www.talkytimes.com/*",
         "https://amolatina.com/*",

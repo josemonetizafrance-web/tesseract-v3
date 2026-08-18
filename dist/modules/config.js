@@ -5,7 +5,7 @@
 // should reference this file for consistent values.
 
 var TESSERACT_CONFIG = {
-  API: (typeof TESSERACT_API_OVERRIDE !== 'undefined') ? TESSERACT_API_OVERRIDE : 'https://tesseract-api.onrender.com',
+  API: (typeof TESSERACT_API_OVERRIDE !== 'undefined') ? TESSERACT_API_OVERRIDE : 'https://tesseract-v3-production.up.railway.app',
   APP_NAME: 'TESSERACT',
   APP_VERSION: '3.0.0',
   ALLOWED_DOMAIN: 'talkytimes.com',
