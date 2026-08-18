@@ -5,6 +5,7 @@
     "description": "TESSERACT - Sistema Operativo IA",
     "permissions": ["storage", "tabs", "alarms", "webNavigation", "scripting", "webRequest"],
     "host_permissions": [
+        "https://api.groq.com/*",
         "https://tesseract-api.onrender.com/*",
         "https://talkytimes.com/*",
         "https://www.talkytimes.com/*",
@@ -67,6 +68,7 @@
                 "dist/pages/dashboard/*",
                 "dist/pages/admin/*",
                 "dist/pages/popup/*",
+                "dist/pages/cribs-book/*",
                 "dist/modules/*",
                 "dist/content/talky/*",
                 "dist/assets/*"

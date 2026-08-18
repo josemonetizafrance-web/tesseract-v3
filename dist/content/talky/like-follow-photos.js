@@ -14,24 +14,12 @@ var lfpSearchUrl = '';
 async function lfpLoadBlacklist() {
   if (lfpBlacklistLoadPromise) return lfpBlacklistLoadPromise;
   lfpBlacklistLoadPromise = (async () => {
-    for (var attempt = 0; attempt <= 2; attempt++) {
-      try {
-        var stored = await chrome.storage.local.get(['tess_jwt']);
-        if (!stored.tess_jwt) { lfpBlacklistLoadPromise = null; return; }
-        var res = await fetch(`${TESSERACT_API}/api/tess/blacklist`, {
-          headers: { 'Authorization': 'Bearer ' + stored.tess_jwt }
-        });
-        if (!res.ok && attempt < 2) { await lfpSleep(1000); continue; }
-        if (res.ok) {
-          var data = await res.json();
-          lfpBlacklist = (data.blacklist || []).map(String);
-          lfpBlacklistLoaded = true;
-        }
-        break;
-      } catch (e) {
-        if (attempt >= 2) break;
-        await lfpSleep(1000);
-      }
+    try {
+      var stored = await chrome.storage.local.get(['tess_blacklist']);
+      lfpBlacklist = (stored.tess_blacklist || []).map(String);
+      lfpBlacklistLoaded = true;
+    } catch (e) {
+      console.log('[LFP] Error loading blacklist from local:', e.message);
     }
     lfpBlacklistLoadPromise = null;
   })();
@@ -109,15 +97,15 @@ function lfpFindNextPage() {
 // Hidden tab: direct navigation (page reload via lfpSearchUrl)
 async function lfpGoBack() {
   if (window.location.href.includes('/search')) { console.log('[LFP] back: already on search'); return; }
-  // If tab is hidden, skip history.back() and use direct navigation
   if (document.hidden) {
-    console.log('[LFP] back: hidden, direct nav to', lfpSearchUrl);
-    try {
-      localStorage.setItem('lfpSweepActive', '1');
-      localStorage.setItem('lfpVisited', JSON.stringify(lfpVisited));
-      localStorage.setItem('lfpStats', JSON.stringify(lfpStats));
-      localStorage.setItem('lfpPage', localStorage.getItem('tessSearchPage') || '1');
-    } catch (e) {}
+    if (lfpActive) {
+      try {
+        localStorage.setItem('lfpSweepActive', '1');
+        localStorage.setItem('lfpVisited', JSON.stringify(lfpVisited));
+        localStorage.setItem('lfpStats', JSON.stringify(lfpStats));
+        localStorage.setItem('lfpPage', localStorage.getItem('tessSearchPage') || '1');
+      } catch (e) {}
+    }
     window.location.href = lfpSearchUrl || '/search/all';
     return;
   }
@@ -126,7 +114,7 @@ async function lfpGoBack() {
     if (document.querySelectorAll(TALK_Y.PERSON_CARD).length > 0) return;
     await lfpSleep(100);
   }
-  // Fallback: save state then navigate directly
+  if (!lfpActive) return;
   try {
     localStorage.setItem('lfpSweepActive', '1');
     localStorage.setItem('lfpVisited', JSON.stringify(lfpVisited));
@@ -224,11 +212,11 @@ async function lfpProcessOne() {
 executeLFP = window.executeLFP = async function () {
   if (lfpActive) {
     lfpActive = false; lfpPaused = false;
-    // Clear saved sweep state on toggle-off
-    try { localStorage.removeItem('lfpSweepActive'); localStorage.removeItem('lfpVisited'); localStorage.removeItem('lfpStats'); localStorage.removeItem('lfpPage'); } catch (e) {}
+    try { localStorage.removeItem('lfpSweepActive'); localStorage.removeItem('lfpVisited'); localStorage.removeItem('lfpStats'); localStorage.removeItem('lfpPage'); localStorage.removeItem('lfpSearchUrl'); localStorage.setItem('lfpStopAt', String(Date.now())); } catch (e) {}
     if (typeof updateStats === 'function') updateStats();
     lfpUpdateUI();
     if (typeof saveAllStates === 'function') saveAllStates();
+    lfpToast('\u23F9 L+F+P Detenido', 'info');
     return;
   }
 
@@ -237,6 +225,7 @@ executeLFP = window.executeLFP = async function () {
   lfpActive = true; lfpPaused = false;
   lfpStats.likes = 0; lfpStats.follows = 0; lfpStats.photoLikes = 0; lfpStats.processed = 0;
   lfpVisited = []; window.lfpStats = lfpStats;
+  try { localStorage.removeItem('lfpStopAt'); } catch (e) {}
   lfpUpdateUI();
   if (typeof saveAllStates === 'function') saveAllStates();
 
@@ -349,7 +338,7 @@ executeLFP = window.executeLFP = async function () {
     if (!lfpActive) break;
     if (profileId && lfpIsBlacklisted(profileId)) { lfpVisited.push(profileId); lfpToast('\u26D4 Blacklist: ' + profileId, 'error'); await lfpSleep(300); continue; }
     if (document.hidden) {
-      // Background tab: navigate directly to profile URL (full reload)
+      if (!lfpActive) return;
       console.log('[LFP] hidden: direct nav to profile', profileId, toProcess.href);
       try { localStorage.setItem('lfpSweepActive', '1'); localStorage.setItem('lfpVisited', JSON.stringify(lfpVisited)); localStorage.setItem('lfpStats', JSON.stringify(lfpStats)); localStorage.setItem('lfpPage', localStorage.getItem('tessSearchPage') || '1'); } catch (e) {}
       window.location.href = toProcess.href || '/user/' + profileId;
@@ -405,8 +394,340 @@ document.addEventListener('visibilitychange', function () {
   }
 });
 
+// ============ L+F+P ON MESSAGES CONTACTS LIST ============
+var lfpMsgActive = false;
+var lfpMsgStats = { likes: 0, follows: 0, photoLikes: 0, processed: 0 };
+var lfpMsgVisited = [];
+var lfpMsgSearchUrl = '';
+
+function lfpMsgSleep(ms) {
+  if (!lfpMsgActive) return Promise.resolve();
+  if (document.hidden) return Promise.resolve();
+  return new Promise(function (r) { setTimeout(r, ms); });
+}
+
+function lfpMsgToast(msg, type) {
+  if (typeof showInPageToast === 'function') { showInPageToast(msg, type); return; }
+  var el = document.getElementById('tess-toast-msg');
+  if (!el) {
+    el = document.createElement('div'); el.id = 'tess-toast-msg';
+    el.style.cssText = 'position:fixed;bottom:130px;right:20px;z-index:99999;padding:10px 18px;border-radius:8px;font-family:Orbitron,sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;color:#fff;box-shadow:0 4px 20px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);transition:opacity 0.3s;';
+    document.body.appendChild(el);
+  }
+  el.style.background = type === 'error' ? 'linear-gradient(135deg,#ef4444,#b91c1c)' : type === 'success' ? 'linear-gradient(135deg,#10b981,#059669)' : 'linear-gradient(135deg,#3b82f6,#2563eb)';
+  el.textContent = msg; el.style.opacity = '1';
+  if (window.__ttm) clearTimeout(window.__ttm);
+  window.__ttm = setTimeout(function () { el.style.opacity = '0'; }, 2500);
+}
+
+function lfpMsgCollectContacts() {
+  var items = document.querySelectorAll('.dialogs__scroll-infinite-list [role="listitem"], [class*="dialogs"] [role="listitem"]');
+  if (items.length === 0) items = document.querySelectorAll('div[role="listitem"]');
+  var contacts = [];
+  for (var i = 0; i < items.length; i++) {
+    var avatar = items[i].querySelector('.ui-avatar[id]');
+    var id = avatar ? avatar.getAttribute('id').trim() : '';
+    if (!id || !/^\d{6,15}$/.test(id)) continue;
+    var nameEl = items[i].querySelector('.dialog-item__name');
+    var name = nameEl ? nameEl.textContent.trim() : id;
+    contacts.push({ id: id, name: name });
+  }
+  return contacts;
+}
+
+executeLFPMessages = window.executeLFPMessages = async function () {
+  if (lfpMsgActive) {
+    lfpMsgActive = false;
+    lfpMsgToast('\u23F9 L+F+P Mensajes Detenido', 'info');
+    try { localStorage.removeItem('lfpMsgSweepActive'); localStorage.removeItem('lfpMsgState'); } catch (e) {}
+    var btn = document.getElementById('btnLFPMessages');
+    if (btn) { btn.textContent = '\uD83D\uDCAC L+F+P MENSAJES'; btn.style.opacity = '1'; }
+    return;
+  }
+
+  if (typeof executeLFP === 'function' && window.lfpActive) {
+    lfpMsgToast('\u26A0\uFE0F Deten\u00E9 L+F+P primero', 'error');
+    return;
+  }
+
+  lfpMsgActive = true;
+  lfpMsgVisited = [];
+  lfpMsgStats = { likes: 0, follows: 0, photoLikes: 0, processed: 0 };
+  window.lfpMsgStats = lfpMsgStats;
+
+  var btn = document.getElementById('btnLFPMessages');
+  if (btn) { btn.textContent = '\u23F8 L+F+P MENSAJES'; btn.style.opacity = '0.6'; }
+
+  await lfpLoadBlacklist();
+  lfpMsgSearchUrl = window.location.href;
+
+  var contacts = lfpMsgCollectContacts();
+  if (contacts.length === 0) {
+    console.log('[LFP-MSG] No contacts found via lfpMsgCollectContacts');
+    lfpMsgToast('\u26A0\uFE0F No se encontraron contactos en la lista de mensajes', 'error');
+    lfpMsgActive = false;
+    if (btn) { btn.textContent = '\uD83D\uDCAC L+F+P MENSAJES'; btn.style.opacity = '1'; }
+    return;
+  }
+
+  console.log('[LFP-MSG] Found ' + contacts.length + ' contacts:', contacts.map(function(c){return c.id+'('+c.name+')';}).join(', '));
+  lfpMsgToast('\u26A1 L+F+P Mensajes: ' + contacts.length + ' contactos encontrados', 'success');
+
+  // Find first unvisited, non-blacklisted contact and navigate
+  for (var ci = 0; ci < contacts.length; ci++) {
+    var c = contacts[ci];
+    if (lfpMsgVisited.indexOf(c.id) !== -1) continue;
+    if (lfpIsBlacklisted(c.id)) { lfpMsgVisited.push(c.id); continue; }
+
+    // Save state and navigate
+    try {
+      localStorage.setItem('lfpMsgSweepActive', '1');
+      localStorage.setItem('lfpMsgState', JSON.stringify({
+        visited: lfpMsgVisited,
+        stats: lfpMsgStats,
+        searchUrl: lfpMsgSearchUrl,
+        contacts: contacts,
+        currentIdx: ci
+      }));
+    } catch (e) {}
+
+    lfpMsgToast('\uD83D\uDC64 (' + (ci + 1) + '/' + contacts.length + ') ' + c.name, 'info');
+    console.log('[LFP-MSG] Initial nav to first contact: ' + c.id + ' (' + c.name + ')');
+    window.location.href = '/user/' + c.id;
+    return;
+  }
+
+  // All done
+  lfpMsgActive = false;
+  try { localStorage.removeItem('lfpMsgSweepActive'); localStorage.removeItem('lfpMsgState'); } catch (e) {}
+  if (btn) { btn.textContent = '\uD83D\uDCAC L+F+P MENSAJES'; btn.style.opacity = '1'; }
+  lfpMsgToast('\u2705 L+F+P Mensajes completado: ' + lfpMsgStats.processed + ' contactos', 'success');
+};
+
+// Auto-resume LFP Messages after page reload — handles both profile and messages pages
+(function autoResumeLFPMsgs() {
+  var stateRaw = localStorage.getItem('lfpMsgState');
+  if (!stateRaw || localStorage.getItem('lfpMsgSweepActive') !== '1') { console.log('[LFP-MSG] No saved state to resume'); return; }
+
+  console.log('[LFP-MSG] Auto-resume state found, checking...');
+
+  var stopAt = localStorage.getItem('lfpMsgStopAt');
+  if (stopAt && Date.now() - parseInt(stopAt) < 10000) {
+    console.log('[LFP-MSG] StopAt within 10s, clearing');
+    localStorage.removeItem('lfpMsgSweepActive'); localStorage.removeItem('lfpMsgState'); localStorage.removeItem('lfpMsgStopAt');
+    return;
+  }
+
+  if (typeof executeLFPMessages !== 'function') { console.log('[LFP-MSG] executeLFPMessages not found'); return; }
+
+  var saved;
+  try { saved = JSON.parse(stateRaw); } catch (e) { console.log('[LFP-MSG] Invalid state JSON'); localStorage.removeItem('lfpMsgSweepActive'); localStorage.removeItem('lfpMsgState'); return; }
+  if (!saved || !saved.contacts) { console.log('[LFP-MSG] No contacts in saved state'); localStorage.removeItem('lfpMsgSweepActive'); localStorage.removeItem('lfpMsgState'); return; }
+
+  lfpMsgVisited = saved.visited || [];
+  lfpMsgStats = saved.stats || { likes: 0, follows: 0, photoLikes: 0, processed: 0 };
+  window.lfpMsgStats = lfpMsgStats;
+  lfpMsgSearchUrl = saved.searchUrl || '/inbox';
+  lfpMsgActive = true;
+  console.log('[LFP-MSG] State restored, ' + saved.contacts.length + ' contacts, ' + lfpMsgVisited.length + ' visited. Waiting 2s...');
+
+  setTimeout(async function () {
+    console.log('[LFP-MSG] Timeout fired, url:', location.href);
+    var pid = (window.location.href.match(/\/(\d{6,15})(?:[/?#]|$)/) || [])[1];
+    var isProfileUrl = pid && /^\d{6,15}$/.test(pid);
+
+    // Wait for like/follow buttons to appear (profile may still be loading after SPA nav)
+    var onProfile = false;
+    if (pid && isProfileUrl) {
+      for (var w = 0; w < 60 && lfpMsgActive; w++) {
+        if (document.querySelectorAll(TALK_Y.LIKE_FOLLOW_BTN).length > 0) { onProfile = true; break; }
+        await lfpMsgSleep(500);
+      }
+    }
+
+    console.log('[LFP-MSG] Wait loop done, onProfile=' + onProfile + ', pid=' + pid + ', isProfileUrl=' + isProfileUrl + ', buttons=' + document.querySelectorAll(TALK_Y.LIKE_FOLLOW_BTN).length);
+
+    if (onProfile) {
+      // === ON PROFILE PAGE: process it ===
+      console.log('[LFP-MSG] Processing profile:', pid);
+      await lfpLoadBlacklist();
+
+      if (!lfpMsgActive) { console.log('[LFP-MSG] lfpMsgActive false after loadBlacklist'); localStorage.removeItem('lfpMsgSweepActive'); localStorage.removeItem('lfpMsgState'); return; }
+
+      // Check if already Liked + Followed — skip entirely
+      var alreadyLiked = false;
+      var lb = document.querySelector('button[data-test-id*="on-like"]');
+      if (lb) {
+        var svg = lb.querySelector('svg');
+        if ((svg && svg.id === 'Heart') || lb.getAttribute('data-selected') === 'true') alreadyLiked = true;
+      }
+      var alreadyFollowed = false;
+      var fb = document.querySelector(TALK_Y.FOLLOW_BTN);
+      if (fb) {
+        var ft = (fb.textContent || '').toLowerCase() + (fb.getAttribute('aria-label') || '').toLowerCase();
+        if (/\b(following|siguiendo|unfollow)\b/.test(ft) || fb.querySelector('svg[id*="Check"]')) alreadyFollowed = true;
+      }
+      if (alreadyLiked && alreadyFollowed) {
+        console.log('[LFP-MSG] Already liked + followed, skipping:', pid);
+        lfpMsgStats.processed++;
+        lfpMsgVisited.push(pid);
+        var contacts = saved.contacts;
+        var nextIdx = -1;
+        for (var ci = 0; ci < contacts.length; ci++) {
+          if (lfpMsgVisited.indexOf(contacts[ci].id) !== -1) continue;
+          if (lfpIsBlacklisted(contacts[ci].id)) { lfpMsgVisited.push(contacts[ci].id); continue; }
+          nextIdx = ci;
+          break;
+        }
+        if (nextIdx === -1) {
+          lfpMsgActive = false;
+          try { localStorage.removeItem('lfpMsgSweepActive'); localStorage.removeItem('lfpMsgState'); } catch (e) {}
+          var btn = document.getElementById('btnLFPMessages');
+          if (btn) { btn.textContent = '\uD83D\uDCAC L+F+P MENSAJES'; btn.style.opacity = '1'; }
+          lfpMsgToast('\u2705 L+F+P Mensajes completado: ' + lfpMsgStats.processed + ' contactos', 'success');
+          return;
+        }
+        try {
+          localStorage.setItem('lfpMsgSweepActive', '1');
+          localStorage.setItem('lfpMsgState', JSON.stringify({
+            visited: lfpMsgVisited,
+            stats: lfpMsgStats,
+            searchUrl: lfpMsgSearchUrl,
+            contacts: contacts,
+            currentIdx: nextIdx
+          }));
+        } catch (e) {}
+        lfpMsgToast('\u23ED\uFE0F ' + contacts[nextIdx].name + ' ya ten\u00EDa Like+Follow', 'info');
+        console.log('[LFP-MSG] Skipping to next (already done): ' + contacts[nextIdx].id + ' (' + contacts[nextIdx].name + ')');
+        window.location.href = '/user/' + contacts[nextIdx].id;
+        return;
+      }
+
+      // Like
+      var lb2 = document.querySelector('button[data-test-id*="on-like"]');
+      if (lb2) {
+        var svg2 = lb2.querySelector('svg');
+        if ((svg2 && svg2.id === 'HeartOutline') || lb2.getAttribute('data-selected') === 'false') {
+          try { lb2.scrollIntoView({ block: 'center' }); await lfpMsgSleep(80); lb2.click(); lfpMsgStats.likes++; } catch (e) {}
+          await lfpMsgSleep(120);
+        }
+      }
+
+      // Follow
+      var fb2 = document.querySelector(TALK_Y.FOLLOW_BTN);
+      if (fb2) {
+        var ft2 = (fb2.textContent || '').toLowerCase() + (fb2.getAttribute('aria-label') || '').toLowerCase();
+        if (!/\b(following|siguiendo|unfollow)\b/.test(ft2) && !fb2.querySelector('svg[id*="Check"]')) {
+          try { fb2.scrollIntoView({ block: 'center' }); await lfpMsgSleep(80); fb2.click(); lfpMsgStats.follows++; } catch (e) {}
+          await lfpMsgSleep(120);
+        }
+      }
+
+      // Photos (set lfpActive so lfpDoPhotos works during messages sweep)
+      var hasPhoto = document.querySelector('[data-test-id*="photo-view"]') || document.querySelector('.profile-photo-wrap img');
+      if (hasPhoto && lfpMsgActive && !document.hidden) {
+        try { lfpActive = true; await Promise.race([lfpDoPhotos(), new Promise(function (r) { setTimeout(r, 12000); })]); } catch (e) {} finally { lfpActive = false; }
+      }
+
+      lfpMsgStats.processed++;
+      lfpMsgVisited.push(pid);
+      try { if (typeof registerIdInStarTools === 'function') registerIdInStarTools(pid, 'LFP'); } catch (e) {}
+      try { if (typeof renderStarIds === 'function') renderStarIds(); } catch (e) {}
+      try { if (typeof saveAllStates === 'function') saveAllStates(); } catch (e) {}
+
+      lfpMsgToast('\u2705 ' + pid + ' procesado (' + lfpMsgStats.processed + ' total)', 'success');
+
+      // Find next contact
+      var contacts = saved.contacts;
+      var nextIdx = -1;
+      for (var ci = 0; ci < contacts.length; ci++) {
+        if (lfpMsgVisited.indexOf(contacts[ci].id) !== -1) continue;
+        if (lfpIsBlacklisted(contacts[ci].id)) { lfpMsgVisited.push(contacts[ci].id); continue; }
+        nextIdx = ci;
+        break;
+      }
+
+      if (nextIdx === -1) {
+        lfpMsgActive = false;
+        try { localStorage.removeItem('lfpMsgSweepActive'); localStorage.removeItem('lfpMsgState'); } catch (e) {}
+        var btn = document.getElementById('btnLFPMessages');
+        if (btn) { btn.textContent = '\uD83D\uDCAC L+F+P MENSAJES'; btn.style.opacity = '1'; }
+        lfpMsgToast('\u2705 L+F+P Mensajes completado: ' + lfpMsgStats.processed + ' contactos', 'success');
+        return;
+      }
+
+      try {
+        localStorage.setItem('lfpMsgSweepActive', '1');
+        localStorage.setItem('lfpMsgState', JSON.stringify({
+          visited: lfpMsgVisited,
+          stats: lfpMsgStats,
+          searchUrl: lfpMsgSearchUrl,
+          contacts: contacts,
+          currentIdx: nextIdx
+        }));
+      } catch (e) {}
+
+      lfpMsgToast('\uD83D\uDC64 (' + (nextIdx + 1) + '/' + contacts.length + ') ' + contacts[nextIdx].name, 'info');
+      console.log('[LFP-MSG] Navigating to next contact: ' + contacts[nextIdx].id + ' (' + contacts[nextIdx].name + ')');
+      window.location.href = '/user/' + contacts[nextIdx].id;
+      return;
+    }
+
+    // === ON MESSAGES PAGE (or any non-profile page): find next contact ===
+    console.log('[LFP-MSG] Not on profile page, falling through to messages path');
+    await lfpLoadBlacklist();
+    var contacts = saved.contacts;
+
+    // IMPORTANT: Mark current profile as visited FIRST to avoid re-processing same contact
+    if (pid && lfpMsgVisited.indexOf(pid) === -1) {
+      console.log('[LFP-MSG] Marking pid as visited:', pid);
+      lfpMsgVisited.push(pid);
+    }
+
+    // Now find first truly unvisited contact
+    var nextIdx = -1;
+    for (var ci2 = 0; ci2 < contacts.length; ci2++) {
+      if (lfpMsgVisited.indexOf(contacts[ci2].id) !== -1) continue;
+      if (lfpIsBlacklisted(contacts[ci2].id)) { lfpMsgVisited.push(contacts[ci2].id); continue; }
+      nextIdx = ci2;
+      break;
+    }
+
+    if (nextIdx === -1) {
+      console.log('[LFP-MSG] All contacts processed (' + lfpMsgStats.processed + ' total)');
+      lfpMsgActive = false;
+      try { localStorage.removeItem('lfpMsgSweepActive'); localStorage.removeItem('lfpMsgState'); } catch (e) {}
+      var btn = document.getElementById('btnLFPMessages');
+      if (btn) { btn.textContent = '\uD83D\uDCAC L+F+P MENSAJES'; btn.style.opacity = '1'; }
+      lfpMsgToast('\u2705 L+F+P Mensajes completado: ' + lfpMsgStats.processed + ' contactos', 'success');
+      return;
+    }
+
+    try {
+      localStorage.setItem('lfpMsgSweepActive', '1');
+      localStorage.setItem('lfpMsgState', JSON.stringify({
+        visited: lfpMsgVisited,
+        stats: lfpMsgStats,
+        searchUrl: lfpMsgSearchUrl,
+        contacts: contacts,
+        currentIdx: nextIdx
+      }));
+    } catch (e) {}
+
+    lfpMsgToast('\uD83D\uDC64 (' + (nextIdx + 1) + '/' + contacts.length + ') ' + contacts[nextIdx].name, 'info');
+    console.log('[LFP-MSG] Messages path: navigating to next contact: ' + contacts[nextIdx].id + ' (' + contacts[nextIdx].name + ')');
+    window.location.href = '/user/' + contacts[nextIdx].id;
+  }, 2000);
+})();
+
 // Auto-resume LFP after page reload if state was saved
 (function autoResumeLFP() {
+  var lfpStopAt = localStorage.getItem('lfpStopAt');
+  if (lfpStopAt && Date.now() - parseInt(lfpStopAt) < 10000) {
+    localStorage.removeItem('lfpSweepActive');
+    localStorage.removeItem('lfpStopAt');
+    return;
+  }
   if (localStorage.getItem('lfpSweepActive') === '1' && typeof executeLFP === 'function') {
     console.log('[LFP] Auto-resume detected, starting in 2.5s');
     setTimeout(executeLFP, 2500);

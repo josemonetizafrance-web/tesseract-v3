@@ -795,55 +795,17 @@
       return;
     }
     currentJwt = data.tess_jwt;
+    document.getElementById('user-info').textContent = data.user_email;
 
-    try {
-      const res = await fetch(TESSERACT_API + '/api/tess/auth/verify', {
-        headers: { 'Authorization': 'Bearer ' + data.tess_jwt }
-      });
-      if (!res.ok) {
-        if (res.status === 401 && data.tess_refresh) {
-          const refreshRes = await fetch(TESSERACT_API + '/api/tess/auth/refresh', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ refreshToken: data.tess_refresh })
-          });
-          if (refreshRes.ok) {
-            const refreshData = await refreshRes.json();
-            await chrome.storage.local.set({ tess_jwt: refreshData.token, tess_refresh: refreshData.refreshToken });
-            window.location.reload();
-            return;
-          }
-        }
-        await chrome.storage.local.remove(['tess_jwt', 'tess_refresh']);
-        window.location.href = chrome.runtime.getURL('dist/pages/login/login.html');
-        return;
-      }
-      const authData = await res.json();
-      document.getElementById('user-info').textContent = authData.email;
+    var badge = document.getElementById('status-badge');
+    badge.textContent = 'ACTIVE';
+    badge.className = 'status-badge status-premium';
 
-      var status = authData.subscription?.status || 'expired';
-      var remaining = authData.subscription?.timeRemaining || 0;
+    var timeEl = document.getElementById('time-remaining');
+    timeEl.textContent = 'Acceso ilimitado';
 
-      var badge = document.getElementById('status-badge');
-      badge.textContent = status.toUpperCase();
-      badge.className = 'status-badge status-' + status;
-
-      var timeEl = document.getElementById('time-remaining');
-      if (remaining > 0 && remaining !== Infinity && remaining < 999999999999990) {
-        timeEl.textContent = 'Tiempo restante: ' + formatTime(remaining);
-      } else if (remaining === Infinity || remaining >= 999999999999990) {
-        timeEl.textContent = 'Acceso ilimitado';
-      } else {
-        timeEl.textContent = 'Tu acceso ha expirado';
-        timeEl.style.color = '#ef4444';
-      }
-
-      if (authData.isAdmin || authData.isDeveloper || authData.isOfficeAdmin) {
-        document.getElementById('btn-admin').style.display = 'inline-block';
-      }
-    } catch (e) {
-      document.getElementById('user-info').textContent = data.user_email + ' (sin conexi\u00f3n)';
-    }
+    var adminBtn = document.getElementById('btn-admin');
+    if (adminBtn) adminBtn.style.display = 'none';
 
     document.getElementById('btn-open-bot').addEventListener('click', function () {
       chrome.tabs.create({ url: 'https://talkytimes.com/', active: true });

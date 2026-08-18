@@ -120,6 +120,12 @@ function copyToChatInput(text) {
   const input = findChatInput();
   if (!input) return;
   
+  var maxLen = input.getAttribute('maxlength');
+  if (maxLen) {
+    maxLen = parseInt(maxLen);
+    if (text.length > maxLen) text = text.substring(0, maxLen);
+  }
+  
   if (input.isContentEditable || input.tagName === 'DIV') {
     input.innerHTML = text.replace(/\n/g, '<br>');
   } else {
@@ -164,11 +170,16 @@ function cleanExtractedName(raw) {
 
 function parseAgeFromDate(dateStr) {
   if (!dateStr) return null;
-  // Intentar parsear "January 01, 1973" o "01/01/1973" o "1973"
+  // Intentar parsear "January 01, 1973" o "Sep 29, 1969" o "01/01/1973" o "1973"
   var m = dateStr.match(/(\w+)\s+(\d{1,2}),?\s+(\d{4})/);
   if (m) {
     var months = { january:0, february:1, march:2, april:3, may:4, june:5, july:6, august:7, september:8, october:9, november:10, december:11 };
+    var monthStr = m[1].toLowerCase().substring(0, 3);
     var month = months[m[1].toLowerCase()];
+    if (month === undefined) {
+      var abbr = { jan:0, feb:1, mar:2, apr:3, may:4, jun:5, jul:6, aug:7, sep:8, oct:9, nov:10, dec:11 };
+      month = abbr[monthStr];
+    }
     if (month !== undefined) {
       var year = parseInt(m[3]);
       var currentYear = new Date().getFullYear();

@@ -52,20 +52,17 @@ function spFindSendBtn() {
 
 async function spTranslate(text) {
   try {
-    var token = await new Promise(function (r) { chrome.storage.local.get('tess_jwt', function (d) { r(d.tess_jwt); }); });
-    if (!token) return text;
-    var resp = await fetch(Tesseract.API + '/api/openai/translate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-      body: JSON.stringify({ text: text, targetLang: 'en', targetName: 'English' })
-    });
-    var data = await resp.json();
-    var translatedText = data?.data?.translations?.[0]?.text || data?.translatedText;
-    if (translatedText && translatedText !== text) {
-      console.log('[SP] Translated:', text.substring(0, 40), '→', translatedText.substring(0, 40));
-      return translatedText;
+    var groqData = await Tesseract.callGroq(
+      [{ role: 'system', content: 'Traduce el siguiente texto del español al inglés. Responde SOLO con la traducción, sin explicaciones ni notas.' }, { role: 'user', content: text }],
+      'llama-3.1-8b-instant',
+      300
+    );
+    var translatedText = groqData?.choices?.[0]?.message?.content;
+    if (translatedText && translatedText.trim() && translatedText.trim() !== text) {
+      console.log('[SP] Translated:', text.substring(0, 40), '→', translatedText.trim().substring(0, 40));
+      return translatedText.trim();
     }
-    console.log('[SP] Translate returned same or no translation:', JSON.stringify(data).substring(0, 200));
+    console.log('[SP] Translate returned same or no translation');
   } catch (e) { console.warn('[SP] Translation error:', e.message); }
   return text;
 }

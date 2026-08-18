@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TESSERACT - CRIBS BOOK</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0a0a0f;
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 24px;
+            background: #101018;
+            border-bottom: 1px solid #1f1f2a;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .header h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 16px;
+            color: #8b5cf6;
+            letter-spacing: 2px;
+        }
+        .header h1 span { color: #a78bfa; font-size: 10px; letter-spacing: 1px; }
+        .header-right { display: flex; gap: 10px; align-items: center; }
+        .header-right input {
+            background: #1a1a24;
+            border: 1px solid #2d2d3f;
+            color: #e0e0e0;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            width: 220px;
+            outline: none;
+        }
+        .header-right input:focus { border-color: #8b5cf6; }
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-primary { background: #8b5cf6; color: #fff; }
+        .btn-primary:hover { background: #7c3aed; }
+        .btn-secondary { background: #1f1f2a; color: #e0e0e0; border: 1px solid #2d2d3f; }
+        .btn-secondary:hover { background: #2d2d3f; }
+        .btn-danger { background: #ef4444; color: #fff; }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-sm { padding: 4px 10px; font-size: 11px; }
+        .stats-bar {
+            display: flex;
+            gap: 16px;
+            padding: 12px 24px;
+            background: #101018;
+            border-bottom: 1px solid #1f1f2a;
+            font-size: 12px;
+            color: #8888a0;
+        }
+        .stats-bar strong { color: #c4b5fd; }
+        .content { padding: 20px 24px; }
+        .empty {
+            text-align: center;
+            padding: 80px 20px;
+            color: #555570;
+        }
+        .empty h2 { font-size: 24px; margin-bottom: 12px; color: #333350; }
+        .empty p { font-size: 14px; }
+        .profile-card {
+            background: #101018;
+            border: 1px solid #1f1f2a;
+            border-radius: 10px;
+            margin-bottom: 16px;
+            overflow: hidden;
+            transition: border-color 0.2s;
+        }
+        .profile-card:hover { border-color: #8b5cf6; }
+        .profile-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 18px;
+            background: #151520;
+            cursor: pointer;
+            user-select: none;
+        }
+        .profile-card-header .name {
+            font-size: 15px;
+            font-weight: 600;
+            color: #c4b5fd;
+        }
+        .profile-card-header .badge {
+            font-size: 11px;
+            color: #8888a0;
+        }
+        .profile-card-header .badge span {
+            color: #60a5fa;
+            font-weight: 600;
+        }
+        .profile-card-header .arrow {
+            transition: transform 0.2s;
+            color: #555570;
+        }
+        .profile-card-header .arrow.open { transform: rotate(180deg); }
+        .profile-card-body {
+            padding: 0 18px 18px;
+            display: none;
+        }
+        .profile-card-body.open { display: block; }
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 6px 16px;
+            margin-top: 12px;
+            font-size: 13px;
+        }
+        .info-grid .label { color: #555570; }
+        .info-grid .value { color: #e0e0e0; }
+        .info-row { display: flex; gap: 6px; padding: 2px 0; }
+        .style-section { margin-top: 14px; }
+        .style-section h4 {
+            font-size: 11px;
+            color: #8888a0;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid #1f1f2a;
+        }
+        .style-item {
+            background: rgba(139,92,246,0.06);
+            border-left: 2px solid #8b5cf6;
+            padding: 8px 12px;
+            margin-bottom: 4px;
+            border-radius: 0 4px 4px 0;
+            font-size: 12px;
+            line-height: 1.4;
+            color: #d0d0e0;
+            word-break: break-word;
+        }
+        .style-item.letter {
+            border-left-color: #22c55e;
+            background: rgba(34,197,94,0.05);
+        }
+        .style-count {
+            font-size: 10px;
+            color: #60a5fa;
+            margin-left: 8px;
+        }
+        .card-actions {
+            display: flex;
+            gap: 6px;
+            margin-top: 12px;
+            padding-top: 10px;
+            border-top: 1px solid #1f1f2a;
+        }
+        .delete-btn {
+            margin-left: auto;
+            color: #ef4444;
+            background: none;
+            border: 1px solid #ef4444;
+            padding: 4px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            transition: all 0.2s;
+        }
+        .delete-btn:hover { background: #ef4444; color: #fff; }
+        .tag {
+            display: inline-block;
+            background: rgba(139,92,246,0.15);
+            color: #c4b5fd;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            margin: 1px 2px;
+        }
+        @media (max-width: 600px) {
+            .header { flex-wrap: wrap; gap: 10px; }
+            .header-right input { width: 100%; }
+            .info-grid { grid-template-columns: 1fr; }
+        }
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: #1a1a24;
+            border: 1px solid #2d2d3f;
+            color: #e0e0e0;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 13px;
+            z-index: 999;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+            animation: toast-in 0.3s ease;
+        }
+        @keyframes toast-in { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .export-btn { font-size: 11px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>TESSERACT <span>CRIBS BOOK</span></h1>
+        <div class="header-right">
+            <input type="text" id="searchInput" placeholder="Buscar por nombre o ID...">
+            <button class="btn btn-secondary btn-sm export-btn" id="btnExport">📥 EXPORT</button>
+            <button class="btn btn-secondary btn-sm" id="btnBack">← VOLVER</button>
+        </div>
+    </div>
+    <div class="stats-bar" id="statsBar">
+        Cargando...
+    </div>
+    <div class="content" id="content">
+        <div class="empty">
+            <h2>📋 CRIBS BOOK</h2>
+            <p>Cargando datos locales...</p>
+        </div>
+    </div>
+    <script src="/dist/modules/error-handler.js"></script>
+    <script src="cribs-book.js"></script>
+</body>
+</html>

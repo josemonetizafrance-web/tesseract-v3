@@ -345,6 +345,9 @@ function createMainPanel() {
 <button id="btnLFPToggle" style="flex:1;padding:12px 8px;border:2px solid #8b5cf6;border-radius:8px;background:linear-gradient(135deg,#8b5cf6,#6d28d9);color:#fff;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;transition:all 0.3s;text-shadow:0 0 10px rgba(139,92,246,0.5);">▶ L+F+P</button>
 <button id="btnLFPPause" style="width:44px;padding:12px 4px;border:1px solid #f59e0b;border-radius:8px;background:rgba(245,158,11,0.15);color:#f59e0b;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:16px;transition:all 0.3s;" title="Pausar/Reanudar">⏸</button>
 </div>
+<div style="margin-top:6px;">
+<button id="btnLFPMessages" style="width:100%;padding:10px 8px;border:2px solid #3b82f6;border-radius:8px;background:linear-gradient(135deg,#3b82f6,#1d4ed8);color:#fff;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;transition:all 0.3s;text-shadow:0 0 10px rgba(59,130,246,0.5);">💬 L+F+P MENSAJES</button>
+</div>
 </div>
 <div class="stats-row">
 <div class="stat-mini" style="grid-column:1/-1;"><span class="val" id="vTotal" style="font-size:28px;">0</span>RESULTS</div>
@@ -390,10 +393,20 @@ function createMainPanel() {
 <button id="btnIBVision" style="flex:1;padding:8px 4px;border:1px solid #f59e0b;border-radius:6px;background:rgba(245,158,11,0.2);color:#fff;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:9px;font-weight:700;letter-spacing:1px;">👁 IB VISION</button>
 </div>
 <div style="font-size:9px;color:#888;margin-bottom:4px;text-align:center;" id="ibStatus">Listo</div>
+<div style="font-size:9px;color:#f59e0b;margin-bottom:4px;text-align:center;font-family:'Orbitron',monospace;letter-spacing:2px;display:none;" id="ibVisionTimer">⏱ 04:00:00</div>
 <div style="margin-bottom:4px;font-size:9px;color:#8b5cf6;letter-spacing:1px;">PREVIEW</div>
 <div id="ibPreview" style="display:flex;flex-direction:column;gap:2px;padding:2px;max-height:340px;overflow-y:auto;">
 <div style="color:#666;font-size:10px;text-align:center;padding:8px;">Genera mensajes con el botón 🎲 GENERAR</div>
 </div>
+</div>
+<div id="ibVisionModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:99999;justify-content:center;align-items:center;flex-direction:column;">
+  <div style="background:#1a1a2e;border:2px solid #f59e0b;border-radius:12px;padding:24px;max-width:360px;text-align:center;box-shadow:0 0 40px rgba(245,158,11,0.3);">
+    <div style="font-size:14px;color:#fff;margin-bottom:16px;line-height:1.5;">🔥 Hora de actualizar IB bro. ¿Quieres que active IB Vision?</div>
+    <div style="display:flex;gap:12px;justify-content:center;">
+      <button id="ibVisionModalSi" style="flex:1;padding:10px 20px;border:2px solid #10b981;border-radius:8px;background:rgba(16,185,129,0.2);color:#10b981;cursor:pointer;font-size:12px;font-weight:700;font-family:'Orbitron',sans-serif;">SI</button>
+      <button id="ibVisionModalNo" style="flex:1;padding:10px 20px;border:2px solid #ef4444;border-radius:8px;background:rgba(239,68,68,0.2);color:#ef4444;cursor:pointer;font-size:12px;font-weight:700;font-family:'Orbitron',sans-serif;">NO</button>
+    </div>
+  </div>
 </div>
 </div>
 
@@ -575,7 +588,7 @@ function setupAllEvents() {
       if (currentTab === 'star') renderStarIds();
       if (currentTab === 'aa') updateAATabUI();
       if (currentTab === 'mailing') updateMLTabUI();
-      if (currentTab === 'blacklist') renderBlacklistTab();
+      if (currentTab === 'blacklist') { /* blacklist removed */ }
     });
   });
 
@@ -605,6 +618,7 @@ function setupAllEvents() {
   // Botones de barrido
   document.getElementById('btnLFPToggle').addEventListener('click', function() { if (typeof executeLFP === 'function') executeLFP(); });
   document.getElementById('btnLFPPause').addEventListener('click', function() { if (typeof lfpTogglePause === 'function') lfpTogglePause(); });
+  document.getElementById('btnLFPMessages').addEventListener('click', function() { if (typeof executeLFPMessages === 'function') executeLFPMessages(); });
   
   // Eater
   document.getElementById('btnEaterToggle').addEventListener('click', function() { if (typeof toggleEater === 'function') toggleEater(); });
@@ -793,27 +807,6 @@ function setupAllEvents() {
     }
   });
   
-  // Blacklist
-  document.getElementById('btnBlAdd').addEventListener('click', async () => {
-    const input = document.getElementById('blInput');
-    const id = input.value.trim();
-    if (!id) return;
-    if (typeof loadBlacklist === 'function' && blacklist.length === 0) await loadBlacklist();
-    if (!blacklist.includes(id)) {
-      blacklist.push(id);
-      saveBlacklist();
-      renderBlacklistTab();
-      input.value = '';
-      if (typeof showToast === 'function') showToast('Contacto ' + id + ' bloqueado', 'success', 2000);
-    } else {
-      alert('⚠️ Este contacto ya está en blacklist');
-    }
-  });
-  document.getElementById('blInput').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') document.getElementById('btnBlAdd').click();
-  });
-  renderBlacklistTab();
-
   // Eater suggestions
   // ===== EATER textarea: seleccionar texto lo copia al chat =====
   document.getElementById('eaterResponseArea').addEventListener('mouseup', function() {
@@ -1040,48 +1033,15 @@ function startPeriodicSync() {
                         (collectedIds.LFP?.length || 0) +
                         (collectedIds.Cartas?.length || 0);
 
+    // Guardar stats localmente (sin servidor)
     try {
-      const [token, userOffice] = await Promise.all([
-        new Promise(r => chrome.storage.local.get('tess_jwt', d => r(d.tess_jwt))),
-        new Promise(r => chrome.storage.local.get('user_office', d => r(d.user_office)))
-      ]);
-      if (token) {
-        const res = await fetch(`${TESSERACT_API}/api/tess/metrics/sync`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({
-            stats: botStats,
-            collectedIds: collectedIds,
-            action: 'PERIODIC_SYNC',
-            count: totalSweeps,
-            office: userOffice || null
-          })
-        });
-        if (res.status === 401) {
-          console.warn('[TESS] Token expirado en periodic sync');
-          var refreshed = await tryRefreshToken();
-          if (!refreshed) chrome.storage.local.remove(['tess_jwt', 'tess_refresh']);
-        } else if (!res.ok) {
-          console.warn('[TESS] Periodic sync error:', res.status);
-        }
-      }
-    } catch (e) {
-      console.warn('[TESS] Periodic sync error (offline?):', e.message);
-    }
+      chrome.storage.local.set({ tess_stats: botStats, tess_ids: collectedIds, tess_lastSync: Date.now() }).catch(function () {});
+    } catch (e) {}
 
-    // Heartbeat al servidor para tracking online/offline
+    // Heartbeat local
     try {
-      chrome.storage.local.get('tess_jwt', function (data) {
-        if (data.tess_jwt) {
-          fetch(`${TESSERACT_API}/api/tess/admin/heartbeat`, {
-            method: 'POST',
-            headers: { 'Authorization': 'Bearer ' + data.tess_jwt }
-          }).catch(function () {});
-        }
-      });
-    } catch (e) {
-      if (e.message.includes('Extension context invalidated')) return;
-    }
+      chrome.storage.local.set({ tess_heartbeat: Date.now() }).catch(function () {});
+    } catch (e) {}
 
     // También guardar local como respaldo
     try {

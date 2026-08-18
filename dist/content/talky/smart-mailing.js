@@ -19,28 +19,12 @@ async function loadMLBlacklist(retries) {
   if (retries === undefined) retries = 2;
   if (mlBlacklistLoadPromise) return mlBlacklistLoadPromise;
   mlBlacklistLoadPromise = (async () => {
-    for (let attempt = 0; attempt <= retries; attempt++) {
-      try {
-        const stored = await chrome.storage.local.get(['tess_jwt']);
-        if (!stored.tess_jwt) { mlBlacklistLoadPromise = null; return; }
-        const ac = new AbortController();
-        const timeoutId = setTimeout(function() { ac.abort(); }, 5000);
-        const res = await fetch(`${TESSERACT_API}/api/tess/blacklist`, {
-          headers: { 'Authorization': 'Bearer ' + stored.tess_jwt },
-          signal: ac.signal
-        });
-        clearTimeout(timeoutId);
-        if (!res.ok && attempt < retries) { await sleep(1000); continue; }
-        if (res.ok) {
-          const data = await res.json();
-          mlBlacklist = (data.blacklist || []).map(String);
-          mlBlacklistLoaded = true;
-        }
-        break;
-      } catch (e) {
-        if (attempt >= retries) break;
-        await sleep(1000);
-      }
+    try {
+      const stored = await chrome.storage.local.get(['tess_blacklist']);
+      mlBlacklist = (stored.tess_blacklist || []).map(String);
+      mlBlacklistLoaded = true;
+    } catch (e) {
+      console.log('[ML] Error loading blacklist from local:', e.message);
     }
     mlBlacklistLoadPromise = null;
   })();
@@ -837,9 +821,13 @@ window._executeMailingRound = executeMailingRound;
 window._abortMailingRound = abortMailingRound;
 window._isInMLBlacklist = isInMLBlacklist;
 window._reloadMLBlacklist = reloadMLBlacklist;
+function _persistMLBlacklist() {
+  chrome.storage.local.set({ tess_blacklist: mlBlacklist }).catch(function () {});
+}
 window._addToMLBlacklist = function(id) {
   if (id && !mlBlacklist.includes(String(id))) {
     mlBlacklist.push(String(id));
+    _persistMLBlacklist();
     console.log('[ML] Added to blacklist:', id, 'total:', mlBlacklist.length);
   }
 };
@@ -849,6 +837,7 @@ window._removeFromMLBlacklist = function(id) {
   const idx = mlBlacklist.indexOf(s);
   if (idx !== -1) {
     mlBlacklist.splice(idx, 1);
+    _persistMLBlacklist();
     console.log('[ML] Removed from blacklist:', id);
   }
 };

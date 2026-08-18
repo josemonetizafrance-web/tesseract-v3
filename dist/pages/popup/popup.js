@@ -21,49 +21,48 @@
     });
   }
 
-  chrome.storage.local.get(['tess_jwt', 'user_email'], function (data) {
+  chrome.storage.local.get(['tess_jwt', 'user_email', 'groq_api_key'], function (data) {
+    var groqInput = document.getElementById('groq-key-input');
+    if (groqInput && data.groq_api_key) {
+      groqInput.value = data.groq_api_key;
+      document.getElementById('groq-status').textContent = '✓';
+    }
+    document.getElementById('btn-save-groq').addEventListener('click', function () {
+      var val = groqInput ? groqInput.value.trim() : '';
+      chrome.storage.local.set({ groq_api_key: val }, function () {
+        document.getElementById('groq-status').textContent = val ? '✓ Guardada' : '✗ Vacía';
+        setTimeout(function () { document.getElementById('groq-status').textContent = ''; }, 2000);
+      });
+    });
     var section = document.getElementById('auth-section');
     if (!section) return;
     if (!data.tess_jwt || !data.user_email) return renderLoggedOut(section);
     
     storedToken = data.tess_jwt;
+    var html =
+      '<div class="status-bar"><span>Estado:</span><span class="status-badge status-premium">ACTIVE</span></div>' +
+      '<div class="email-display">' + data.user_email + '</div>' +
+      '<div class="time-remaining">Acceso ilimitado</div>' +
+      '<button class="btn btn-primary" id="btn-dashboard">ABRIR DASHBOARD</button>' +
+      '<button class="btn btn-secondary" id="btn-cribs-book">📋 CRIBS BOOK</button>' +
+      '<button class="btn btn-danger" id="btn-logout">CERRAR SESI\u00d3N</button>';
+    section.innerHTML = html;
 
-    fetch(TESSERACT_API + '/api/tess/auth/verify', {
-      headers: { 'Authorization': 'Bearer ' + data.tess_jwt }
-    }).then(function (r) {
-      if (!r.ok) throw new Error('Unauthorized');
-      return r.json();
-    }).then(function (a) {
-      var s = a.subscription || {};
-      var cls = 'status-' + s.status;
-      var html =
-        '<div class="status-bar"><span>Estado:</span><span class="status-badge ' + cls + '">' + (s.status || '').toUpperCase() + '</span></div>' +
-        '<div class="email-display">' + a.email + '</div>' +
-        (s.timeRemaining > 0 && s.timeRemaining !== Infinity
-          ? '<div class="time-remaining">Tiempo restante: ' + formatTime(s.timeRemaining) + '</div>'
-          : s.timeRemaining === Infinity
-            ? '<div class="time-remaining">Acceso ilimitado</div>'
-            : '<div class="time-remaining" style="color:#ef4444;">Expirado</div>') +
-        '<button class="btn btn-primary" id="btn-dashboard">ABRIR DASHBOARD</button>' +
-        (a.isAdmin || a.isDeveloper ? '<button class="btn btn-secondary" id="btn-admin">ADMIN PANEL</button>' : '') +
-        '<button class="btn btn-danger" id="btn-logout">CERRAR SESI\u00d3N</button>';
-      section.innerHTML = html;
-
-      document.getElementById('btn-dashboard').addEventListener('click', function () {
-        window.open(chrome.runtime.getURL('dist/pages/dashboard/dashboard.html'), '_blank');
-      });
-      var adminBtn = document.getElementById('btn-admin');
-      if (adminBtn) adminBtn.addEventListener('click', function () {
-        var url = chrome.runtime.getURL('dist/pages/admin/admin.html');
-        if (storedToken) url += '?token=' + encodeURIComponent(storedToken);
-        window.open(url, '_blank');
-      });
-      document.getElementById('btn-logout').addEventListener('click', function () {
-        chrome.storage.local.clear();
-        window.close();
-      });
-    }).catch(function () {
-      renderLoggedOut(section);
+    document.getElementById('btn-dashboard').addEventListener('click', function () {
+      window.open(chrome.runtime.getURL('dist/pages/dashboard/dashboard.html'), '_blank');
+    });
+    var adminBtn = document.getElementById('btn-admin');
+    if (adminBtn) adminBtn.addEventListener('click', function () {
+      var url = chrome.runtime.getURL('dist/pages/admin/admin.html');
+      if (storedToken) url += '?token=' + encodeURIComponent(storedToken);
+      window.open(url, '_blank');
+    });
+    document.getElementById('btn-cribs-book').addEventListener('click', function () {
+      window.open(chrome.runtime.getURL('dist/pages/cribs-book/cribs-book.html'), '_blank');
+    });
+    document.getElementById('btn-logout').addEventListener('click', function () {
+      chrome.storage.local.clear();
+      window.close();
     });
   });
 })();

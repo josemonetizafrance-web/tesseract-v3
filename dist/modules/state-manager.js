@@ -205,6 +205,38 @@ var Tesseract = (function () {
     });
   }
 
+  function callGroq(messages, model, maxTokens) {
+    return new Promise(function (resolve, reject) {
+      chrome.runtime.sendMessage({ action: 'GROQ_REQUEST', messages: messages, model: model, maxTokens: maxTokens || 500 }, function (response) {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+        if (response && response.error) {
+          reject(new Error(response.error));
+          return;
+        }
+        resolve(response && response.data);
+      });
+    });
+  }
+
+  function callAI(messages, maxTokens) {
+    return new Promise(function (resolve, reject) {
+      chrome.runtime.sendMessage({ action: 'AI_REQUEST', messages: messages, maxTokens: maxTokens || 500 }, function (response) {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+        if (response && response.error) {
+          reject(new Error(response.error));
+          return;
+        }
+        resolve(response && response.data);
+      });
+    });
+  }
+
   return {
     API: API,
     get: get,
@@ -221,7 +253,9 @@ var Tesseract = (function () {
     blacklistRemove: blacklistRemove,
     isBlacklisted: isBlacklisted,
     queueSync: queueSync,
-    flushSyncQueue: flushSyncQueue
+    flushSyncQueue: flushSyncQueue,
+    callGroq: callGroq,
+    callAI: callAI
   };
 })();
 

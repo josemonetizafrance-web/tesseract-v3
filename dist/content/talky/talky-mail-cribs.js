@@ -337,9 +337,6 @@ async function generateMailResponse(msgText, observer, profileId, senderName) {
     return;
   }
 
-  const token = await new Promise(function (r) { chrome.storage.local.get('tess_jwt', function (d) { r(d.tess_jwt); }); });
-  if (!token) { showTessToast('⚠ No hay sesión activa', 'warning'); return; }
-
   const profileInfo = [
     entry.profile_name ? 'Nombre: ' + entry.profile_name : '',
     entry.country ? 'País: ' + entry.country : '',
@@ -366,18 +363,13 @@ async function generateMailResponse(msgText, observer, profileId, senderName) {
     + '\n\nGenera una respuesta personal a esta carta usando el estilo del operador.';
 
   try {
-    const res = await fetch(TESSERACT_API + '/api/chatgpt/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-      body: JSON.stringify({
-        messages: [{ role: 'system', content: systemMsg }, { role: 'user', content: userMsg }],
-        max_tokens: 2000,
-        temperature: 0.7
-      })
-    });
-    if (!res.ok) { showTessToast('⚠ Error de API (' + res.status + ')', 'error'); return; }
-    const data = await res.json();
-    const response = data.choices?.[0]?.message?.content;
+    const groqData = await Tesseract.callGroq(
+      [{ role: 'system', content: systemMsg }, { role: 'user', content: userMsg }],
+      'llama-3.1-8b-instant',
+      2000
+    );
+    if (!groqData) { showTessToast('⚠ Error de API Groq', 'error'); return; }
+    const response = groqData.choices?.[0]?.message?.content;
     if (!response) { showTessToast('⚠ No se pudo generar respuesta', 'warning'); return; }
 
     // Inject into compose area
@@ -457,79 +449,54 @@ async function sendLetterStyleToCribs(profileId, text, profileName) {
   lines.push(textTrimmed);
   if (lines.length > 50) lines = lines.slice(-50);
   const newStyle = lines.join('\n');
-  const headers = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _tessJwtCache };
   try {
     console.log('[MAIL-CRIBS] Saving letter_style to', entry._id, '(' + text.trim().length + ' chars)');
-    const res = await fetch(TESSERACT_API + '/api/tess/cribs/' + entry._id + '/bulk', {
-      method: 'PUT',
-      headers: headers,
-      body: JSON.stringify({ letter_style: newStyle })
+    entry.letter_style = newStyle;
+    chrome.storage.local.get('tess_cribs', function (st) {
+      var all = st.tess_cribs || [];
+      for (var ci = 0; ci < all.length; ci++) {
+        if (all[ci]._id === entry._id || all[ci].profile_id === entry.profile_id) {
+          all[ci].letter_style = newStyle;
+          break;
+        }
+      }
+      chrome.storage.local.set({ tess_cribs: all });
     });
-    if (res.ok) {
-      // Update local cache for overlay
-      entry.letter_style = newStyle;
-      if (typeof cribFindEntry === 'function' && typeof cribLoadOrRefresh === 'function') {
-        await cribLoadOrRefresh(true);
+    if (typeof cribsOverlayData !== 'undefined' && cribsOverlayData) {
+      if (cribsOverlayData._id === entry._id || cribsOverlayData.profile_id === entry.profile_id) {
+        cribsOverlayData.letter_style = newStyle;
+      } else {
+        cribsOverlayData = entry;
       }
-      if (typeof cribsOverlayData !== 'undefined' && cribsOverlayData) {
-        if (cribsOverlayData._id === entry._id) cribsOverlayData.letter_style = newStyle;
-        else cribsOverlayData = entry;
-        if (typeof renderCribsOverlay === 'function') renderCribsOverlay(cribsOverlayData);
-      }
-      console.log('[MAIL-CRIBS] Letter style saved for', profileId, '(' + lines.length + '/50)');
-      showTessToast('📬 Estilo de carta capturado', 'success');
-    } else {
-      var errText = await res.text().catch(function () { return 'Unknown error'; });
-      console.log('[MAIL-CRIBS] Bulk PUT error:', res.status, errText);
-      showTessToast('⚠ Error al guardar estilo (' + res.status + ')', 'error');
+      if (typeof renderCribsOverlay === 'function') renderCribsOverlay(cribsOverlayData);
     }
+    console.log('[MAIL-CRIBS] Letter style saved for', profileId, '(' + lines.length + '/50)');
+    showTessToast('📬 Estilo de carta capturado', 'success');
   } catch (e) {
     console.log('[MAIL-CRIBS] Error saving letter style:', e.message);
-    showTessToast('⚠ Error de conexión al guardar', 'error');
+    showTessToast('⚠ Error al guardar estilo', 'error');
   }
 }
 
 async function fetchCribEntryFromApi(profileId) {
   var rawTarget = String(profileId).replace(/^0+/, '');
   console.log('[MAIL-CRIBS] fetchCribEntryFromApi for', rawTarget);
-  var retried = false;
-  function doFetch(token) {
-    return fetch(TESSERACT_API + '/api/tess/cribs', {
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token }
-    }).then(function (r) {
-      if (r.status === 401 && !retried) {
-        retried = true;
-        return new Promise(function (resolve) {
-          chrome.storage.local.get('tess_jwt', function (d) { _tessJwtCache = d.tess_jwt || ''; resolve(doFetch(_tessJwtCache)); });
-        });
-      }
-      return r.json();
-    }).then(function (resp) {
-      console.log('[MAIL-CRIBS] Cribs API response keys:', resp ? Object.keys(resp).join(',') : 'null');
-      if (resp && resp.cribs && Array.isArray(resp.cribs)) {
-        console.log('[MAIL-CRIBS] Total cribs:', resp.cribs.length);
-        var debugIds = resp.cribs.map(function (c) { return JSON.stringify({_id:c._id, pid:c.profile_id, type:typeof c.profile_id, name:c.profile_name}); });
-        console.log('[MAIL-CRIBS] Cribs in API:', JSON.stringify(debugIds));
-        for (var i = 0; i < resp.cribs.length; i++) {
-          var storedId = String(resp.cribs[i].profile_id).replace(/^0+/, '');
-          if (storedId === rawTarget) {
-            console.log('[MAIL-CRIBS] Found matching entry:', resp.cribs[i]._id);
-            return resp.cribs[i];
-          }
+  return new Promise(function (resolve) {
+    chrome.storage.local.get('tess_cribs', function (data) {
+      var cribs = data.tess_cribs || [];
+      _cribsLocalCache = cribs;
+      for (var i = 0; i < cribs.length; i++) {
+        var storedId = String(cribs[i].profile_id).replace(/^0+/, '');
+        if (storedId === rawTarget) {
+          console.log('[MAIL-CRIBS] Found matching entry from local:', cribs[i]._id || cribs[i].profile_id);
+          resolve(cribs[i]);
+          return;
         }
-        console.log('[MAIL-CRIBS] Profile', rawTarget, 'not found in cribs list');
-      } else {
-        console.log('[MAIL-CRIBS] Invalid API response - no cribs array');
       }
-      return null;
+      console.log('[MAIL-CRIBS] Profile', rawTarget, 'not found in local cribs');
+      resolve(null);
     });
-  }
-  try {
-    return await doFetch(_tessJwtCache);
-  } catch (e) {
-    console.log('[MAIL-CRIBS] Error fetching cribs:', e.message);
-    return null;
-  }
+  });
 }
 
 // ============ PROFILE ID EXTRACTION ============

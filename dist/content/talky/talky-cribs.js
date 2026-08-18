@@ -1,78 +1,69 @@
 // TESSERACT v24.0 - CRIBS Profile Scraper + Overlay (extraído de talky-bot-panel.js)
 
-function cribScrapeViaRouter(profileId, entryId, jwt) {
-  console.log('[CRIBS] Obteniendo datos via API /platform/connections/profiles');
-  window.fetch('https://talkytimes.com/platform/connections/profiles', {
-    method: 'POST',
-    headers: { 'accept': 'application/json', 'content-type': 'application/json', 'x-requested-with': '2424' },
-    credentials: 'include',
-    body: JSON.stringify({ ids: [Number(profileId)], withoutTranslation: false })
-  }).then(function (r) { return r.json(); }).then(function (data) {
-    console.log('[CRIBS] API response:', JSON.stringify(data).slice(0, 3000));
-    var profile = null;
-    if (data.data && data.data.profiles && Array.isArray(data.data.profiles)) profile = data.data.profiles[0];
-    else if (Array.isArray(data)) profile = data[0];
-    else if (data.profiles && Array.isArray(data.profiles)) profile = data.profiles[0];
-    else profile = data;
-    if (!profile) { console.log('[CRIBS] No se encontró perfil en respuesta'); return; }
-    var name = profile.name || profile.displayName || profile.username || profile.fullName || profile.nickname || profile.firstName || '';
-    if (name && profile.lastName) name = name + ' ' + profile.lastName;
-    var personal = profile.personal || profile.profile || {};
-    var country = profile.country || profile.location || profile.country_name || profile.countryName || '';
-    if (!country && personal.country) country = personal.country;
-    var age = profile.age || personal.age || null;
-    if (!age && personal.birthDate) { var bd = new Date(personal.birthDate); if (!isNaN(bd)) age = new Date().getFullYear() - bd.getFullYear(); }
-    if (!age && personal.birthday) { var bd2 = new Date(personal.birthday); if (!isNaN(bd2)) age = new Date().getFullYear() - bd2.getFullYear(); }
-    var interests = '', bio = '';
-    var interestsSource = profile.interests || personal.interests || profile.hobbies || personal.hobbies || profile.tags || personal.tags;
-    if (interestsSource) interests = Array.isArray(interestsSource) ? interestsSource.join(', ') : String(interestsSource);
-    if (!interests && profile.preferences) {
-      if (profile.preferences.pref_personality_type) interests = profile.preferences.pref_personality_type;
-    }
-    bio = personal.about_me || personal.bio || personal.description || personal.about || '';
-    if (!interests && bio) {
-      var kw = { viajes: ['viaje','viajar','travel','playa'], mÃºsica: ['mÃºsica','music','bailar','cantar'], deportes: ['deporte','gym','gimnasio','fÃºtbol'], lectura: ['libro','leer','lectura'], cine: ['pelÃ­cula','cine','movie','series'], cocina: ['cocina','cocinar','food','comida'] };
-      var t = bio.toLowerCase();
-      var found = []; for (var k in kw) { if (kw[k].some(function (w) { return t.includes(w); })) found.push(k); }
-      if (found.length) interests = found.join(', ');
-    }
-    var arrToStr = function (a) { return Array.isArray(a) ? a.join(', ') : String(a || ''); };
-    var city = personal.city || '';
-    var work = personal.field_of_work || '';
-    var marital_status = personal.marital_status || '';
-    var traits = arrToStr(personal.traits);
-    var movie_genres = arrToStr(personal.movie_genres);
-    var music_genres = arrToStr(personal.music_genres);
-    var goal = arrToStr(personal.goal);
-    var languages = arrToStr(personal.other_languages);
-    var education = personal.education || '';
-    var looking_for = personal.looking_for || '';
-    var body_type = personal.body_type || '';
-    var extra = { city: city, work: work, marital_status: marital_status, traits: traits, movie_genres: movie_genres, music_genres: music_genres, goal: goal, languages: languages, education: education, looking_for: looking_for, body_type: body_type };
-    console.log('[CRIBS] Datos extraÃ­dos:', JSON.stringify({ name: name, country: country, age: age, interests: interests, bio: bio, ...extra }));
-    if (name) {
-      var headers = { 'Content-Type': 'application/json' };
-      if (jwt) headers['Authorization'] = 'Bearer ' + jwt;
-      var body = { profile_name: name };
-      if (country) body.country = country;
-      if (age) body.age = age;
-      if (interests) body.interests = interests;
-      Object.keys(extra).forEach(function (k) { if (extra[k]) body[k] = extra[k]; });
-      fetch(TESSERACT_API + '/api/tess/cribs/' + entryId + '/bulk', { method: 'PUT', headers: headers, body: JSON.stringify(body) }).then(function (r) {
-        if (!r.ok) { console.log('[CRIBS] Bulk PUT error status:', r.status); return r.text().then(function (t) { console.log('[CRIBS] Bulk PUT response:', t); }); }
-        console.log('[CRIBS] Bulk PUT exitoso');
-        try { chrome.runtime.sendMessage({action: 'CRIBS_REFRESH'}); } catch (e) { console.log('[CRIBS] sendMessage error:', e.message); }
-        try {
-          var rawScrapedId = String(profileId).replace(/^0+/, '');
-          if (window._lastCribsPid === rawScrapedId) { fetchCribsForProfile(rawScrapedId); }
-        } catch (e) { console.log('[CRIBS] overlay refresh error:', e.message); }
-      }).catch(function (e) { console.log('[CRIBS] Bulk PUT network error:', e.message); });
-      console.log('[CRIBS] Perfil actualizado:', name, country, age, interests, JSON.stringify(extra));
-    } else {
-      console.log('[CRIBS] No se encontrÃ³ nombre, respuesta completa:', JSON.stringify(profile).slice(0, 300));
-    }
-  }).catch(function (e) {
-    console.log('[CRIBS] Error en fetch API:', e.message);
+function _cribsSaveToLocal(cribs) {
+  chrome.storage.local.set({ tess_cribs: cribs });
+  _cribsLocalCache = cribs;
+  _cribsCacheLastFetch = Date.now();
+}
+
+function _cribsLoadFromLocal(callback) {
+  chrome.storage.local.get('tess_cribs', function (data) {
+    var cribs = data.tess_cribs || [];
+    _cribsLocalCache = cribs;
+    _cribsCacheLastFetch = Date.now();
+    if (callback) callback(cribs);
+  });
+}
+
+function cribScrapeViaAPI(profileId) {
+  return new Promise(function (resolve) {
+    console.log('[CRIBS] Obteniendo datos via API /platform/connections/profiles');
+    window.fetch('https://talkytimes.com/platform/connections/profiles', {
+      method: 'POST',
+      headers: { 'accept': 'application/json', 'content-type': 'application/json', 'x-requested-with': '2424' },
+      credentials: 'include',
+      body: JSON.stringify({ ids: [Number(profileId)], withoutTranslation: false })
+    }).then(function (r) { return r.json(); }).then(function (data) {
+      var profile = null;
+      if (data.data && data.data.profiles && Array.isArray(data.data.profiles)) profile = data.data.profiles[0];
+      else if (Array.isArray(data)) profile = data[0];
+      else if (data.profiles && Array.isArray(data.profiles)) profile = data.profiles[0];
+      else profile = data;
+      if (!profile) { resolve(null); return; }
+      var name = profile.name || profile.displayName || profile.username || profile.fullName || profile.nickname || profile.firstName || '';
+      if (name && profile.lastName) name = name + ' ' + profile.lastName;
+      var personal = profile.personal || profile.profile || {};
+      var country = profile.country || profile.location || profile.country_name || profile.countryName || '';
+      if (!country && personal.country) country = personal.country;
+      var age = profile.age || personal.age || null;
+      if (!age && personal.birthDate) { var bd = new Date(personal.birthDate); if (!isNaN(bd)) age = new Date().getFullYear() - bd.getFullYear(); }
+      if (!age && personal.birthday) { var bd2 = new Date(personal.birthday); if (!isNaN(bd2)) age = new Date().getFullYear() - bd2.getFullYear(); }
+      var interests = '', bio = '';
+      var interestsSource = profile.interests || personal.interests || profile.hobbies || personal.hobbies || profile.tags || personal.tags;
+      if (interestsSource) interests = Array.isArray(interestsSource) ? interestsSource.join(', ') : String(interestsSource);
+      bio = personal.about_me || personal.bio || personal.description || personal.about || '';
+      var arrToStr = function (a) { return Array.isArray(a) ? a.join(', ') : String(a || ''); };
+      var scraped = { profile_name: name };
+      if (country) scraped.country = country;
+      if (age) scraped.age = age;
+      if (interests) scraped.interests = interests;
+      if (bio) scraped.bio = bio;
+      if (personal.city) scraped.city = personal.city;
+      if (personal.field_of_work) scraped.work = personal.field_of_work;
+      if (personal.marital_status) scraped.marital_status = personal.marital_status;
+      if (personal.traits) scraped.traits = arrToStr(personal.traits);
+      if (personal.movie_genres) scraped.movie_genres = arrToStr(personal.movie_genres);
+      if (personal.music_genres) scraped.music_genres = arrToStr(personal.music_genres);
+      if (personal.goal) scraped.goal = arrToStr(personal.goal);
+      if (personal.other_languages) scraped.languages = arrToStr(personal.other_languages);
+      if (personal.education) scraped.education = personal.education;
+      if (personal.looking_for) scraped.looking_for = personal.looking_for;
+      if (personal.body_type) scraped.body_type = personal.body_type;
+      resolve(scraped);
+    }).catch(function (e) {
+      console.log('[CRIBS] Error en fetch API:', e.message);
+      resolve(null);
+    });
   });
 }
 
@@ -90,11 +81,26 @@ chrome.runtime.onMessage.addListener((req, sender, res) => {
     res && res({ success: true });
   }
   if (req.action === 'SCRAPE_PROFILE') {
-    const profileId = req.profileId, entryId = req.entryId, jwt = req.jwt;
-    console.log('[CRIBS] SCRAPE_PROFILE recibido:', profileId, 'entryId:', entryId);
+    const profileId = req.profileId;
+    console.log('[CRIBS] SCRAPE_PROFILE recibido:', profileId);
     if (!profileId) { res({ error: 'profileId required' }); return; }
-    _tessJwtCache = jwt || '';
-    cribScrapeViaRouter(profileId, entryId, jwt);
+    cribScrapeViaAPI(profileId).then(function (data) {
+      if (data) {
+        _cribsLoadFromLocal(function (cribs) {
+          var entryId = String(profileId).replace(/^0+/, '');
+          var found = false;
+          for (var i = 0; i < cribs.length; i++) {
+            if (String(cribs[i].profile_id).replace(/^0+/, '') === entryId) {
+              Object.assign(cribs[i], data);
+              found = true; break;
+            }
+          }
+          if (!found) cribs.push({ profile_id: entryId, _id: entryId, ...data });
+          _cribsSaveToLocal(cribs);
+          if (window._lastCribsPid === entryId) fetchCribsForProfile(entryId);
+        });
+      }
+    });
     res({ success: true });
     return true;
   }
@@ -105,9 +111,23 @@ chrome.storage.onChanged.addListener(function (changes, namespace) {
   if (namespace !== 'local') return;
   if (changes._tess_pending_scrape && changes._tess_pending_scrape.newValue) {
     var scrape = changes._tess_pending_scrape.newValue;
-    console.log('[CRIBS-STORAGE] Pending scrape detected:', scrape.profileId, 'entryId:', scrape.entryId);
+    console.log('[CRIBS-STORAGE] Pending scrape detected:', scrape.profileId);
     chrome.storage.local.remove('_tess_pending_scrape');
-    cribScrapeViaRouter(scrape.profileId, scrape.entryId, scrape.jwt);
+    cribScrapeViaAPI(scrape.profileId).then(function (data) {
+      if (data && scrape.profileId) {
+        _cribsLoadFromLocal(function (cribs) {
+          var eid = String(scrape.profileId).replace(/^0+/, '');
+          var found = false;
+          for (var i = 0; i < cribs.length; i++) {
+            if (String(cribs[i].profile_id).replace(/^0+/, '') === eid) {
+              Object.assign(cribs[i], data); found = true; break;
+            }
+          }
+          if (!found) cribs.push({ profile_id: eid, _id: eid, ...data });
+          _cribsSaveToLocal(cribs);
+        });
+      }
+    });
   }
 });
 
@@ -118,7 +138,21 @@ chrome.storage.onChanged.addListener(function (changes, namespace) {
       if (Date.now() - scrape.timestamp < 30000) {
         console.log('[CRIBS-STORAGE] Pending scrape al iniciar:', scrape.profileId);
         chrome.storage.local.remove('_tess_pending_scrape');
-        cribScrapeViaRouter(scrape.profileId, scrape.entryId, scrape.jwt);
+        cribScrapeViaAPI(scrape.profileId).then(function (data) {
+          if (data && scrape.profileId) {
+            _cribsLoadFromLocal(function (cribs) {
+              var eid = String(scrape.profileId).replace(/^0+/, '');
+              var found = false;
+              for (var i = 0; i < cribs.length; i++) {
+                if (String(cribs[i].profile_id).replace(/^0+/, '') === eid) {
+                  Object.assign(cribs[i], data); found = true; break;
+                }
+              }
+              if (!found) cribs.push({ profile_id: eid, _id: eid, ...data });
+              _cribsSaveToLocal(cribs);
+            });
+          }
+        });
       } else {
         chrome.storage.local.remove('_tess_pending_scrape');
       }
@@ -360,7 +394,113 @@ function scrapeProfileFromDOM() {
   }
 
   console.log('[CRIBS-DOM] Campos extraÃ­dos del DOM:', Object.keys(r).length, 'campos:', JSON.stringify(r));
+
+  // Fallback: try sidebar accordion if standard profile page selectors didn't find a name
+  if (!r.profile_name) {
+    var sidebarData = scrapeProfileFromSidebar();
+    if (sidebarData) {
+      Object.assign(r, sidebarData);
+      console.log('[CRIBS-DOM] Datos complementados desde sidebar:', JSON.stringify(sidebarData));
+      return r;
+    }
+  }
+
   return r.profile_name ? r : null;
+}
+
+function scrapeProfileFromSidebar() {
+  var sidebar = document.querySelector(TALK_Y.SIDEBAR_PROFILE);
+  if (!sidebar) return null;
+
+  var result = {};
+
+  // Name
+  var nameEl = sidebar.querySelector('[data-test-id="sidebar-about-interlocutor"] .name, .title-wrapper .name, .name-wrapper .name');
+  if (nameEl) {
+    var t = nameEl.textContent.trim();
+    if (t && t.length < 50) result.profile_name = t;
+  }
+
+  // Country chip (MapMarker icon)
+  var chip = sidebar.querySelector('.chip svg[id="MapMarker"]');
+  if (chip) {
+    var label = chip.closest('.chip').querySelector('.label');
+    if (label) result.country = label.textContent.trim();
+  }
+
+  // Birthday chip (CakeVariant icon) -> parse age
+  chip = sidebar.querySelector('.chip svg[id="CakeVariant"]');
+  if (chip) {
+    var label = chip.closest('.chip').querySelector('.label');
+    if (label) {
+      var ageVal = parseAgeFromDate(label.textContent.trim());
+      if (ageVal != null) result.age = ageVal;
+    }
+  }
+
+  // Marital status chip (HumanGreetingVariant icon)
+  chip = sidebar.querySelector('.chip svg[id="HumanGreetingVariant"]');
+  if (chip) {
+    var label = chip.closest('.chip').querySelector('.label');
+    if (label) result.marital_status = label.textContent.trim();
+  }
+
+  // Interested In section (StarShooting icon)
+  var section = findSidebarSectionByIcon(sidebar, 'StarShooting');
+  if (section) {
+    var tags = section.querySelectorAll(TALK_Y.SIDEBAR_TAG_LABEL);
+    var interests = [];
+    for (var i = 0; i < tags.length; i++) {
+      var t = tags[i].textContent.trim();
+      if (t) interests.push(t);
+    }
+    if (interests.length > 0) result.interests = interests.join(', ');
+  }
+
+  // Looking For section (PuzzleHeart icon)
+  section = findSidebarSectionByIcon(sidebar, 'PuzzleHeart');
+  if (section) {
+    var lookingTags = section.querySelectorAll(TALK_Y.SIDEBAR_TAG_LABEL);
+    var lookingFor = [];
+    for (var i = 0; i < lookingTags.length; i++) {
+      var t = lookingTags[i].textContent.trim();
+      if (t) lookingFor.push(t);
+    }
+    if (lookingFor.length > 0) result.looking_for = lookingFor.join(', ');
+  }
+
+  // About Me section (AccountCircle icon)
+  section = findSidebarSectionByIcon(sidebar, 'AccountCircle');
+  if (section) {
+    var aboutTags = section.querySelectorAll(TALK_Y.SIDEBAR_TAG_LABEL);
+    var traits = [];
+    for (var i = 0; i < aboutTags.length; i++) {
+      var t = aboutTags[i].textContent.trim();
+      if (t) traits.push(t);
+    }
+    if (traits.length > 0) {
+      result.traits = traits.join(', ');
+      result.bio = traits.join(', ');
+    }
+
+    var descEl = section.querySelector(TALK_Y.SIDEBAR_DESCRIPTION);
+    if (descEl) {
+      var descText = descEl.textContent.trim();
+      if (descText && descText.length > 10) result.bio = descText;
+    }
+  }
+
+  console.log('[CRIBS-SIDEBAR] Datos extraÃ­dos del sidebar:', JSON.stringify(result));
+  return result.profile_name ? result : null;
+}
+
+function findSidebarSectionByIcon(container, iconId) {
+  var sections = container.querySelectorAll(TALK_Y.SIDEBAR_SECTION);
+  for (var i = 0; i < sections.length; i++) {
+    var icon = sections[i].querySelector('.d-flex.flex-row.align-items-center.gap-1 svg[id="' + iconId + '"]');
+    if (icon) return sections[i];
+  }
+  return null;
 }
 
 function scrapeProfileWithRetry(profileId, attempts, delay, callback) {
@@ -500,6 +640,13 @@ function jsonScanProfile(str, targetId) {
   return r.profile_name ? r : null;
 }
 
+function showScrapeTip() {
+  var body = document.getElementById('tess-cribs-body');
+  if (body) body.innerHTML = '<div class="tess-cribs-msg" style="padding:16px 12px;">No hay datos en Cribs para este perfil.<br><br><button id="tess-cribs-scrape-now" style="background:#22c55e;color:#fff;border:none;border-radius:6px;padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;margin-top:4px;">⬇ SCRAPE AHORA</button></div>';
+  var btn = document.getElementById('tess-cribs-scrape-now');
+  if (btn) btn.addEventListener('click', function () { triggerScrapeAndSave(cribsOverlayState.profileId); });
+}
+
 var cribsOverlayState = { visible: false, dragged: false, profileId: null };
 var cribsOverlayData = null;
 var cribsOverlayTab = 'datos';
@@ -513,83 +660,38 @@ function triggerScrapeAndSave(profileId) {
   var scrapeBtn = document.getElementById('tess-cribs-scrape');
   if (scrapeBtn) { scrapeBtn.textContent = '\u23F3 ...'; scrapeBtn.disabled = true; }
 
-  scrapeProfileWithRetry(profileId, 5, 800, function (domData) {
-    if (!domData || !domData.profile_name) {
-      if (body) body.innerHTML = '<div class="tess-cribs-msg">No se encontraron datos. Visita la p\u00e1gina de perfil del usuario.</div>';
-      if (scrapeBtn) { scrapeBtn.textContent = '\u2B07 SCRAPE'; scrapeBtn.disabled = false; }
+  function _saveScrapedData(data) {
+    _cribsLoadFromLocal(function (cribs) {
+      var rawTarget = String(profileId).replace(/^0+/, '');
+      var found = false;
+      for (var i = 0; i < cribs.length; i++) {
+        if (String(cribs[i].profile_id || '').replace(/^0+/, '') === rawTarget) {
+          Object.assign(cribs[i], data);
+          found = true;
+          break;
+        }
+      }
+      if (!found) cribs.push({ profile_id: rawTarget, _id: rawTarget, ...data });
+      _cribsSaveToLocal(cribs);
+      renderCribsOverlay(data);
+      if (scrapeBtn) { scrapeBtn.textContent = '\u2714 DONE'; setTimeout(function () { if (scrapeBtn) { scrapeBtn.textContent = '\u2B07 SCRAPE'; scrapeBtn.disabled = false; } }, 2000); }
+    });
+  }
+
+  cribScrapeViaAPI(profileId).then(function (apiData) {
+    if (apiData && apiData.profile_name) {
+      console.log('[CRIBS] Scrape exitoso via API:', apiData.profile_name);
+      _saveScrapedData(apiData);
       return;
     }
-
-    chrome.storage.local.get(['tess_jwt'], function (storageData) {
-      if (!storageData.tess_jwt) {
+    console.log('[CRIBS] API fall\u00f3, intentando DOM scrape...');
+    scrapeProfileWithRetry(profileId, 5, 800, function (domData) {
+      if (domData && domData.profile_name) {
+        _saveScrapedData(domData);
+      } else {
+        if (body) body.innerHTML = '<div class="tess-cribs-msg">No se encontraron datos. Visita la p\u00e1gina de perfil del usuario.</div>';
         if (scrapeBtn) { scrapeBtn.textContent = '\u2B07 SCRAPE'; scrapeBtn.disabled = false; }
-        return;
       }
-
-      var headers = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + storageData.tess_jwt };
-
-      fetch(TESSERACT_API + '/api/tess/cribs', { headers: headers })
-        .then(function (r) { return r.json(); })
-        .then(function (resp) {
-          if (!resp.cribs || !Array.isArray(resp.cribs)) {
-            if (body) body.innerHTML = '<div class="tess-cribs-msg">Perfil no encontrado en Cribs. Agr\u00e9galo desde el dashboard primero.</div>';
-            if (scrapeBtn) { scrapeBtn.textContent = '\u2B07 SCRAPE'; scrapeBtn.disabled = false; }
-            return;
-          }
-
-          var rawTarget = String(profileId).replace(/^0+/, '');
-          var entry = null;
-          for (var i = 0; i < resp.cribs.length; i++) {
-            var c = resp.cribs[i];
-            var storedId = String(c.profile_id).replace(/^0+/, '');
-            if (storedId === rawTarget) { entry = c; break; }
-          }
-
-          if (!entry) {
-            if (body) body.innerHTML = '<div class="tess-cribs-msg">Perfil no en Cribs. Agr\u00e9galo desde el dashboard primero.</div>';
-            if (scrapeBtn) { scrapeBtn.textContent = '\u2B07 SCRAPE'; scrapeBtn.disabled = false; }
-            return;
-          }
-
-          var bodyData = { profile_name: domData.profile_name };
-          if (domData.country) bodyData.country = domData.country;
-          if (domData.age != null) bodyData.age = domData.age;
-          if (domData.interests) bodyData.interests = domData.interests;
-          if (domData.city) bodyData.city = domData.city;
-          if (domData.work) bodyData.work = domData.work;
-          if (domData.marital_status) bodyData.marital_status = domData.marital_status;
-          if (domData.traits) bodyData.traits = domData.traits;
-          if (domData.movie_genres) bodyData.movie_genres = domData.movie_genres;
-          if (domData.music_genres) bodyData.music_genres = domData.music_genres;
-          if (domData.goal) bodyData.goal = domData.goal;
-          if (domData.languages) bodyData.languages = domData.languages;
-          if (domData.education) bodyData.education = domData.education;
-          if (domData.looking_for) bodyData.looking_for = domData.looking_for;
-          if (domData.body_type) bodyData.body_type = domData.body_type;
-          if (domData.bio) bodyData.bio = domData.bio;
-
-          fetch(TESSERACT_API + '/api/tess/cribs/' + entry._id + '/bulk', {
-            method: 'PUT',
-            headers: headers,
-            body: JSON.stringify(bodyData)
-          }).then(function (r) {
-            if (r.ok) {
-              renderCribsOverlay(domData);
-              try { chrome.runtime.sendMessage({action: 'CRIBS_REFRESH'}); } catch (e) {}
-              if (scrapeBtn) { scrapeBtn.textContent = '\u2714 DONE'; setTimeout(function () { if (scrapeBtn) { scrapeBtn.textContent = '\u2B07 SCRAPE'; scrapeBtn.disabled = false; } }, 2000); }
-            } else {
-              if (body) body.innerHTML = '<div class="tess-cribs-msg">Error al guardar datos</div>';
-              if (scrapeBtn) { scrapeBtn.textContent = '\u2B07 SCRAPE'; scrapeBtn.disabled = false; }
-            }
-          }).catch(function (e) {
-            if (body) body.innerHTML = '<div class="tess-cribs-msg">Error de conexi\u00f3n</div>';
-            if (scrapeBtn) { scrapeBtn.textContent = '\u2B07 SCRAPE'; scrapeBtn.disabled = false; }
-          });
-        })
-        .catch(function (e) {
-          if (body) body.innerHTML = '<div class="tess-cribs-msg">Error de conexi\u00f3n</div>';
-          if (scrapeBtn) { scrapeBtn.textContent = '\u2B07 SCRAPE'; scrapeBtn.disabled = false; }
-        });
     });
   });
 }
@@ -732,7 +834,7 @@ function renderCribsOverlay(data) {
   cribsOverlayData = data;
   var body = document.getElementById('tess-cribs-body');
   if (!body) return;
-  if (!data) { body.innerHTML = '<div class="tess-cribs-msg">No hay datos en Cribs para este perfil</div>'; return; }
+  if (!data) { showScrapeTip(); return; }
 
   if (cribsOverlayTab === 'estilo') {
     var styleText = data.voice_style || '';
@@ -842,39 +944,18 @@ function cribFindEntry(profileId) {
 function cribLoadOrRefresh(fetchIfStale) {
   return new Promise(function (resolve) {
     if (_cribsLocalCache && Date.now() - _cribsCacheLastFetch < 60000 && !fetchIfStale) { resolve(); return; }
-    var retried = false;
-    function doFetch(token) {
-      var headers = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = 'Bearer ' + token;
-      var controller = new AbortController();
-      var timeoutId = setTimeout(function () { controller.abort(); }, 10000);
-      function handleResponse(r) {
-        clearTimeout(timeoutId);
-        if (r.status === 401 && !retried) {
-          retried = true;
-          _tessJwtCache = '';
-          chrome.storage.local.get(['tess_jwt'], function (data) { _tessJwtCache = data.tess_jwt || ''; doFetch(_tessJwtCache); });
-          return;
-        }
-        r.json().then(function (resp) {
-          if (resp && resp.cribs && Array.isArray(resp.cribs)) {
-            _cribsLocalCache = resp.cribs;
-            _cribsCacheLastFetch = Date.now();
-          }
-          resolve();
-        });
-      }
-      fetch(TESSERACT_API + '/api/tess/cribs', { headers: headers, signal: controller.signal })
-        .then(handleResponse)
-        .catch(function (e) { clearTimeout(timeoutId); console.log('[CRIBS] Error fetching cribs:', e && e.message ? e.message : e); resolve(); });
-    }
-    if (_tessJwtCache) { doFetch(_tessJwtCache); }
-    else { chrome.storage.local.get(['tess_jwt'], function (data) { _tessJwtCache = data.tess_jwt || ''; doFetch(_tessJwtCache); }); }
+    _cribsLoadFromLocal(function () { resolve(); });
   });
 }
 
 function fetchCribsForProfile(profileId) {
   if (!profileId) { console.log('[CRIBS] fetchCribsForProfile: sin profileId'); renderCribsOverlay(null); return; }
+  // Skip if this is our own profile
+  if (window._tessMyProfileId && String(profileId).replace(/^0+/, '') === String(window._tessMyProfileId).replace(/^0+/, '')) {
+    console.log('[CRIBS] Saltando fetch para mi propio perfil:', profileId);
+    renderCribsOverlay(null);
+    return;
+  }
   console.log('[CRIBS] â–¶ fetchCribsForProfile:', profileId, '| _lastCribsPid:', window._lastCribsPid);
   if (_cribsFetchTimer) { clearTimeout(_cribsFetchTimer); _cribsFetchTimer = null; }
   if (_cribsHideTimer) { clearTimeout(_cribsHideTimer); _cribsHideTimer = null; }
@@ -886,12 +967,6 @@ function fetchCribsForProfile(profileId) {
   if (cached) {
     renderCribsOverlay(cached);
     cribsOverlayState.profileId = profileId;
-    if (!cribsOverlayState.visible) {
-      cribsOverlayState.visible = true;
-      var el = document.getElementById('tess-cribs-overlay');
-      var togg = document.getElementById('tess-cribs-toggle');
-      if (el) { if (togg) positionOverlayNearToggle(el, togg); el.classList.add('visible'); }
-    }
     cribLoadOrRefresh(false);
     return;
   }
@@ -905,23 +980,9 @@ function fetchCribsForProfile(profileId) {
       if (entry) {
         renderCribsOverlay(entry);
         cribsOverlayState.profileId = profileId;
-        if (!cribsOverlayState.visible) {
-          cribsOverlayState.visible = true;
-          var el = document.getElementById('tess-cribs-overlay');
-          var togg = document.getElementById('tess-cribs-toggle');
-          if (el) { if (togg) positionOverlayNearToggle(el, togg); el.classList.add('visible'); }
-        }
       } else {
         renderCribsOverlay(null);
-        cribsOverlayState.profileId = null;
-        _cribsHideTimer = setTimeout(function () {
-          _cribsHideTimer = null;
-          if (!cribsOverlayState.profileId && cribsOverlayState.visible) {
-            cribsOverlayState.visible = false;
-            var el2 = document.getElementById('tess-cribs-overlay');
-            if (el2) el2.classList.remove('visible');
-          }
-        }, 3000);
+        cribsOverlayState.profileId = profileId;
       }
     });
   }, 0);

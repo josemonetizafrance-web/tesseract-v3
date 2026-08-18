@@ -4,8 +4,10 @@ const ALLOWED_DOMAIN = 'talkytimes.com';
 const RESPONSE_ALERT_SECONDS = 90;
 const TIMER_DISPLAY_SECONDS = 120;
 
-// Blacklist local cache (synced with state-manager and server)
-let blacklist = [];
+function isBlacklisted(contactId) {
+  if (!contactId) return false;
+  return Tesseract.isBlacklisted(contactId);
+}
 
 // ============ CROSS-TAB UI SYNC ============
 function _tessSyncEaterUI() {
@@ -45,101 +47,7 @@ window._tessSyncUI = function () {
 Tesseract.on('eaterActiveChanged', _tessSyncEaterUI);
 Tesseract.on('clonacionChanged', _tessSyncCloneUI);
 
-// ============ BLACKLIST ============
-async function loadBlacklist(retries) {
-  if (retries === undefined) retries = 2;
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    try {
-      const stored = await chrome.storage.local.get(['tess_jwt']);
-      if (stored.tess_jwt) {
-        const res = await fetch(Tesseract.API + '/api/tess/blacklist', {
-          headers: { 'Authorization': 'Bearer ' + stored.tess_jwt }
-        });
-        if (!res.ok && attempt < retries) continue;
-        const data = await res.json();
-        blacklist = data.blacklist || [];
-        console.log('[BLACKLIST] Cargada:', blacklist.length, 'contactos');
-      }
-      return;
-    } catch (e) {
-      console.log('[BLACKLIST] Error (intento ' + (attempt + 1) + '/' + (retries + 1) + '):', e.message);
-      if (attempt >= retries) return;
-    }
-  }
-}
 
-function isBlacklisted(contactId) {
-  if (!contactId) return false;
-  return blacklist.indexOf(contactId) !== -1 || Tesseract.isBlacklisted(contactId);
-}
-
-async function saveBlacklist() {
-  if (typeof window._addToMLBlacklist === 'function') {
-    blacklist.forEach(function (id) { window._addToMLBlacklist(id); });
-  }
-  if (typeof window._addToAABlacklist === 'function') {
-    blacklist.forEach(function (id) { window._addToAABlacklist(id); });
-  }
-  if (typeof window._addToLFPBlacklist === 'function') {
-    blacklist.forEach(function (id) { window._addToLFPBlacklist(id); });
-  }
-
-  try {
-    const stored = await chrome.storage.local.get(['tess_jwt']);
-    if (stored.tess_jwt) {
-      const res = await fetch(Tesseract.API + '/api/tess/blacklist', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + stored.tess_jwt },
-        body: JSON.stringify({ blacklist })
-      });
-      if (!res.ok) {
-        const errText = await res.text();
-        logError('blacklist', 'POST status: ' + res.status + ' - ' + errText, 'warn');
-        return;
-      }
-      console.log('[BLACKLIST] POST OK, enviados:', blacklist.length);
-      const data = await res.json();
-      if (data.blacklist) blacklist = data.blacklist;
-      if (typeof reloadMLBlacklist === 'function') await reloadMLBlacklist();
-      if (typeof loadAABlacklist === 'function') await loadAABlacklist();
-      if (typeof reloadLFPBlacklist === 'function') await reloadLFPBlacklist();
-      if (typeof populateMLPanel === 'function') populateMLPanel();
-    }
-  } catch (e) {
-    logError('blacklist', e);
-  }
-}
-
-function renderBlacklistTab() {
-  const listEl = document.getElementById('blList');
-  const countEl = document.getElementById('blCount');
-  if (!listEl) return;
-  if (countEl) countEl.textContent = blacklist.length + ' contactos';
-
-  if (blacklist.length === 0) {
-    listEl.innerHTML = '<p style="color:#666;text-align:center;">No hay contactos bloqueados</p>';
-    return;
-  }
-
-  listEl.innerHTML = blacklist.map(function (id, i) {
-    return '<div style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid rgba(139,92,246,0.15);">' +
-      '<span style="color:#888;font-size:9px;width:20px;">' + (i + 1) + '</span>' +
-      '<span style="flex:1;font-size:12px;font-weight:bold;letter-spacing:1px;color:#ef4444;">' + id + '</span>' +
-      '<button class="bl-remove" data-idx="' + i + '" style="background:rgba(239,68,68,0.2);border:1px solid #ef4444;color:#ef4444;padding:2px 8px;border-radius:4px;cursor:pointer;font-size:9px;">✕</button>' +
-      '</div>';
-  }).join('');
-
-  listEl.querySelectorAll('.bl-remove').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      const idx = parseInt(btn.dataset.idx);
-      blacklist.splice(idx, 1);
-      saveBlacklist();
-      renderBlacklistTab();
-    });
-  });
-}
-
-loadBlacklist();
 
 // ============ ICEBREAKERS IA ============
 window._ibMessages = [];
@@ -193,19 +101,21 @@ async function generateIcebreakersFromAI() {
     updateIBUI();
     var token = await new Promise(function (r) { chrome.storage.local.get('tess_jwt', function (d) { r(d.tess_jwt); }); });
     if (!token) { showTessToast('No hay sesión activa. Inicia sesión primero.', 'error'); window._ibMode = 'idle'; updateIBUI(); return; }
-    var systemPrompt = 'Tu tarea es generar mensajes únicos e interesantes para romper el hielo en una plataforma de citas. Todos reflejan la vida diaria de un hombre/mujer de 30 años o más, con temas maduros, cotidianos y un toque de humor cuando encaja.\n\nCUATRO CATEGORÍAS\nRH Amistad: Rompehielos relajados, neutros y amigables. Conexión tranquila, como si empezáramos una buena amistad que podría derivar en algo más. Tono cálido, cero presión romántica explícita.\nRH Amor Real: Rompehielos con intención emocional y romántica elegante, madura y respetuosa. Se nota interés genuino en conocer a la persona a fondo y ganas de algo serio cuando surja la química.\nRH Charla Caliente: Rompehielos juguetones, coquetos y ligeramente atrevidos, pero SIN cruzar nunca la línea: nada sexual explícito, nada de insinuaciones físicas directas ni doble sentido grosero. El caliente está solo en el tono pícaro, el humor sutil y la confianza atractiva de un hombre adulto.\nRH Mail: Mensajes más largos (4-8 líneas) ideales para primer contacto privado. NO dirigidos a nadie en concreto (sin Hola [Nombre], sin referencias a fotos/perfil). Genéricos pero muy personales y auténticos, escritos en primera persona. Estructura típica: anécdota o reflexión cotidiana → toque de humor o sinceridad → pregunta abierta potente que invite a una respuesta larga.\n\nREGLAS GENERALES (aplican a las 4 categorías)\n100 % español.\nTono maduro, respetuoso, fácil de responder.\nProhibido contenido sexual explícito, obscenidades, lenguaje abusivo, preguntas invasivas o datos de contacto.\nCada mensaje completo por sí mismo, lógico y único (nada de reutilizar ideas aunque cambien palabras o emojis).\nEmojis solo si son claros y neutros. Texto plano.\nTemas: rutinas matutinas, trabajo-vida, cocina, gimnasio, viajes, música/podcasts, desconexión, responsabilidades adultas, lugares favoritos, reflexiones con humor, etc.\nLÍMITES DE LONGITUD: Los mensajes friendship, real_love y hot_talks deben tener máximo 280 caracteres. Los mensajes mail deben tener 4-8 líneas.\n\nFORMATO DE RESPUESTA: Responde ÚNICAMENTE con un array JSON de 5 objetos. Cada objeto debe tener "text" (string, el mensaje) y "category" (string: "friendship", "real_love", "hot_talks" o "mail"). No agregues explicaciones, markdown ni nada fuera del JSON.';
-    var res = await fetch(Tesseract.API + '/api/chatgpt/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-      body: JSON.stringify({ messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: 'Genera 5 mensajes en formato JSON: 1 friendship, 1 real_love, 1 hot_talks, 2 mail.' }], max_tokens: 1500, temperature: 0.8 })
-    });
-    var data = await res.json();
-    var content = data.choices?.[0]?.message?.content || '';
+    var systemPrompt = 'Tu tarea es generar mensajes únicos e interesantes para romper el hielo en una plataforma de citas. Todos reflejan la vida diaria de un hombre/mujer de 30 años o más, con temas maduros, cotidianos y un toque de humor cuando encaja.\n\nCUATRO CATEGORÍAS\nRH Amistad: Rompehielos relajados, neutros y amigables. Conexión tranquila, como si empezáramos una buena amistad que podría derivar en algo más. Tono cálido, cero presión romántica explícita.\nRH Amor Real: Rompehielos con intención emocional y romántica elegante, madura y respetuosa. Se nota interés genuino en conocer a la persona a fondo y ganas de algo serio cuando surja la química.\nRH Charla Caliente: Rompehielos juguetones, coquetos y ligeramente atrevidos, pero SIN cruzar nunca la línea: nada sexual explícito, nada de insinuaciones físicas directas ni doble sentido grosero. El caliente está solo en el tono pícaro, el humor sutil y la confianza atractiva de un hombre adulto.\nRH Mail: Mensajes más largos (4-8 líneas) ideales para primer contacto privado. NO dirigidos a nadie en concreto (sin Hola [Nombre], sin referencias a fotos/perfil). Genéricos pero muy personales y auténticos, escritos en primera persona. Estructura típica: anécdota o reflexión cotidiana → toque de humor o sinceridad → pregunta abierta potente que invite a una respuesta larga.\n\nREGLAS GENERALES (aplican a las 4 categorías)\n100 % español.\nTono maduro, respetuoso, fácil de responder.\nProhibido contenido sexual explícito, obscenidades, lenguaje abusivo, preguntas invasivas o datos de contacto.\nCada mensaje completo por sí mismo, lógico y único (nada de reutilizar ideas aunque cambien palabras o emojis).\nNO uses emojis ni símbolos. Texto plano sin emojis.\nTemas: rutinas matutinas, trabajo-vida, cocina, gimnasio, viajes, música/podcasts, desconexión, responsabilidades adultas, lugares favoritos, reflexiones con humor, etc.\nLÍMITES DE LONGITUD: Los mensajes friendship, real_love y hot_talks deben tener máximo 280 caracteres. Los mensajes mail deben tener 4-8 líneas.\n\nFORMATO DE RESPUESTA: Responde ÚNICAMENTE con un array JSON de 5 objetos. Cada objeto debe tener "text" (string, el mensaje) y "category" (string: "friendship", "real_love", "hot_talks" o "mail"). No agregues explicaciones, markdown ni nada fuera del JSON.';
+    var aiData = await Tesseract.callAI(
+      [{ role: 'system', content: systemPrompt }, { role: 'user', content: 'Genera 5 mensajes como un SOLO array JSON con 5 objetos. Cada objeto solo tiene "categoria" y "mensaje". 1 friendship, 1 real_love, 1 hot_talks, 2 mail. SIN emojis ni campo emojis. SOLO el array JSON.' }],
+      1500
+    );
+    var content = aiData?.choices?.[0]?.message?.content || '';
     console.log('[IB] Raw AI response (first 500):', content.substring(0, 500));
     var jsonMatch = content.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
     if (jsonMatch) jsonMatch = jsonMatch[1];
-    else jsonMatch = content.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) { showTessToast('Error: la IA no devolvió JSON válido. Revisa la consola (F12).', 'error'); window._ibMode = 'idle'; updateIBUI(); return; }
+    else {
+      var fallback = content.match(/\[[\s\S]*?\]/g);
+      if (fallback) jsonMatch = '[' + fallback.map(function(m){ return m.slice(1,-1); }).join(',') + ']';
+      else jsonMatch = null;
+    }
+    if (!jsonMatch) { showTessToast('Error: la IA no devolviÃ³ JSON vÃ¡lido. Revisa la consola (F12).', 'error'); window._ibMode = 'idle'; updateIBUI(); return; }
     jsonMatch = jsonMatch.replace(/[\x00-\x1F\x7F]/g, '');
     var parsed = JSON.parse(jsonMatch);
     if (!Array.isArray(parsed) || parsed.length < 5) { showTessToast('Error: la IA devolvió menos de 5 mensajes', 'error'); window._ibMode = 'idle'; updateIBUI(); return; }
@@ -255,6 +165,10 @@ async function executeIcebreakerSweep() {
     return;
   }
   if (window._ibMode === 'sending') return;
+  if (document.querySelector('.warning-text')) {
+    showTessToast('Límite diario de Icebreakers alcanzado (warning-text detectado)', 'error');
+    return;
+  }
   window._ibMode = 'sending';
   updateIBUI();
   var toSend = window._ibMessages.filter(function(m) { return m.selected !== false; });
@@ -354,6 +268,11 @@ async function executeIcebreakerSweep() {
       if (!sendBtn) { showTessToast('No se encontró el botón Send for Moderation', 'error'); break; }
       console.log('[IB] sending msg', i, 'category:', msg.category);
       sendBtn.click();
+      await sleep(1500);
+      if (document.querySelector('.warning-text')) {
+        showTessToast('Límite diario alcanzado. Se detuvo el envío.', 'error');
+        window._ibMode = 'idle'; updateIBUI(); return;
+      }
       window._ibSentCount = (window._ibSentCount || 0) + 1;
       var stats = Tesseract.get('botStats');
       stats.icebreakersSent = (stats.icebreakersSent || 0) + 1;
@@ -424,54 +343,70 @@ window._ibVisionPhrases = [
 ];
 
 window._ibVisionActive = false;
-window._ibVisionTimer = null;
 
-window._ibVisionAlertShown = false;
-
-async function _ibVisionSelectRandom() {
-  console.log('[IB VISION] selectRandom: buscando input.multiselect__input');
-  var input = document.querySelector('input.multiselect__input');
-  if (!input) { console.log('[IB VISION] selectRandom: input NOT FOUND'); return false; }
-  input.focus();
-  input.click();
-  console.log('[IB VISION] selectRandom: input clicked, esperando dropdown...');
-  await sleep(500);
-  for (var r = 0; r < 8; r++) {
-    var options = document.querySelectorAll('.multiselect__content .multiselect__element, .multiselect__content li, .multiselect__option, [role="option"], .multiselect__content-wrapper li');
-    console.log('[IB VISION] selectRandom: intento ' + (r+1) + ', options encontrados:', options ? options.length : 0);
-    if (options && options.length > 0) {
-      var pick = options[Math.floor(Math.random() * options.length)];
-      console.log('[IB VISION] selectRandom: haciendo click en option:', pick.textContent?.trim()?.substring(0,50));
+async function _ibVisionSelectRandom(index) {
+  console.log('[IB VISION] selectRandom: index=' + index);
+  var allPlaceholders = document.querySelectorAll('.multiselect__placeholder, .multiselect__tags');
+  var allInputs = document.querySelectorAll('input.multiselect__input');
+  console.log('[IB VISION] selectRandom: ' + allPlaceholders.length + ' placeholders, ' + allInputs.length + ' inputs');
+  var targetIdx = (index !== undefined && index !== null) ? index : 0;
+  var placeholder = allPlaceholders[targetIdx];
+  var input = allInputs[targetIdx];
+  if (!placeholder) {
+    console.log('[IB VISION] selectRandom: NOT FOUND for index', targetIdx);
+    return false;
+  }
+  console.log('[IB VISION] selectRandom: haciendo clic en placeholder/tags');
+  placeholder.click();
+  await sleep(1000);
+  for (var r = 0; r < 12; r++) {
+    var options = document.querySelectorAll('.multiselect__content .multiselect__element, .multiselect__content li, .multiselect__option, [role="option"]');
+    var realOptions = Array.from(options || []).filter(function(o) {
+      var txt = (o.textContent || '').trim().toLowerCase();
+      return txt && txt !== 'no icebreakers found' && txt !== 'list is empty.' && txt.indexOf('no icebreakers') === -1 && txt.indexOf('list is empty') === -1;
+    });
+    if (realOptions && realOptions.length > 0) {
+      var pick = realOptions[Math.floor(Math.random() * realOptions.length)];
+      console.log('[IB VISION] selectRandom: click option:', pick.textContent?.trim()?.substring(0,50));
       pick.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       pick.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
       pick.click();
-      await sleep(500);
+      await sleep(600);
       console.log('[IB VISION] selectRandom: option clicked OK');
       return true;
     }
     await sleep(400);
   }
-  console.log('[IB VISION] selectRandom: sin opciones en dropdown, probando tipo texto...');
+  console.log('[IB VISION] selectRandom: sin opciones reales, escribiendo frase en input...');
   var phrase = window._ibVisionPhrases[Math.floor(Math.random() * window._ibVisionPhrases.length)];
-  input.value = phrase;
-  input.dispatchEvent(new Event('input', { bubbles: true }));
-  input.dispatchEvent(new Event('change', { bubbles: true }));
-  await sleep(600);
-  for (var d = 0; d < 8; d++) {
-    var dynOptions = document.querySelectorAll('.multiselect__content .multiselect__element, .multiselect__content li, [role="option"]');
-    if (dynOptions && dynOptions.length > 0) {
-      console.log('[IB VISION] selectRandom: click en dynOption:', dynOptions[0].textContent?.trim()?.substring(0,50));
-      dynOptions[0].dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-      dynOptions[0].dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
-      dynOptions[0].click();
-      await sleep(500);
-      return true;
+  if (input) {
+    input.value = phrase;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    await sleep(1200);
+    for (var d = 0; d < 10; d++) {
+      var dynOpts = document.querySelectorAll('.multiselect__content .multiselect__element, .multiselect__content li, .multiselect__option, [role="option"]');
+      var realDyn = Array.from(dynOpts || []).filter(function(o) {
+        var txt = (o.textContent || '').trim().toLowerCase();
+        return txt && txt !== 'no icebreakers found' && txt !== 'list is empty.' && txt.indexOf('no icebreakers') === -1 && txt.indexOf('list is empty') === -1;
+      });
+      if (realDyn && realDyn.length > 0) {
+        console.log('[IB VISION] selectRandom: click dynOption:', realDyn[0].textContent?.trim()?.substring(0,50));
+        realDyn[0].dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+        realDyn[0].dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+        realDyn[0].click();
+        await sleep(600);
+        console.log('[IB VISION] selectRandom: dynOption clicked');
+        return true;
+      }
+      await sleep(400);
     }
-    await sleep(400);
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, which: 13 }));
+    await sleep(500);
+    console.log('[IB VISION] selectRandom: Enter enviado');
+    return true;
   }
-  input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, which: 13 }));
-  await sleep(300);
-  console.log('[IB VISION] selectRandom: fallback Enter enviado');
+  console.log('[IB VISION] selectRandom: sin input disponible');
   return false;
 }
 
@@ -497,7 +432,7 @@ async function _ibVisionFindAndClick(selectors, label) {
         text: btn.textContent.trim(),
         disabled: btn.disabled
       });
-      try { btn.click(); } catch(e) { console.log('[IB VISION] click falló con error:', e); }
+      try { btn.click(); } catch(e) { console.log('[IB VISION] click fallÃ³ con error:', e); }
       console.log('[IB VISION] clicked:', label);
       return true;
     }
@@ -521,47 +456,116 @@ async function _ibVisionActivate(type) {
     ];
   }
   var ok = await _ibVisionFindAndClick(openSelectors, 'open-' + type);
-  if (!ok) { showTessToast('IB VISION: no se encontró botón ' + type, 'error'); return false; }
-  console.log('[IB VISION] esperando menú de confirmación...');
+  if (!ok) { console.log('[IB VISION] no se encontrÃ³ botÃ³n ' + type); return false; }
+  console.log('[IB VISION] esperando menÃº de confirmaciÃ³n...');
   await sleep(1200);
   ok = await _ibVisionFindAndClick(['button[data-test-id*="launch-icebreakers"]', 'button[data-test-id*="launch"]'], 'confirm-' + type);
-  if (!ok) { showTessToast('IB VISION: no se encontró confirmación ' + type, 'error'); return false; }
+  if (!ok) { console.log('[IB VISION] no se encontrÃ³ confirmaciÃ³n ' + type); return false; }
   await sleep(600);
   return true;
 }
 
+async function _ibVisionFillMultiselects(containerSelector, count) {
+  console.log('[IB VISION] fillMultiselects en', containerSelector, 'count:', count);
+  var filled = 0;
+  var container = document.querySelector(containerSelector);
+  if (!container) { console.log('[IB VISION] container NOT FOUND:', containerSelector); return 0; }
+  var tags = container.querySelectorAll('.multiselect__tags');
+  console.log('[IB VISION] tags en container:', tags.length);
+  for (var mi = 0; mi < Math.min(tags.length, count); mi++) {
+    var input = container.querySelectorAll('input.multiselect__input')[mi];
+    var tagEl = tags[mi];
+    if (!tagEl) continue;
+    console.log('[IB VISION] click en tag #' + mi);
+    tagEl.click();
+    await sleep(800);
+    var opts = container.querySelectorAll('.multiselect__content .multiselect__element, .multiselect__content li, .multiselect__option, [role="option"]');
+    var realOpts = Array.from(opts || []).filter(function(o) {
+      var t = (o.textContent || '').trim().toLowerCase();
+      return t && t.indexOf('no icebreakers') === -1 && t.indexOf('list is empty') === -1;
+    });
+    if (realOpts.length > 0) {
+      realOpts[Math.floor(Math.random() * realOpts.length)].click();
+      await sleep(500);
+      filled++;
+      console.log('[IB VISION] option clicked, filled:', filled);
+      continue;
+    }
+    if (input) {
+      var phrase = window._ibVisionPhrases[Math.floor(Math.random() * window._ibVisionPhrases.length)];
+      input.value = phrase;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      await sleep(1000);
+      var dynOpts = container.querySelectorAll('.multiselect__content .multiselect__element, .multiselect__content li, .multiselect__option, [role="option"]');
+      var realDyn = Array.from(dynOpts || []).filter(function(o) {
+        var t = (o.textContent || '').trim().toLowerCase();
+        return t && t.indexOf('no icebreakers') === -1 && t.indexOf('list is empty') === -1;
+      });
+      if (realDyn.length > 0) {
+        realDyn[0].click();
+        await sleep(500);
+        filled++;
+        console.log('[IB VISION] dynOption clicked, filled:', filled);
+        continue;
+      }
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, which: 13 }));
+      await sleep(500);
+      filled++;
+    }
+  }
+  return filled;
+}
+
 async function _executeIBVision() {
   if (window._ibVisionActive) return;
+  if (document.querySelector('.warning-text')) {
+    showTessToast('LÃ­mite diario de Icebreakers alcanzado', 'error');
+    return;
+  }
   window._ibVisionActive = true;
+  var anySuccess = false;
   try {
     var statusEl = document.getElementById('ibStatus');
     if (statusEl) statusEl.textContent = 'IB VISION activo...';
 
     var link = document.querySelector(TALK_Y.ICEBREAKER_SIDEBAR_LINK);
-    if (link) {
-      link.click();
-      await sleep(1000);
+    if (link) { link.click(); await sleep(2000); }
+
+    // === MAIL FLOW ===
+    console.log('[IB VISION] === MAIL FLOW ===');
+    var mailBtn = document.querySelector('button[data-test-id*="open-launch-mail-icebreaker"]');
+    if (mailBtn) {
+      mailBtn.click();
+      await sleep(1500);
+      var mailFilled = await _ibVisionFillMultiselects('#launch-icebreaker-type-mail', 1);
+      if (mailFilled > 0) {
+        anySuccess = true;
+        await sleep(500);
+        var mailConfirm = document.querySelector('button[data-test-id*="launch-icebreakers"]');
+        if (mailConfirm) { mailConfirm.click(); await sleep(1500); }
+      }
     }
 
-    var ok = await _ibVisionSelectRandom();
-    if (!ok) throw new Error('error seleccionando frase #1');
-    ok = await _ibVisionActivate('mail');
-    if (!ok) throw new Error('error activando mail #1');
-    ok = await _ibVisionSelectRandom();
-    if (!ok) throw new Error('error seleccionando frase #2');
-    ok = await _ibVisionActivate('mail');
-    if (!ok) throw new Error('error activando mail #2');
-    ok = await _ibVisionSelectRandom();
-    if (!ok) throw new Error('error seleccionando frase #3');
-    ok = await _ibVisionSelectRandom();
-    if (!ok) throw new Error('error seleccionando frase #4');
-    ok = await _ibVisionActivate('message');
-    if (!ok) throw new Error('error activando message');
+    // === CHAT FLOW ===
+    console.log('[IB VISION] === CHAT FLOW ===');
+    var chatBtn = document.querySelector('button[data-test-id*="open-launch-message-icebreaker"]');
+    if (chatBtn) {
+      chatBtn.click();
+      await sleep(1500);
+      var chatFilled = await _ibVisionFillMultiselects('#launch-icebreaker-type-chat', 3);
+      if (chatFilled > 0) {
+        anySuccess = true;
+        await sleep(500);
+        var chatConfirm = document.querySelector('button[data-test-id*="launch-icebreakers"]');
+        if (chatConfirm) { chatConfirm.click(); await sleep(1500); }
+      }
+    }
+
+    if (!anySuccess) throw new Error('No se pudo completar ningun paso del proceso');
 
     if (statusEl) statusEl.textContent = 'IB VISION: Completado';
-    window._ibVisionAlertShown = false;
-    if (window._ibVisionTimer) clearTimeout(window._ibVisionTimer);
-    window._ibVisionTimer = setTimeout(_ibVisionTimerCallback, 4 * 60 * 60 * 1000);
+    _ibVisionStartTimer();
     showTessToast('IB VISION completado. Timer 4h activado.', 'success');
   } catch (e) {
     console.error('[IB VISION] Error:', e);
@@ -572,16 +576,47 @@ async function _executeIBVision() {
   window._ibVisionActive = false;
 }
 
-function _ibVisionTimerCallback() {
-  if (window._ibVisionAlertShown) return;
-  window._ibVisionAlertShown = true;
-  var confirmed = confirm('Actualizar IB?');
-  if (confirmed) {
-    window._ibVisionAlertShown = false;
+var _ibVisionCountdown = 4 * 3600;
+var _ibVisionTimerInterval = null;
+
+function _ibVisionStartTimer() {
+  _ibVisionCountdown = 4 * 3600;
+  var display = document.getElementById('ibVisionTimer');
+  if (display) display.style.display = 'block';
+  if (_ibVisionTimerInterval) clearInterval(_ibVisionTimerInterval);
+  _ibVisionTimerInterval = setInterval(function() {
+    _ibVisionCountdown--;
+    if (_ibVisionCountdown <= 0) {
+      clearInterval(_ibVisionTimerInterval);
+      _ibVisionTimerInterval = null;
+      var d = document.getElementById('ibVisionTimer');
+      if (d) d.style.display = 'none';
+      _ibVisionShowModal();
+      return;
+    }
+    var h = String(Math.floor(_ibVisionCountdown / 3600)).padStart(2, '0');
+    var m = String(Math.floor((_ibVisionCountdown % 3600) / 60)).padStart(2, '0');
+    var s = String(_ibVisionCountdown % 60).padStart(2, '0');
+    var el = document.getElementById('ibVisionTimer');
+    if (el) el.textContent = '\u23f1 ' + h + ':' + m + ':' + s;
+  }, 1000);
+}
+
+function _ibVisionShowModal() {
+  var modal = document.getElementById('ibVisionModal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+  var siBtn = document.getElementById('ibVisionModalSi');
+  var noBtn = document.getElementById('ibVisionModalNo');
+  if (siBtn) siBtn.onclick = function() {
+    modal.style.display = 'none';
     _executeIBVision();
-  } else {
-    window._ibVisionTimer = setTimeout(_ibVisionTimerCallback, 60 * 60 * 1000);
-  }
+  };
+  if (noBtn) noBtn.onclick = function() {
+    modal.style.display = 'none';
+    showTessToast('\u00a1NO te va a llegar tr\u00e1fico imb\u00e9cil!', 'error');
+    _ibVisionStartTimer();
+  };
 }
 
 window._executeIBVision = _executeIBVision;
@@ -609,66 +644,4 @@ function detectLanguage(text) {
   return null;
 }
 
-// ============ SERVER SYNC (delegates to state-manager) ============
-window._tessServerSync = {
-  history: function (profileId) { Tesseract.queueSync(profileId); },
-  config: async function (configKey, configData) {
-    var token = await new Promise(function (r) { chrome.storage.local.get('tess_jwt', function (d) { r(d.tess_jwt); }); });
-    if (!token) return;
-    try {
-      var ctrl = new AbortController(); var to = setTimeout(function () { ctrl.abort(); }, 15000);
-      var res = await fetch(Tesseract.API + '/api/tess/metrics/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-        body: JSON.stringify({ action: 'CONFIG_SYNC', configKey: configKey, configData: configData }),
-        signal: ctrl.signal
-      });
-      clearTimeout(to);
-      if (res.status === 404) console.log('[SYNC] Config endpoint not on server yet');
-    } catch (e) { console.warn('[SYNC] config sync error:', e); }
-  },
-  loadHistory: async function () {
-    var token = await new Promise(function (r) { chrome.storage.local.get('tess_jwt', function (d) { r(d.tess_jwt); }); });
-    if (!token) return null;
-    try {
-      var ctrl = new AbortController(); var to = setTimeout(function () { ctrl.abort(); }, 15000);
-      var res = await fetch(Tesseract.API + '/api/tess/metrics/sync?mode=history', {
-        headers: { 'Authorization': 'Bearer ' + token },
-        signal: ctrl.signal
-      });
-      clearTimeout(to);
-      if (!res.ok) return null;
-      var data = await res.json();
-      return data.history || null;
-    } catch (e) { console.warn('[SYNC] load history error:', e); return null; }
-  },
-  loadConfig: async function (configKey) {
-    var token = await new Promise(function (r) { chrome.storage.local.get('tess_jwt', function (d) { r(d.tess_jwt); }); });
-    if (!token) return null;
-    try {
-      var ctrl = new AbortController(); var to = setTimeout(function () { ctrl.abort(); }, 15000);
-      var res = await fetch(Tesseract.API + '/api/tess/metrics/sync?mode=config&key=' + encodeURIComponent(configKey), {
-        headers: { 'Authorization': 'Bearer ' + token },
-        signal: ctrl.signal
-      });
-      clearTimeout(to);
-      if (!res.ok) return null;
-      var data = await res.json();
-      return data.config || null;
-    } catch (e) { console.warn('[SYNC] load config error:', e); return null; }
-  },
-  activityLog: async function (entry) {
-    var token = await new Promise(function (r) { chrome.storage.local.get('tess_jwt', function (d) { r(d.tess_jwt); }); });
-    if (!token) return;
-    try {
-      var ctrl = new AbortController(); var to = setTimeout(function () { ctrl.abort(); }, 15000);
-      await fetch(Tesseract.API + '/api/tess/metrics/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-        body: JSON.stringify({ action: 'ACTIVITY_LOG', logEntry: entry }),
-        signal: ctrl.signal
-      });
-      clearTimeout(to);
-    } catch (e) { console.warn('[SYNC] activity log error:', e); }
-  }
-};
+

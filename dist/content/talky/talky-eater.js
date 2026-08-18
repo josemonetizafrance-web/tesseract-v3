@@ -484,12 +484,34 @@ function _clearEaterSelection() {
   _updateEaterSelectionUI();
 }
 
+function extractSenderFromNode(el) {
+  if (!el) return null;
+  var id = el.getAttribute('data-id') || el.getAttribute('data-user-id') || el.getAttribute('data-profile-id') || el.getAttribute('data-member-id') || el.getAttribute('data-uid');
+  if (id && /^\d{5,15}$/.test(id)) return id.replace(/^0+/, '');
+  var links = el.querySelectorAll('a[href*="/user/"], a[href*="/profile/"], a[href*="/member/"]');
+  for (var i = 0; i < links.length; i++) {
+    var m = (links[i].href || '').match(/\/(\d{5,15})(?:[/?#]|$)/);
+    if (m) return m[1].replace(/^0+/, '');
+  }
+  var imgs = el.querySelectorAll('img[src]');
+  for (var i = 0; i < imgs.length; i++) {
+    var m2 = (imgs[i].getAttribute('src') || '').match(/[./](\d{5,15})[./]/);
+    if (m2) return m2[1].replace(/^0+/, '');
+  }
+  var onclickEl = el.querySelector('[onclick*="profile"], [onclick*="openProfile"]');
+  if (onclickEl) {
+    var m3 = (onclickEl.getAttribute('onclick') || '').match(/\b(\d{5,15})\b/);
+    if (m3) return m3[1].replace(/^0+/, '');
+  }
+  return null;
+}
+
 function injectEaterTrigger(msgEl, messageText) {
   if (msgEl.querySelector('.tess-eater-trigger, .tess-capture-trigger')) return;
   if (msgEl.classList.contains('tess-checked-outgoing')) return;
   if (msgEl.matches && msgEl.matches('[class*="my-text-message"]')) return;
   
-  var eaterSenderId = extractSenderFromNode ? extractSenderFromNode(msgEl) : null;
+  var eaterSenderId = extractSenderFromNode(msgEl);
   if (eaterSenderId && typeof isInAABlacklist === 'function' && isInAABlacklist(eaterSenderId)) return;
   if (eaterSenderId && typeof window._isInMLBlacklist === 'function' && window._isInMLBlacklist(eaterSenderId)) return;
   
@@ -597,31 +619,27 @@ async function captureOperatorStyle(text) {
   lines.push(text.trim());
   if (lines.length > 50) lines = lines.slice(-50);
   var newStyle = lines.join('\n');
-  var headers = { 'Content-Type': 'application/json' };
-  if (_tessJwtCache) headers['Authorization'] = 'Bearer ' + _tessJwtCache;
   try {
-    var res = await fetch(TESSERACT_API + '/api/tess/cribs/' + entry._id + '/bulk', {
-      method: 'PUT',
-      headers: headers,
-      body: JSON.stringify({ voice_style: newStyle })
-    });
-    if (res.ok) {
-      entry.voice_style = newStyle;
-      if (cribsOverlayData && cribsOverlayData._id === entry._id) {
-        cribsOverlayData.voice_style = newStyle;
-      }
-      if (cribsOverlayData && cribsOverlayData._id !== entry._id) {
-        cribsOverlayData = entry;
-      }
-      if (cribsOverlayData) renderCribsOverlay(cribsOverlayData);
-      showTessToast('🎭 Estilo capturado (' + lines.length + '/50)', 'success');
-    } else {
-      var errText = await res.text().catch(function () { return 'Unknown error'; });
-      console.log('[CAPTURE] Bulk PUT error:', res.status, errText);
-      showTessToast('⚠ Error al guardar estilo (' + res.status + ')', 'error');
+    entry.voice_style = newStyle;
+    if (typeof _cribsSaveToLocal === 'function') {
+      chrome.storage.local.get('tess_cribs', function (st) {
+        var all = st.tess_cribs || [];
+        for (var ci = 0; ci < all.length; ci++) {
+          if (all[ci]._id === entry._id || all[ci].profile_id === entry.profile_id) {
+            all[ci].voice_style = newStyle;
+            break;
+          }
+        }
+        chrome.storage.local.set({ tess_cribs: all });
+      });
     }
+    if (cribsOverlayData && (cribsOverlayData._id === entry._id || cribsOverlayData.profile_id === entry.profile_id)) {
+      cribsOverlayData.voice_style = newStyle;
+    }
+    if (cribsOverlayData) renderCribsOverlay(cribsOverlayData);
+    showTessToast('🎭 Estilo capturado (' + lines.length + '/50)', 'success');
   } catch (e) {
-    console.log('[CAPTURE] Error de red:', e.message);
+    console.log('[CAPTURE] Error:', e.message);
     showTessToast('⚠ Error de conexión al guardar estilo', 'error');
   }
 }
@@ -755,9 +773,6 @@ function extractHobbies(el) {
 // ============ IA GENERATION ============
 async function generateWithAI(name, profile, accumulatedMsg) {
   try {
-    const stored = await chrome.storage.local.get(['tess_jwt']);
-    const token = stored.tess_jwt;
-    
     if (!accumulatedMsg || accumulatedMsg.trim().length < 3) {
       return generateLocalResponse(name, profile);
     }
@@ -793,7 +808,7 @@ async function generateWithAI(name, profile, accumulatedMsg) {
     }
 
     const maxLen = isMultiple ? 2000 : 500;
-    const prompt = 'Último mensaje del cliente:\n\n"' + accumulatedMsg.substring(0, maxLen) + '"\n\n' +
+    const prompt = 'Ãšltimo mensaje del cliente:\n\n"' + accumulatedMsg.substring(0, maxLen) + '"\n\n' +
       contextNote +
       'Nivel de confianza: ' + confianza + '. ' + confianzaHint + '\n\n' +
       styleInjection +
@@ -801,9 +816,11 @@ async function generateWithAI(name, profile, accumulatedMsg) {
       '- TRATO HUMANO REAL: habla como un amigo con ventaja, no como chat bot. Usa humor callejero, referencias cotidianas, silencios narrados. Si ella cuenta algo personal, reacciona con empatia masculina, no con analisis frio. Se genuino.\n' +
       '- PUSH-PULL INTELIGENTE: alterna calidez con distancia calculada. Un cumplido seguido de un quite. Interes genuino seguido de indiferencia juguetona. Nunca valides sin quitar algo primero. La tension se construye con contrastes, no con rectas.\n' +
       '- PSICOLOGIA OSCURA DOSIFICADA: misterio controlado, validacion con giro, tension implicita. Provoca curiosidad, no la resuelvas. Insinua sin mostrar.\n' +
-      '- TERMOMETRO EMOCIONAL: evalua el estado de ella en CADA respuesta. Fria -> baja intensidad. Caliente -> sube temperatura. Intensa -> controla marco. Juguetona -> iguala energia y superala. Nunca monotonos.\n' +
+      '- TERMOMETRO EMOCIONAL: refleja EXACTAMENTE el tono del cliente. Si es romÃ¡ntico â†’ romÃ¡ntico. Si es serio â†’ serio. Si es jugueton â†’ jugueton. Si discute â†’ misma intensidad. Si usa cariÃ±o â†’ mismo nivel de afecto.\n' +
       '- MARCO Y DOMINIO: tu guias. Si ella se queja: entiendo pero... + redirige. Si ella se distancia: cuando quieras retomamos + silencio. Nunca ruegues, nunca insistas, nunca te disculpes de mas.\n' +
       '- TRATO SEGUN VINCULO: si usa palabras de carino, responde como pareja real con posesion suave y deseo. Si es nueva, nada de apodos, se serio, seguro y jugueton.\n' +
+      '- NO uses metaforas, lenguaje poetico ni florido. Se directo, conciso y natural.\n' +
+      '- NO pongas descripciones de tono al final ni en ningun lugar del mensaje (nada de *sonrie*, *risas*, *en serio*, etc.). Responde solo texto plano, sin metadatos ni acotaciones.\n' +
       '- NO empieces con Me alegra que..., Que bien que..., Me gusta que... ni variantes.\n' +
       '- NO saludes a menos que el cliente haya saludado.\n' +
       '- NO preguntes hora, fecha, ni en que piensas?.\n' +
@@ -817,22 +834,14 @@ async function generateWithAI(name, profile, accumulatedMsg) {
       'Sigue el tono del cliente: si bromea, sigue humor; si es directo, se directo; si es profundo, conectate. ' +
       'DETECTA DISCUSION: si el cliente discute, rete o cuestiona, responde con la misma intensidad defiende tu punto con firmeza, no te doblegues. ' +
       'Habla como WhatsApp, no como carta. ' +
-      (isMultiple ? 'Cubre todos los mensajes recibidos con la extension necesaria para cada uno, sin ser excesivamente breve.' : 'Se concreto, maximo 280 caracteres.') + ' Responde SOLO el texto de mi respuesta.' + langHint;
+      (isMultiple ? 'Cubre todos los mensajes recibidos con la extension necesaria para cada uno, sin ser excesivamente breve.' : 'Se concreto, maximo 300 caracteres.') + ' Responde SOLO el texto de mi respuesta.' + langHint;
 
-    console.log('[EATER AI] Llamando a IA con mensaje del cliente');
-    
-    if (!token) { console.warn('[EATER AI] No token, skipping API call'); return generateLocalResponse(name, profile); }
-    const response = await fetch(`${TESSERACT_API}/api/chatgpt/chat`, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        messages: [
-          {
-            role: 'system',
-            content: `Eres un hombre real de 30-45 a�os, emocionalmente maduro, con presencia natural y capacidad de generar atracci�n a trav�s de autenticidad y agudeza social. No eres NPC, robot, coach ni seductor de manual. Eres el hombre que ella quiere conocer: seguro sin ser arrogante, atento sin ser necesitado, profundo sin ser intenso.
+    console.log('[EATER AI] Llamando a IA vía proxy');
+
+    const aiMessages = [
+      {
+        role: 'system',
+        content: `Eres un hombre real de 30-45 años, emocionalmente maduro, con presencia natural y capacidad de generar atracción a través de autenticidad y agudeza social. No eres NPC, robot, coach ni seductor de manual. Eres el hombre que ella quiere conocer: seguro sin ser arrogante, atento sin ser necesitado, profundo sin ser intenso.
 
 PRINCIPIOS:
 
@@ -867,24 +876,16 @@ Evalua CADA mensaje individualmente y ajusta la intensidad del push-pull. No use
 - NUNCA uses el nombre del cliente como si fuera tuyo ni lo corrijas.
 - Si te da ejemplos de estilo del operador, imitalos fielmente.
 - Normalmente maximo 280 caracteres; si son multiples mensajes, usa el espacio necesario.`
-          },
-          { role: 'user', content: prompt }
-        ],
-        model: 'gpt-3.5-turbo',
-        max_tokens: isMultiple ? 400 : 150
-      })
-    });
+      },
+      { role: 'user', content: prompt }
+    ];
+
+    const aiData = await Tesseract.callAI(aiMessages, isMultiple ? 400 : 300);
     
-    console.log('[EATER AI] Response status:', response.status);
-    const data = await response.json();
-    console.log('[EATER AI] Response data:', data);
-    if (!response.ok) {
-      console.warn('[EATER AI] Error del servidor:', JSON.stringify(data));
-      return null;
-    }
+    console.log('[EATER AI] AI response:', aiData);
     
-    if (data.choices && data.choices[0]?.message?.content) {
-      const text = data.choices[0].message.content.trim();
+    if (aiData && aiData.choices && aiData.choices[0]?.message?.content) {
+      const text = aiData.choices[0].message.content.trim();
       console.log('[EATER AI] Respuesta generada:', text);
       return text;
     }
@@ -931,7 +932,13 @@ function displaySuggestions(name) {
   if (!area) return;
   
   if (eaterResponse) {
-    area.value = eaterResponse;
+    var displayText = eaterResponse;
+    var ta = document.querySelector('textarea#form-textarea');
+    if (ta) {
+      var ml = parseInt(ta.getAttribute('maxlength'));
+      if (ml && displayText.length > ml) displayText = displayText.substring(0, ml);
+    }
+    area.value = displayText;
     area.style.color = '#e0e0e0';
   }
   
@@ -951,25 +958,20 @@ async function translateEaterText(text) {
   if (code === 'es') { copyToChatInput(text); return; }
   var targetLang = translateLanguages.find(function (l) { return l.code === code; }) || translateLanguages[0];
   try {
-    const stored = await chrome.storage.local.get(['tess_jwt']);
-    const token = stored.tess_jwt;
-    
-    const res = await fetch(`${TESSERACT_API}/api/openai/translate`, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
-      },
-      body: JSON.stringify({ text, targetLang: targetLang.code, targetName: targetLang.name })
-    });
-    
-    if (res.ok) {
-      const data = await res.json();
-      const translated = data.data?.translations?.[0]?.text || data.translatedText;
-      if (translated) {
-        copyToChatInput(translated);
-        console.log('[TRANSLATE] ES → ' + targetLang.name + ':', translated.substring(0, 50));
-      }
+    var sysMsg = 'Traduce el siguiente texto del español al ' + targetLang.name + ' (' + targetLang.code + '). Responde SOLO con la traducción, sin explicaciones ni notas.';
+    var groqData = await Tesseract.callGroq(
+      [{ role: 'system', content: sysMsg }, { role: 'user', content: text }],
+      'llama-3.1-8b-instant',
+      300
+    );
+    var translated = groqData?.choices?.[0]?.message?.content;
+    if (translated && translated.trim()) {
+      var trimmed = translated.trim();
+      var ta = document.querySelector('textarea#form-textarea');
+      var ml = ta ? parseInt(ta.getAttribute('maxlength')) : 300;
+      if (ml && trimmed.length > ml) trimmed = trimmed.substring(0, ml);
+      copyToChatInput(trimmed);
+      console.log('[TRANSLATE] ES → ' + targetLang.name + ':', trimmed.substring(0, 50));
     }
   } catch(e) {
     console.warn('[TRANSLATE] Error:', e.message);
@@ -988,31 +990,23 @@ async function translateEaterResponse() {
   if (!sourceText || sourceText === 'Esperando mensaje...') return;
 
   try {
-    const stored = await chrome.storage.local.get(['tess_jwt']);
-    const token = stored.tess_jwt;
-    
-    const res = await fetch(`${TESSERACT_API}/api/openai/translate`, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
-      },
-      body: JSON.stringify({ text: sourceText, targetLang: targetLang.code, targetName: targetLang.name })
-    });
+    var sysMsg = 'Traduce el siguiente texto del español al ' + targetLang.name + ' (' + targetLang.code + '). Responde SOLO con la traducción, sin explicaciones ni notas.';
+    var groqData = await Tesseract.callGroq(
+      [{ role: 'system', content: sysMsg }, { role: 'user', content: sourceText }],
+      'llama-3.1-8b-instant',
+      300
+    );
+    var translated = groqData?.choices?.[0]?.message?.content;
 
     console.log('[TRANSLATE] Solicitando traducción → ' + targetLang.name + ':', sourceText.substring(0, 50));
     
-    if (res.ok) {
-      const data = await res.json();
-      const translated = data.data?.translations?.[0]?.text || data.translatedText;
-      console.log('[TRANSLATE] Respuesta:', translated ? translated.substring(0, 50) : 'sin traducción');
-      if (translated) {
-        area.value = translated;
-        eaterResponse = Tesseract.set('eaterResponse', translated);
-        window._eaterTranslated = true;
-      }
+    if (translated && translated.trim()) {
+      area.value = translated.trim();
+      eaterResponse = Tesseract.set('eaterResponse', translated.trim());
+      window._eaterTranslated = true;
+      console.log('[TRANSLATE] Respuesta:', translated.trim().substring(0, 50));
     } else {
-      console.warn('[TRANSLATE] Error HTTP:', res.status, await res.text().catch(function () { return ''; }));
+      console.warn('[TRANSLATE] No se obtuvo traducción');
     }
   } catch(e) {
     console.warn('[TRANSLATE] Error:', e.message);
@@ -1077,32 +1071,28 @@ async function translateText(text, targetCode, targetName) {
   var defaultLang = translateLanguages.find(function (l) { return l.code === selectedLangCode; }) || translateLanguages[0];
   const code = targetCode || defaultLang.code;
   const name = targetName || defaultLang.name;
+  if (code === 'es') return text;
   try {
-    const token = await new Promise(r => chrome.storage.local.get('tess_jwt', d => r(d.tess_jwt)));
-    const headers = { 'Content-Type': 'application/json' };
-    if (token) headers['Authorization'] = 'Bearer ' + token;
-
-    const resp = await fetch(`${TESSERACT_API}/api/openai/translate`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        text: text,
-        targetLang: code,
-        targetName: name
-      })
-    });
-    const data = await resp.json();
-    if (data.success && data.data?.translations?.[0]?.text) {
-      return data.data.translations[0].text;
-    }
-    if (data.translatedText) {
-      return data.translatedText;
-    }
+    var sysMsg = 'Traduce el siguiente texto del español al ' + name + ' (' + code + '). Responde SOLO con la traducción, sin explicaciones ni notas.';
+    var groqData = await Tesseract.callGroq(
+      [{ role: 'system', content: sysMsg }, { role: 'user', content: text }],
+      'llama-3.1-8b-instant',
+      300
+    );
+    var translated = groqData?.choices?.[0]?.message?.content;
+    if (translated && translated.trim()) return translated.trim();
   } catch (e) {
     console.warn('[TESSERACT] Translate error:', e.message);
   }
   return text;
 }
+
+// Load my profile ID from storage on init
+(function loadMyProfileId() {
+  chrome.storage.local.get('tess_my_profile_id', function(d) {
+    if (d.tess_my_profile_id) window._tessMyProfileId = d.tess_my_profile_id;
+  });
+})();
 
 // ============ PERFIL ACTIVO ============
 function detectCurrentProfile() {
@@ -1113,6 +1103,32 @@ function detectCurrentProfile() {
 
   let profileName = '';
   let profileId = '';
+
+  // Detect own profile from my-profile page (dashboard)
+  const myProfilePage = document.querySelector('.my-profile-page');
+  if (myProfilePage) {
+    const nameHeader = myProfilePage.querySelector('[class*="user-info-header"] [class*="name"] p, [class*="user-info-header__name"] p');
+    if (nameHeader) {
+      var nameText = nameHeader.textContent.trim().replace(/,?\s*\d{1,3}$/, '').trim();
+      if (nameText && nameText.length < 40) profileName = nameText;
+    }
+    const idTextEl = Array.from(myProfilePage.querySelectorAll('p, span, div')).find(function(el) {
+      return el.textContent && /Profile ID:\s*\d{6,15}/.test(el.textContent);
+    });
+    if (idTextEl) {
+      var match = idTextEl.textContent.match(/Profile ID:\s*(\d{6,15})/);
+      if (match) {
+        profileId = match[1];
+        window._tessMyProfileId = match[1];
+        chrome.storage.local.set({ tess_my_profile_id: match[1] });
+        console.log('[TESSERACT] My profile ID saved:', window._tessMyProfileId);
+      }
+    }
+  }
+  // Fallback: use operator ID from chat URL if available
+  if (window._tessOperatorId && !window._tessMyProfileId) {
+    window._tessMyProfileId = window._tessOperatorId;
+  }
 
   const urlMatch = location.pathname.match(/\/(?:profile|user|member|u|id)\/([^/?#]+)/i);
   if (urlMatch) {
@@ -1125,6 +1141,15 @@ function detectCurrentProfile() {
   const titleClean = title.replace(/[|-].*$/, '').trim();
   if (titleClean && titleClean.toLowerCase() !== 'talkytimes' && titleClean.length < 40) {
     profileName = profileName || titleClean;
+  }
+
+  // Try sidebar accordion name first (more reliable on chat page)
+  if (!profileName) {
+    var sidebarName = document.querySelector('.accordion.profile-info [data-test-id="sidebar-about-interlocutor"] .name, .accordion.profile-info .title-wrapper .name, .accordion.profile-info .name-wrapper .name');
+    if (sidebarName) {
+      var sn = sidebarName.textContent.trim();
+      if (sn && sn.length < 50 && !sn.includes('@') && !sn.includes('http')) profileName = sn;
+    }
   }
 
   const nameSelectors = [
@@ -1145,6 +1170,27 @@ function detectCurrentProfile() {
       if (t && t.length < 50 && !t.includes('@') && !t.includes('http')) {
         profileName = t;
         break;
+      }
+    }
+  }
+
+  // Clean profileName: strip "Profile ID:", button text, etc.
+  if (profileName) {
+    profileName = profileName.replace(/\s*Profile\s*ID:.*$/i, '').replace(/\s*Edit\s+\w+.*$/i, '').trim();
+  }
+
+  // Try to get ID from selected dialog item (messages page with chat open)
+  if (!profileId) {
+    const selectedDialog = document.querySelector('.dialog-item[data-isselected="true"]');
+    if (selectedDialog) {
+      const avatar = selectedDialog.querySelector('.ui-avatar[id]');
+      if (avatar) {
+        const avatarId = avatar.getAttribute('id').trim();
+        if (/^\d{6,15}$/.test(avatarId)) {
+          profileId = avatarId;
+          const nameEl = selectedDialog.querySelector('.dialog-item__name');
+          if (nameEl) profileName = nameEl.textContent.trim();
+        }
       }
     }
   }
@@ -1176,7 +1222,15 @@ function detectCurrentProfile() {
     window._cribsChatIds = [chatM[1], chatM[2]];
     window._tessOperatorId = chatM[1];
     chrome.storage.local.set({ tess_operator_id: chatM[1] });
-    profileId = chatM[2];
+    // Determine which ID is the contact vs our own profile
+    if (window._tessMyProfileId) {
+      var myRawId = String(window._tessMyProfileId).replace(/^0+/, '');
+      var id1 = String(chatM[1]).replace(/^0+/, '');
+      var id2 = String(chatM[2]).replace(/^0+/, '');
+      profileId = id1 === myRawId ? chatM[2] : chatM[1]; // pick the non-user ID
+    } else {
+      profileId = chatM[2]; // fallback: old behavior
+    }
   } else {
     window._cribsChatIds = null;
   }
@@ -1235,25 +1289,25 @@ function detectCurrentProfile() {
     badge.style.display = 'flex';
     var rawId = profileId ? profileId.replace(/^0+/, '') : '';
     if (rawId) {
-      var isSame = window._lastCribsPid === rawId;
-      var hasAlternates = window._cribsChatIds && window._cribsChatIds.length > 1 && window._cribsChatIds.some(function (id) { return String(id).replace(/^0+/, '') !== rawId; });
-      if (!isSame || hasAlternates) {
-        console.log('[CRIBS] Detectado:', rawId, '| anterior:', window._lastCribsPid, '| alternates:', window._cribsChatIds ? JSON.stringify(window._cribsChatIds) : 'ninguno');
-        window._lastCribsPid = rawId;
-        if (window._cribsDetectTimer) { clearTimeout(window._cribsDetectTimer); window._cribsDetectTimer = null; }
-        window._cribsDetectTimer = setTimeout(function () { window._cribsDetectTimer = null; fetchCribsForProfile(rawId); }, 150);
+      // Skip if this is our own profile
+      if (window._tessMyProfileId && rawId === String(window._tessMyProfileId).replace(/^0+/, '')) {
+        console.log('[CRIBS] Es mi propio perfil, saltando CRIBS:', rawId);
       } else {
-        console.log('[CRIBS] Mismo perfil sin alternates, saltando:', rawId);
+        var isSame = window._lastCribsPid === rawId;
+        var hasAlternates = window._cribsChatIds && window._cribsChatIds.length > 1 && window._cribsChatIds.some(function (id) { return String(id).replace(/^0+/, '') !== rawId; });
+        if (!isSame || hasAlternates) {
+          console.log('[CRIBS] Detectado:', rawId, '| anterior:', window._lastCribsPid, '| alternates:', window._cribsChatIds ? JSON.stringify(window._cribsChatIds) : 'ninguno');
+          window._lastCribsPid = rawId;
+          if (window._cribsDetectTimer) { clearTimeout(window._cribsDetectTimer); window._cribsDetectTimer = null; }
+          window._cribsDetectTimer = setTimeout(function () { window._cribsDetectTimer = null; fetchCribsForProfile(rawId); }, 150);
+        } else {
+          console.log('[CRIBS] Mismo perfil sin alternates, saltando:', rawId);
+        }
       }
     }
   } else {
     badge.style.display = 'none';
     window._lastCribsPid = '';
-    if (cribsOverlayState && cribsOverlayState.visible) {
-      cribsOverlayState.visible = false;
-      var te = document.getElementById('tess-cribs-overlay');
-      if (te) te.classList.remove('visible');
-    }
   }
 }
 

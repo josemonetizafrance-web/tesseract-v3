@@ -72,7 +72,7 @@ var TALK_Y = {
   PROFILE_LOCATION: '[data-test-id*="location"], [class*="location"], [class*="city"]',
 
   // ─── PROFILE DATA-TEST-ID SELECTORS (PRIMARY) ───
-  PT_NAME: '[data-test-id="file:user-profile-title-name"]',
+  PT_NAME: '[data-test-id="file:user-profile-title-name"], [data-test-id="user-full-name"]',
   PT_COUNTRY: '[data-test-id="about country"]',
   PT_BIRTHDAY: '[data-test-id="about birthday"]',
   PT_MARITAL: '[data-test-id="about maritalStatus"]',
@@ -99,13 +99,13 @@ var TALK_Y = {
   META_TITLE: 'meta[property="og:title"], meta[name="twitter:title"]',
 
   // ─── PHOTO / GALLERY ───
-  PHOTO_VIEWER: '[data-test-id*="photo-view"], .photo-viewer, [role="dialog"], [class*="gallery"]',
-  PHOTO_IMAGE: '[data-test-id="file:media click:photo-view"], [data-test-id*="photo-view"], [class*="profile"] img[src*="photo"]',
-  LIKE_BTN: 'button[data-test-id*="on-like"], button.gallery-footer__like_narrow, button[data-test-id*="set-like"], button:has(svg[id="ThumbUp"])',
-  NEXT_PHOTO_BTN: 'button[data-test-id*="next"], button[aria-label*="Next"]',
-  CLOSE_BTN: 'button[aria-label="Close"], [aria-label*="close"]',
-  LIKE_FOLLOW_BTN: 'button[data-test-id*="on-like"], button[data-test-id*="like-profile"], button[data-test-id*="on-follow"]',
-  FOLLOW_BTN: 'button[data-test-id*="on-follow"], button[aria-label*="follow"]',
+  PHOTO_VIEWER: '[data-test-id*="photo-view"], .photo-viewer, [role="dialog"], [class*="gallery"], [data-test-id*="gallery-buttons-sidebar"], .splide.is-active',
+  PHOTO_IMAGE: '[data-test-id="file:media click:photo-view"], [data-test-id*="photo-view"], [class*="profile"] img[src*="photo"], [data-test-id="profile-photo-public"] img, [data-test-id*="profile-photo"]',
+  LIKE_BTN: 'button[data-test-id*="on-like"], button.gallery-footer__like_narrow, button[data-test-id*="set-like"], button:has(svg[id="ThumbUp"]), button:has(svg[id="Heart"])',
+  NEXT_PHOTO_BTN: 'button[data-test-id*="next"], button[aria-label*="Next"], .splide__arrow--next',
+  CLOSE_BTN: 'button[aria-label="Close"], [aria-label*="close"], button[data-test-id*="toggle-resize"]',
+  LIKE_FOLLOW_BTN: 'button[data-test-id*="on-like"], button[data-test-id*="like-profile"], button[data-test-id*="on-follow"], button[data-test-id*="on-unfollow"]',
+  FOLLOW_BTN: 'button[data-test-id*="on-follow"], button[data-test-id*="on-unfollow"], button[aria-label*="follow"]',
   PERSON_CARD: '[data-test-id*="person-card"], .person-card, .search-profile-card, [data-test-id*="search-item"]',
   CARD_HEART: 'button[data-test-id*="like-profile"]',
 
@@ -141,6 +141,15 @@ var TALK_Y = {
 
   // ─── LANGUAGE SELECT ───
   LANGUAGE_SELECT: 'select[data-test-id*="lang"], select[class*="lang"], select[name*="lang"]',
+
+  // ─── SIDEBAR PROFILE INFO (chat page accordion) ───
+  SIDEBAR_PROFILE: '.accordion.profile-info',
+  SIDEBAR_NAME: '.accordion.profile-info [data-test-id="sidebar-about-interlocutor"] .name, .accordion.profile-info .title-wrapper .name',
+  SIDEBAR_CHIP_LABEL: '.chip .label',
+  SIDEBAR_TAG_LABEL: '.ui-tag .tag-label',
+  SIDEBAR_SECTION: '.d-flex.flex-column.gap-3',
+  SIDEBAR_SECTION_ICON: '.d-flex.flex-row.align-items-center.gap-1 svg[id]',
+  SIDEBAR_DESCRIPTION: '.description',
 
   // ─── DIALOG LIST (Messages Page) ───
   DIALOG_LIST: 'div.dialogs__scroll-infinite-list',

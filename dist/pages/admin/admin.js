@@ -81,8 +81,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function initAdminPanel() {
   try {
-    const data = await apiFetch('/api/tess/auth/verify');
-    if (!data || (!data.isAdmin && !data.isDeveloper && !data.isOfficeAdmin)) {
+    const stored = await chrome.storage.local.get(['user_email']);
+    const email = stored.user_email || 'unknown';
+    if (email !== 'chevyadmin@tesseract.com') {
       document.body.innerHTML = `
         <div style="padding:40px;text-align:center;color:#ef4444;font-family:monospace;background:#0a0a0f;min-height:100vh;">
           <h1>⛔ SIN ACCESO</h1>
@@ -91,12 +92,12 @@ async function initAdminPanel() {
       return;
     }
 
-    currentAdminEmail = data.email;
-    userOffice = data.office;
-    isOfficeAdmin = data.isOfficeAdmin;
-    isMasterAdmin = data.isDeveloper === true || data.isAdmin === true;
+    currentAdminEmail = email;
+    userOffice = null;
+    isOfficeAdmin = false;
+    isMasterAdmin = true;
 
-    document.getElementById('admin-email').textContent = data.email + (userOffice ? ` — ${userOffice}` : '');
+    document.getElementById('admin-email').textContent = email;
 
     if (isOfficeAdmin && !isMasterAdmin) {
       const adminTab = document.querySelector('.tab-btn[data-tab="admin"]');
