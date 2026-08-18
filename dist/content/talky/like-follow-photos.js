@@ -422,6 +422,7 @@ function lfpMsgToast(msg, type) {
 
 function lfpMsgCollectContacts() {
   var items = document.querySelectorAll('.dialogs__scroll-infinite-list [role="listitem"], [class*="dialogs"] [role="listitem"]');
+  if (items.length === 0) items = lfpMsgCollectDialogsNew();
   if (items.length === 0) items = document.querySelectorAll('div[role="listitem"]');
   var contacts = [];
   for (var i = 0; i < items.length; i++) {
@@ -433,6 +434,24 @@ function lfpMsgCollectContacts() {
     contacts.push({ id: id, name: name });
   }
   return contacts;
+}
+
+function lfpMsgCollectDialogsNew() {
+  var seen = {};
+  var items = [];
+  var avatars = document.querySelectorAll('.dialogs__scroll-infinite-list .ui-avatar[id]');
+  for (var i = 0; i < avatars.length; i++) {
+    var id = avatars[i].getAttribute('id').trim();
+    if (!/^\d{6,15}$/.test(id)) continue;
+    var item = avatars[i].closest('.dialog-item-root');
+    if (!item) item = avatars[i].closest('div[data-id]');
+    if (!item) continue;
+    var key = item.getAttribute('data-id') || id;
+    if (seen[key]) continue;
+    seen[key] = true;
+    items.push(item);
+  }
+  return items;
 }
 
 executeLFPMessages = window.executeLFPMessages = async function () {
