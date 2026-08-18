@@ -30,44 +30,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   } else if (message.action === 'AI_REQUEST') {
     (async () => {
       try {
-        const stored = await chrome.storage.local.get(['groq_api_key', 'tess_jwt']);
-        const groqApiKey = stored.groq_api_key || '';
-        if (!groqApiKey) {
-          sendResponse({ error: 'GROQ_API_KEY no configurada.' });
+        const stored = await chrome.storage.local.get(['tess_jwt']);
+        if (!stored.tess_jwt) {
+          sendResponse({ error: 'Inicia sesión para usar la IA.' });
           return;
         }
         try {
-          const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          const res = await fetch(TESSERACT_API + '/api/chatgpt/chat', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + groqApiKey },
-            body: JSON.stringify({ model: 'llama-3.1-8b-instant', messages: message.messages, max_tokens: message.maxTokens || 500 })
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + stored.tess_jwt },
+            body: JSON.stringify({ messages: message.messages, max_tokens: message.maxTokens || 500 })
           });
           const json = await res.json();
           if (res.ok && json.choices) {
             sendResponse({ data: json });
             return;
           }
-          const errMsg = json.error?.message || '';
-          console.warn('[BG] Groq falló:', res.status, errMsg);
-          // Fallback: intentar via proxy Render (si está disponible)
-          if (stored.tess_jwt) {
-            try {
-              const proxyRes = await fetch(TESSERACT_API + '/api/chatgpt/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + stored.tess_jwt },
-                body: JSON.stringify({ messages: message.messages, max_tokens: message.maxTokens || 500 })
-              });
-              const proxyJson = await proxyRes.json();
-              if (proxyRes.ok && proxyJson.choices) {
-                sendResponse({ data: proxyJson });
-                return;
-              }
-            } catch (pe) { console.warn('[BG] Proxy falló:', pe.message); }
-          }
+          const errMsg = json.error?.message || json.error || ('Error ' + res.status);
+          console.warn('[BG] AI proxy falló:', res.status, errMsg);
         } catch (e) {
-          console.warn('[BG] Error en fetch Groq:', e.message);
+          console.warn('[BG] Error en fetch AI:', e.message);
         }
-        sendResponse({ error: 'AI no disponible. Verifica tu conexión o desactiva la VPN.' });
+        sendResponse({ error: 'AI no disponible. Verifica tu conexión.' });
       } catch (e) {
         sendResponse({ error: e.message });
       }
@@ -76,62 +60,31 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   } else if (message.action === 'GROQ_REQUEST') {
     (async () => {
       try {
-        const data = await chrome.storage.local.get('groq_api_key');
-        const groqApiKey = data.groq_api_key || '';
-        if (!groqApiKey) {
-          sendResponse({ error: 'GROQ_API_KEY no configurada.' });
+        const auth = await chrome.storage.local.get('tess_jwt');
+        if (!auth.tess_jwt) {
+          sendResponse({ error: 'Inicia sesión para usar la IA.' });
           return;
         }
-        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        const res = await fetch(TESSERACT_API + '/api/chatgpt/chat', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + groqApiKey
+            'Authorization': 'Bearer ' + auth.tess_jwt
           },
           body: JSON.stringify({
-            model: message.model || 'llama-3.1-8b-instant',
             messages: message.messages,
+            model: message.model || 'llama-3.1-8b-instant',
             max_tokens: message.maxTokens || 500
           })
         });
         const json = await res.json();
-        if (res.ok) {
+        if (res.ok && json.choices) {
           sendResponse({ data: json });
           return;
         }
-        const errMsg = json.error?.message || '';
-        console.warn('[BG] Groq directo falló:', res.status, errMsg);
-        // Fallback via Tesseract API proxy (bypass VPN blocks)
-        if (res.status === 403 || errMsg.includes('Access denied')) {
-          const auth = await chrome.storage.local.get('tess_jwt');
-          if (auth.tess_jwt) {
-            console.log('[BG] Intentando fallback vía Tesseract API proxy...');
-            try {
-              const proxyRes = await fetch(TESSERACT_API + '/api/chatgpt/chat', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': 'Bearer ' + auth.tess_jwt
-                },
-                body: JSON.stringify({
-                  messages: message.messages,
-                  model: message.model || 'llama-3.1-8b-instant',
-                  max_tokens: message.maxTokens || 500
-                })
-              });
-              const proxyJson = await proxyRes.json();
-              if (proxyRes.ok && proxyJson.choices) {
-                console.log('[BG] Proxy respondió OK');
-                sendResponse({ data: proxyJson });
-                return;
-              }
-              console.warn('[BG] Proxy falló:', proxyRes.status, JSON.stringify(proxyJson));
-            } catch (proxyErr) {
-              console.warn('[BG] Error en proxy:', proxyErr.message);
-            }
-          }
-        }
-        sendResponse({ error: errMsg || JSON.stringify(json) });
+        const errMsg = json.error?.message || json.error || ('Error ' + res.status);
+        console.warn('[BG] Proxy falló:', res.status, errMsg);
+        sendResponse({ error: errMsg });
       } catch (e) {
         sendResponse({ error: e.message });
       }

@@ -21,19 +21,7 @@
     });
   }
 
-  chrome.storage.local.get(['tess_jwt', 'user_email', 'groq_api_key'], function (data) {
-    var groqInput = document.getElementById('groq-key-input');
-    if (groqInput && data.groq_api_key) {
-      groqInput.value = data.groq_api_key;
-      document.getElementById('groq-status').textContent = '✓';
-    }
-    document.getElementById('btn-save-groq').addEventListener('click', function () {
-      var val = groqInput ? groqInput.value.trim() : '';
-      chrome.storage.local.set({ groq_api_key: val }, function () {
-        document.getElementById('groq-status').textContent = val ? '✓ Guardada' : '✗ Vacía';
-        setTimeout(function () { document.getElementById('groq-status').textContent = ''; }, 2000);
-      });
-    });
+  chrome.storage.local.get(['tess_jwt', 'user_email'], function (data) {
     var section = document.getElementById('auth-section');
     if (!section) return;
     if (!data.tess_jwt || !data.user_email) return renderLoggedOut(section);
