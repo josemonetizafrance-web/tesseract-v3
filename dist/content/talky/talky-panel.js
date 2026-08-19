@@ -392,6 +392,7 @@ function createMainPanel() {
 <button id="btnIBGenerate" style="flex:1;padding:8px 4px;border:1px solid #8b5cf6;border-radius:6px;background:rgba(139,92,246,0.2);color:#fff;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:9px;font-weight:700;letter-spacing:1px;">🎲 GENERAR</button>
 <button id="btnIBSend" style="flex:1;padding:8px 4px;border:1px solid #10b981;border-radius:6px;background:rgba(16,185,129,0.2);color:#fff;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:9px;font-weight:700;letter-spacing:1px;opacity:0.5;">▶ ENVIAR 5</button>
 <button id="btnIBVision" style="flex:1;padding:8px 4px;border:1px solid #f59e0b;border-radius:6px;background:rgba(245,158,11,0.2);color:#fff;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:9px;font-weight:700;letter-spacing:1px;">👁 IB VISION</button>
+<button id="btnIBTranslate" style="flex:1;padding:8px 4px;border:1px solid #2196F3;border-radius:6px;background:rgba(33,150,243,0.2);color:#fff;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:9px;font-weight:700;letter-spacing:1px;" title="Traduce los icebreakers generados al inglés">🌐 TRADUCIR EN</button>
 </div>
 <div style="font-size:9px;color:#888;margin-bottom:4px;text-align:center;" id="ibStatus">Listo</div>
 <div style="font-size:9px;color:#f59e0b;margin-bottom:4px;text-align:center;font-family:'Orbitron',monospace;letter-spacing:2px;display:none;" id="ibVisionTimer">⏱ 04:00:00</div>
@@ -673,6 +674,10 @@ function setupAllEvents() {
   var btnIBVision = document.getElementById('btnIBVision');
   if (btnIBVision) btnIBVision.addEventListener('click', function() {
     if (typeof window._executeIBVision === 'function') window._executeIBVision();
+  });
+  var btnIBTranslate = document.getElementById('btnIBTranslate');
+  if (btnIBTranslate) btnIBTranslate.addEventListener('click', function() {
+    if (typeof window._translateIcebreakersToEnglish === 'function') window._translateIcebreakersToEnglish();
   });
   const clearSelBtn = document.getElementById('eaterClearSelectionBtn');
   if (clearSelBtn) clearSelBtn.addEventListener('click', function() {
