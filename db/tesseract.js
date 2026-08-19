@@ -89,10 +89,20 @@ async function initDb() {
   }
   }
    
-  // Heartbeat cada 4 minutos para mantener conexión activa en free tier
+  // Heartbeat cada 60s: mantiene la conexión activa en free tier y reconecta si se cae
   setInterval(async () => {
-    try { await db.command({ ping: 1 }); } catch (e) {}
-  }, 240000);
+    try { await db.command({ ping: 1 }); return; } catch (e) {}
+    console.error('[DB] Ping falló, intentando reconectar...');
+    try {
+      if (client) { try { await client.close(); } catch (e2) {} }
+      client = new MongoClient(MONGODB_URI, { maxPoolSize: 10, serverSelectionTimeoutMS: 5000 });
+      await client.connect();
+      db = client.db('tesseract');
+      console.log('✅ MongoDB reconectado');
+    } catch (e2) {
+      console.error('[DB] Reintento de reconexión falló:', e2.message);
+    }
+  }, 60000);
 
   console.log('✅ Base de datos MongoDB inicializada');
   return db;

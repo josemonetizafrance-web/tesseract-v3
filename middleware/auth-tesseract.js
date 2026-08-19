@@ -20,16 +20,28 @@ async function validateToken(req, res, next) {
     return res.status(401).json({ error: 'Token requerido' });
   }
   const token = authHeader.split(' ')[1];
+  let decoded;
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
+    decoded = jwt.verify(token, JWT_SECRET);
+  } catch (err) {
+    return res.status(401).json({ error: 'Token inválido o expirado' });
+  }
+  try {
     const { findUserById } = require('../db/tesseract.js');
     const user = await findUserById(decoded.sub);
     if (!user) return res.status(401).json({ error: 'Usuario no encontrado' });
     req.user = user;
-    next();
+    return next();
   } catch (err) {
-    return res.status(401).json({ error: 'Token inválido o expirado' });
+    console.warn('[AUTH] DB no disponible, autenticando por JWT:', err.message);
   }
+  req.user = {
+    _id: decoded.sub,
+    email: decoded.email || null,
+    is_admin: 0, is_developer: 0, is_office_admin: 0,
+    is_banned: 0, is_approved: 1, is_premium: 1
+  };
+  next();
 }
 
 function requireTesseractAdmin(req, res, next) {

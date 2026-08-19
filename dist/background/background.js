@@ -73,7 +73,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           },
           body: JSON.stringify({
             messages: message.messages,
-            model: message.model || 'llama-3.1-8b-instant',
+            model: message.model || 'llama-3.3-70b-versatile',
             max_tokens: message.maxTokens || 500
           })
         });

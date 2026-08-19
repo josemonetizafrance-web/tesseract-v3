@@ -962,7 +962,7 @@ async function translateEaterText(text) {
     var sysMsg = 'Traduce el siguiente texto del español al ' + targetLang.name + ' (' + targetLang.code + '). Responde SOLO con la traducción, sin explicaciones ni notas.';
     var groqData = await Tesseract.callGroq(
       [{ role: 'system', content: sysMsg }, { role: 'user', content: text }],
-      'llama-3.1-8b-instant',
+      'llama-3.3-70b-versatile',
       300
     );
     var translated = groqData?.choices?.[0]?.message?.content;
@@ -994,7 +994,7 @@ async function translateEaterResponse() {
     var sysMsg = 'Traduce el siguiente texto del español al ' + targetLang.name + ' (' + targetLang.code + '). Responde SOLO con la traducción, sin explicaciones ni notas.';
     var groqData = await Tesseract.callGroq(
       [{ role: 'system', content: sysMsg }, { role: 'user', content: sourceText }],
-      'llama-3.1-8b-instant',
+      'llama-3.3-70b-versatile',
       300
     );
     var translated = groqData?.choices?.[0]?.message?.content;
@@ -1036,7 +1036,7 @@ async function translateEaterToClientLang() {
       'Texto de respuesta a traducir:\n\n"' + sourceText.substring(0, 1800) + '"';
     var groqData = await Tesseract.callGroq(
       [{ role: 'system', content: sysMsg }, { role: 'user', content: userMsg }],
-      'llama-3.1-8b-instant',
+      'llama-3.3-70b-versatile',
       400
     );
     var translated = groqData?.choices?.[0]?.message?.content;
@@ -1129,7 +1129,7 @@ async function translateText(text, targetCode, targetName) {
     var sysMsg = 'Traduce el siguiente texto del español al ' + name + ' (' + code + '). Responde SOLO con la traducción, sin explicaciones ni notas.';
     var groqData = await Tesseract.callGroq(
       [{ role: 'system', content: sysMsg }, { role: 'user', content: text }],
-      'llama-3.1-8b-instant',
+      'llama-3.3-70b-versatile',
       300
     );
     var translated = groqData?.choices?.[0]?.message?.content;

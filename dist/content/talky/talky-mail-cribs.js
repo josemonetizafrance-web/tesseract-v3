@@ -365,7 +365,7 @@ async function generateMailResponse(msgText, observer, profileId, senderName) {
   try {
     const groqData = await Tesseract.callGroq(
       [{ role: 'system', content: systemMsg }, { role: 'user', content: userMsg }],
-      'llama-3.1-8b-instant',
+      'llama-3.3-70b-versatile',
       2000
     );
     if (!groqData) { showTessToast('⚠ Error de API Groq', 'error'); return; }

@@ -54,7 +54,7 @@ async function spTranslate(text) {
   try {
     var groqData = await Tesseract.callGroq(
       [{ role: 'system', content: 'Traduce el siguiente texto del español al inglés. Responde SOLO con la traducción, sin explicaciones ni notas.' }, { role: 'user', content: text }],
-      'llama-3.1-8b-instant',
+      'llama-3.3-70b-versatile',
       300
     );
     var translatedText = groqData?.choices?.[0]?.message?.content;
