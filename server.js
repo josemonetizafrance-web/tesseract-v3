@@ -51,7 +51,10 @@ app.get('/api/health', async (req, res) => {
   try {
     const { getDb } = require('./db/tesseract.js');
     const db = getDb();
-    await Promise.race([db.command({ ping: 1 }), new Promise(function (r) { setTimeout(r, 6000); })]);
+    await Promise.race([
+      db.command({ ping: 1 }),
+      new Promise(function (_, reject) { setTimeout(function () { reject(new Error('timeout ping')); }, 6000); })
+    ]);
     dbStatus = 'ok';
   } catch (e) { dbStatus = 'down'; }
   const uri = process.env.MONGODB_URI || '';
