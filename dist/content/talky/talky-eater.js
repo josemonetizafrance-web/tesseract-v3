@@ -1094,10 +1094,11 @@ function refreshEaterSuggestions() {
   if (!currentText || currentText.length < 3) {
     currentText = eaterResponse || '';
   }
-  window._eaterClientMsgText = currentText;
-  var _detectedLang2 = typeof detectLanguage === 'function' ? detectLanguage(currentText) : null;
-  window._eaterClientMsgLang = _detectedLang2;
-  if (_detectedLang2 && _detectedLang2 !== 'es') clientDetectedLang = Tesseract.set('clientDetectedLang', _detectedLang2);
+  if (!window._eaterClientMsgText) {
+    window._eaterClientMsgText = currentText;
+    var _detectedLang2 = typeof detectLanguage === 'function' ? detectLanguage(currentText) : null;
+    window._eaterClientMsgLang = _detectedLang2;
+  }
   generateWithAI(clientName, profile, currentText).then(response => {
     eaterResponse = Tesseract.set('eaterResponse', response || generateLocalResponse(clientName, profile));
     window._eaterOriginalResponse = eaterResponse;

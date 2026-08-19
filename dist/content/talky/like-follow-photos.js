@@ -618,6 +618,7 @@ executeLFPMessages = window.executeLFPMessages = async function () {
         } catch (e) {}
         lfpMsgToast('\u23ED\uFE0F ' + contacts[nextIdx].name + ' ya ten\u00EDa Like+Follow', 'info');
         console.log('[LFP-MSG] Skipping to next (already done): ' + contacts[nextIdx].id + ' (' + contacts[nextIdx].name + ')');
+        await lfpMsgSleep(800);
         window.location.href = '/user/' + contacts[nextIdx].id;
         return;
       }
@@ -627,8 +628,8 @@ executeLFPMessages = window.executeLFPMessages = async function () {
       if (lb2) {
         var svg2 = lb2.querySelector('svg');
         if ((svg2 && svg2.id === 'HeartOutline') || lb2.getAttribute('data-selected') === 'false') {
-          try { lb2.scrollIntoView({ block: 'center' }); await lfpMsgSleep(80); lb2.click(); lfpMsgStats.likes++; } catch (e) {}
-          await lfpMsgSleep(120);
+          try { lb2.scrollIntoView({ block: 'center' }); await lfpMsgSleep(900); lb2.click(); lfpMsgStats.likes++; } catch (e) {}
+          await lfpMsgSleep(900);
         }
       }
 
@@ -637,14 +638,15 @@ executeLFPMessages = window.executeLFPMessages = async function () {
       if (fb2) {
         var ft2 = (fb2.textContent || '').toLowerCase() + (fb2.getAttribute('aria-label') || '').toLowerCase();
         if (!/\b(following|siguiendo|unfollow)\b/.test(ft2) && !fb2.querySelector('svg[id*="Check"]')) {
-          try { fb2.scrollIntoView({ block: 'center' }); await lfpMsgSleep(80); fb2.click(); lfpMsgStats.follows++; } catch (e) {}
-          await lfpMsgSleep(120);
+          try { fb2.scrollIntoView({ block: 'center' }); await lfpMsgSleep(900); fb2.click(); lfpMsgStats.follows++; } catch (e) {}
+          await lfpMsgSleep(900);
         }
       }
 
       // Photos (set lfpActive so lfpDoPhotos works during messages sweep)
       var hasPhoto = document.querySelector('[data-test-id*="photo-view"]') || document.querySelector('.profile-photo-wrap img');
       if (hasPhoto && lfpMsgActive && !document.hidden) {
+        await lfpMsgSleep(800);
         try { lfpActive = true; await Promise.race([lfpDoPhotos(), new Promise(function (r) { setTimeout(r, 12000); })]); } catch (e) {} finally { lfpActive = false; }
       }
 
@@ -688,6 +690,7 @@ executeLFPMessages = window.executeLFPMessages = async function () {
 
       lfpMsgToast('\uD83D\uDC64 (' + (nextIdx + 1) + '/' + contacts.length + ') ' + contacts[nextIdx].name, 'info');
       console.log('[LFP-MSG] Navigating to next contact: ' + contacts[nextIdx].id + ' (' + contacts[nextIdx].name + ')');
+      await lfpMsgSleep(1200);
       window.location.href = '/user/' + contacts[nextIdx].id;
       return;
     }
@@ -698,6 +701,11 @@ executeLFPMessages = window.executeLFPMessages = async function () {
     var contacts = saved.contacts;
 
     // IMPORTANT: Mark current profile as visited FIRST to avoid re-processing same contact
+    var curContact = contacts[saved.currentIdx] || null;
+    if (curContact && lfpMsgVisited.indexOf(curContact.id) === -1) {
+      console.log('[LFP-MSG] Marking current contact as visited:', curContact.id);
+      lfpMsgVisited.push(curContact.id);
+    }
     if (pid && lfpMsgVisited.indexOf(pid) === -1) {
       console.log('[LFP-MSG] Marking pid as visited:', pid);
       lfpMsgVisited.push(pid);
@@ -735,6 +743,7 @@ executeLFPMessages = window.executeLFPMessages = async function () {
 
     lfpMsgToast('\uD83D\uDC64 (' + (nextIdx + 1) + '/' + contacts.length + ') ' + contacts[nextIdx].name, 'info');
     console.log('[LFP-MSG] Messages path: navigating to next contact: ' + contacts[nextIdx].id + ' (' + contacts[nextIdx].name + ')');
+    await lfpMsgSleep(800);
     window.location.href = '/user/' + contacts[nextIdx].id;
   }, 2000);
 })();
