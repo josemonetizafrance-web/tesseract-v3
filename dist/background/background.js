@@ -48,10 +48,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           }
           const errMsg = json.error?.message || json.error || ('Error ' + res.status);
           console.warn('[BG] AI proxy falló:', res.status, errMsg);
+          sendResponse({ error: errMsg });
         } catch (e) {
           console.warn('[BG] Error en fetch AI:', e.message);
+          sendResponse({ error: e.message || 'Error de red al contactar el servidor AI' });
         }
-        sendResponse({ error: 'AI no disponible. Verifica tu conexión.' });
       } catch (e) {
         sendResponse({ error: e.message });
       }

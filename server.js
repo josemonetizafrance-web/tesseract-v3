@@ -46,8 +46,25 @@ app.use(securityHeaders);
 app.use(requestLogger);
 app.use(rateLimitMiddleware);
 
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', version: '3.0.0', timestamp: Date.now() });
+app.get('/api/health', async (req, res) => {
+  let dbStatus = 'down';
+  try {
+    const { getDb } = require('./db/tesseract.js');
+    const db = getDb();
+    await Promise.race([db.command({ ping: 1 }), new Promise(function (r) { setTimeout(r, 6000); })]);
+    dbStatus = 'ok';
+  } catch (e) { dbStatus = 'down'; }
+  const uri = process.env.MONGODB_URI || '';
+  const m = uri.match(/@([^/?]+)/);
+  res.json({
+    status: 'ok',
+    version: '3.0.0',
+    timestamp: Date.now(),
+    db: dbStatus,
+    mongoHost: m ? m[1] : 'no configurada',
+    groq: process.env.GROQ_API_KEY ? 'configurada' : 'no configurada',
+    model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile'
+  });
 });
 
 app.get('/', (req, res) => {
