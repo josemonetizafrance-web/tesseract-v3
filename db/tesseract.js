@@ -109,23 +109,24 @@ async function initDb() {
 }
 
 // Helper functions
-async function ensureConnected() {
-  try {
-    await Promise.race([
-      db.command({ ping: 1 }),
-      new Promise(function (_, reject) { setTimeout(function () { reject(new Error('timeout')); }, 4000); })
-    ]);
-    return;
-  } catch (e) {}
-  console.warn('[DB] Conexion inactiva, reconectando...');
+async function reconnectNow() {
+  console.warn('[DB] Query fallo, reconectando...');
   try {
     if (client) { try { await client.close(); } catch (e2) {} }
-    client = new MongoClient(MONGODB_URI, { maxPoolSize: 10, serverSelectionTimeoutMS: 5000 });
-    await client.connect();
-    db = client.db('tesseract');
-    console.log('[DB] Reconectado OK');
-  } catch (e2) {
-    throw new Error('MongoDB no disponible: ' + e2.message);
+  } catch (e2) {}
+  client = new MongoClient(MONGODB_URI, { maxPoolSize: 10, serverSelectionTimeoutMS: 5000 });
+  await client.connect();
+  db = client.db('tesseract');
+  console.log('[DB] Reconectado OK');
+}
+
+async function withDb(fn) {
+  try {
+    return await fn();
+  } catch (e) {
+    console.warn('[DB] Error en query:', e.message);
+    await reconnectNow();
+    return await fn();
   }
 }
 
@@ -139,20 +140,22 @@ function toObjectId(id) {
 
 // Queries
 async function findUserByEmail(email) {
-  await ensureConnected();
-  const escaped = String(email).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const regex = new RegExp('^' + escaped + '$', 'i');
-  return await db.collection('tess_users').findOne({ email: regex });
+  return withDb(function () {
+    const escaped = String(email).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp('^' + escaped + '$', 'i');
+    return db.collection('tess_users').findOne({ email: regex });
+  });
 }
 
 async function findUserById(id) {
-  await ensureConnected();
-  const objId = toObjectId(id);
-  if (!objId) return null;
-  return await db.collection('tess_users').findOne(
-    { _id: objId },
-    { projection: { password_hash: 0 } }
-  );
+  return withDb(function () {
+    const objId = toObjectId(id);
+    if (!objId) return Promise.resolve(null);
+    return db.collection('tess_users').findOne(
+      { _id: objId },
+      { projection: { password_hash: 0 } }
+    );
+  });
 }
 
 async function createUser(email, passwordHash, demoExpiry) {
