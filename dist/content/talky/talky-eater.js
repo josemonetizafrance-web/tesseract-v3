@@ -858,25 +858,33 @@ async function generateWithAI(name, profile, accumulatedMsg) {
 
     var styleInjection = '';
     var cribsEntry = cribFindEntry(window._lastCribsPid);
+    if (!(cribsEntry && cribsEntry.voice_style)) {
+      // Fallback: usar el estilo del operador mas reciente disponible en CRIBS
+      try {
+        if (typeof _cribsLocalCache !== 'undefined' && _cribsLocalCache && _cribsLocalCache.length) {
+          for (var si = _cribsLocalCache.length - 1; si >= 0; si--) {
+            if (_cribsLocalCache[si].voice_style && String(_cribsLocalCache[si].voice_style).trim().length > 5) { cribsEntry = _cribsLocalCache[si]; break; }
+          }
+        }
+      } catch (se) {}
+    }
     if (cribsEntry && cribsEntry.voice_style) {
       var examples = cribsEntry.voice_style.split('\n')
         .filter(function (l) { return l.trim().length > 5; })
-        .map(function (l) { return 'â€¢ "' + l.trim() + '"'; })
+        .map(function (l) { return '- "' + l.trim() + '"'; })
         .join('\n');
-      console.log('[EATER AI] Estilo cargado para perfil', window._lastCribsPid, 'â€”', cribsEntry.voice_style.split('\n').length, 'lÃ­neas');
+      console.log('[EATER AI] Estilo del operador cargado (perfil ' + (cribsEntry.profile_id || '?') + ') -', cribsEntry.voice_style.split('\n').length, 'lineas');
       if (examples) {
-        styleInjection = 'El operador escribe a este cliente con este estilo propio (ejemplos de mensajes reales enviados):\n' +
-          examples + '\n\nDebes imitar EXACTAMENTE ese estilo: tono, nivel de formalidad, tipo de vocabulario, uso de emojis, longitud de frases y forma de expresarse. SÃ© coherente con su manera de escribir.\n\n';
+        styleInjection = '\n\n=== ESTILO DEL OPERADOR ===\nMensajes reales escritos por el operador:\n' + examples + '\nIMITA EXACTAMENTE esta forma de escribir: tono, vocabulario, uso de emojis, longitud y ritmo de las frases. Tus respuestas deben ser indistinguibles de estos ejemplos.\n=== FIN ESTILO ===\n';
       }
     } else {
-      console.log('[EATER AI] Sin estilo capturado para perfil', window._lastCribsPid);
+      console.log('[EATER AI] Sin estilo capturado en CRIBS para perfil', window._lastCribsPid);
     }
 
     const maxLen = isMultiple ? 2000 : 500;
     const prompt = 'ÃƒÅ¡ltimo mensaje del cliente:\n\n"' + accumulatedMsg.substring(0, maxLen) + '"\n\n' +
       contextNote +
       'Nivel de confianza: ' + confianza + '. ' + confianzaHint + '\n\n' +
-      styleInjection +
       'Escribe UNA respuesta natural, humana y magnetica. Sigue estas reglas:\n' +
       '- TRATO HUMANO REAL: habla como un amigo con ventaja, no como chat bot. Usa humor callejero, referencias cotidianas, silencios narrados. Si ella cuenta algo personal, reacciona con empatia masculina, no con analisis frio. Se genuino.\n' +
       '- PUSH-PULL INTELIGENTE: alterna calidez con distancia calculada. Un cumplido seguido de un quite. Interes genuino seguido de indiferencia juguetona. Nunca valides sin quitar algo primero. La tension se construye con contrastes, no con rectas.\n' +
@@ -906,7 +914,7 @@ async function generateWithAI(name, profile, accumulatedMsg) {
     const aiMessages = [
       {
         role: 'system',
-        content: TESS_MASTER_PROMPT,
+        content: TESS_MASTER_PROMPT + styleInjection,
       }
     ];
 
