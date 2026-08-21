@@ -19,10 +19,12 @@ async function tryGroqWithFallback(messages, model, maxTokens) {
 }
 
 async function callAI(apiUrl, apiKey, model, messages, maxTokens) {
+  const body = { model, messages, max_tokens: Math.max(maxTokens || 500, 300) };
+  if (apiUrl === GROQ_API && String(model).indexOf('gpt-oss') !== -1) body.reasoning_effort = 'low';
   const response = await fetch(apiUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-    body: JSON.stringify({ model, messages, max_tokens: maxTokens || 500 })
+    body: JSON.stringify(body)
   });
   const data = await response.json();
   return { ok: response.ok, status: response.status, data };
