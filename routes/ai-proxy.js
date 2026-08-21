@@ -10,10 +10,10 @@ const GROQ_MODEL_FALLBACK = process.env.GROQ_MODEL_FALLBACK || 'qwen/qwen3.6-27b
 
 // Reintenta con modelo alternativo si el primario no existe (404)
 async function tryGroqWithFallback(messages, model, maxTokens) {
-  let result = await tryGroqWithFallback(messages, model, maxTokens);
+  let result = await tryGroq(messages, model, maxTokens);
   if ((!result.ok || !extractContent(result.data)) && result.status === 404 && (!model || model === GROQ_MODEL)) {
     console.warn('[AI-PROXY] Modelo Groq 404, reintentando con fallback:', GROQ_MODEL_FALLBACK);
-    result = await tryGroqWithFallback(messages, GROQ_MODEL_FALLBACK, maxTokens);
+    result = await tryGroq(messages, GROQ_MODEL_FALLBACK, maxTokens);
   }
   return result;
 }
