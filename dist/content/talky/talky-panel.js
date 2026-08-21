@@ -44,11 +44,7 @@ async function initTesseract() {
   }
 
   // Inicializar módulos v24 (pueden fallar sin afectar el panel)
-  try {
-    if (typeof initAutoAnswer === 'function') await initAutoAnswer();
-  } catch (e) {
-    console.error('[TESSERACT] ⚠️ initAutoAnswer falló:', e.message);
-  }
+  // Auto-Answer deshabilitado por decision de producto
   try {
     if (typeof window._openSPPanel === 'function') await window._openSPPanel();
   } catch (e) {
