@@ -244,7 +244,7 @@ async function executeIcebreakerSweep() {
       textarea.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: msg.text }));
       textarea.dispatchEvent(new Event('change', { bubbles: true }));
       if (msg.category && msg.category.toLowerCase() === 'mail') {
-        var radio = document.querySelector(TALK_Y.ICEBREAKER_RADIO_MAIL);
+        var radio = document.querySelector(TALK_Y.ICEBREAKER_RADIO_MAIL) || document.querySelector('input[type="radio"][name="messageType"][value="mail"]');
         if (radio) { (radio.closest('label') || radio).click(); await sleep(400); }
         var mailTextarea = document.querySelector(TALK_Y.ICEBREAKER_TEXTAREA_MAIL);
         if (mailTextarea && mailTextarea !== textarea) {
@@ -260,22 +260,35 @@ async function executeIcebreakerSweep() {
         console.log('[IB] mood selection: category=', msg.category, '→ mood=', mood);
         var moodEl = null;
         for (var mc = 0; mc < 10; mc++) {
-          var allChips = document.querySelectorAll('.mood-chip');
-          if (allChips.length) {
-            moodEl = document.querySelector(TALK_Y.ICEBREAKER_MOOD(mood));
-            if (!moodEl) {
-              moodEl = Array.from(allChips).find(function(c) {
-                return c.getAttribute('data-mood') === mood || c.textContent.trim().toLowerCase().replace(/\s/g, '_') === mood;
-              });
+          var candidates = document.querySelectorAll('div[data-mood="' + mood + '"]');
+          moodEl = Array.from(candidates).find(function (el) {
+            return el.getAttribute('data-isselectable') === 'true' && el.getAttribute('data-isdisabled') !== 'true';
+          });
+          if (!moodEl) {
+            var wrapEl = document.querySelector('[data-test-id="mood-chip selectMood ' + mood + '"]');
+            if (wrapEl) {
+              moodEl = wrapEl.querySelector('div[data-mood]') || (wrapEl.getAttribute('data-mood') === mood ? wrapEl : null);
             }
-            if (moodEl) break;
           }
+          if (!moodEl) {
+            var anyChip = Array.from(document.querySelectorAll('[data-test-id*="mood-chip"], .mood-chip'));
+            moodEl = anyChip.map(function (c) { return c.querySelector('div[data-mood]') || c; }).find(function (c) {
+              return c.getAttribute('data-mood') === mood || (c.getAttribute('data-test-id') || '').indexOf(mood) !== -1;
+            }) || null;
+          }
+          if (moodEl) break;
           await sleep(200);
         }
         console.log('[IB] moodEl found for', mood, moodEl ? '✓' : '✗');
         if (moodEl) {
           moodEl.click();
-          console.log('[IB] mood clicked:', mood);
+          var selected = false;
+          for (var sw = 0; sw < 15; sw++) {
+            await sleep(200);
+            if (document.querySelector('div[data-mood="' + mood + '"][data-isselected="true"]')) { selected = true; break; }
+          }
+          console.log('[IB] mood clicked:', mood, '| confirmado:', selected);
+          if (!selected) console.log('[IB] WARN: mood no confirmo data-isselected, continuando');
           await sleep(300);
         } else {
           console.log('[IB] mood element not found for:', mood);

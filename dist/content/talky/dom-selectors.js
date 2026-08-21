@@ -164,7 +164,7 @@ var TALK_Y = {
   ICEBREAKER_CREATE_NEW: 'label.chip-root[data-test-id*="create-icebreaker"]',
   ICEBREAKER_TEXTAREA: 'textarea[placeholder="Type your message here"][maxlength="300"]',
   ICEBREAKER_TEXTAREA_MAIL: 'textarea[placeholder="Type your message here"][maxlength="1000"]',
-  ICEBREAKER_MOOD: function (mood) { return '.mood-chip[data-mood="' + mood + '"]'; },
+  ICEBREAKER_MOOD: function (mood) { return 'div[data-mood="' + mood + '"][data-isselectable="true"]'; },
   ICEBREAKER_RADIO_MAIL: 'input[data-test-id="cmp:ui-radio item change:form-fields-type-on-change mail"]',
   ICEBREAKER_SEND_MODERATION: 'button[data-test-id*="send-to-moderation"], button[data-test-id*="send-moderation"]',
 
