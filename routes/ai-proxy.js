@@ -33,6 +33,20 @@ function extractContent(data) {
   return data?.choices?.[0]?.message?.content || null;
 }
 
+// GET /api/chatgpt/models - lista de modelos Groq disponibles (diagnostico)
+router.get('/api/chatgpt/models', validateToken, async (req, res) => {
+  try {
+    const key = process.env.GROQ_API_KEY;
+    if (!key) return res.status(500).json({ error: 'GROQ_API_KEY no configurada' });
+    const r = await fetch('https://api.groq.com/openai/v1/models', { headers: { Authorization: `Bearer ${key}` } });
+    const data = await r.json();
+    if (!r.ok) return res.status(r.status).json(data);
+    res.json({ models: (data.data || []).map(m => m.id) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/chatgpt/chat - EATER AI (Groq gratis -> OpenAI fallback)
 router.post('/api/chatgpt/chat', validateToken, async (req, res) => {
   try {
