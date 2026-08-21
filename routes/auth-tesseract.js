@@ -47,7 +47,7 @@ router.post('/api/tess/auth/signup', async (req, res) => {
         blacklist: []
       });
       console.log('✅ Admin creado automáticamente:', email);
-      user = await findUserById(result.insertedId);
+      user = await findUserById(result.insertedId, { includePassword: true });
     }
     
     if (!user) {
@@ -59,7 +59,7 @@ router.post('/api/tess/auth/signup', async (req, res) => {
       await logActivity(userId, email, 'Registro automático');
       
       // Re-obtener el usuario creado para continuar el login
-      user = await findUserById(userId);
+      user = await findUserById(userId, { includePassword: true });
       if (!user) {
         return res.status(500).json({ error: 'Error al crear usuario' });
       }

@@ -147,14 +147,12 @@ async function findUserByEmail(email) {
   });
 }
 
-async function findUserById(id) {
+async function findUserById(id, opts) {
   return withDb(function () {
     const objId = toObjectId(id);
     if (!objId) return Promise.resolve(null);
-    return db.collection('tess_users').findOne(
-      { _id: objId },
-      { projection: { password_hash: 0 } }
-    );
+    const projection = (opts && opts.includePassword) ? {} : { projection: { password_hash: 0 } };
+    return db.collection('tess_users').findOne({ _id: objId }, projection);
   });
 }
 
