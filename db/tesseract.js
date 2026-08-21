@@ -109,6 +109,26 @@ async function initDb() {
 }
 
 // Helper functions
+async function ensureConnected() {
+  try {
+    await Promise.race([
+      db.command({ ping: 1 }),
+      new Promise(function (_, reject) { setTimeout(function () { reject(new Error('timeout')); }, 4000); })
+    ]);
+    return;
+  } catch (e) {}
+  console.warn('[DB] Conexion inactiva, reconectando...');
+  try {
+    if (client) { try { await client.close(); } catch (e2) {} }
+    client = new MongoClient(MONGODB_URI, { maxPoolSize: 10, serverSelectionTimeoutMS: 5000 });
+    await client.connect();
+    db = client.db('tesseract');
+    console.log('[DB] Reconectado OK');
+  } catch (e2) {
+    throw new Error('MongoDB no disponible: ' + e2.message);
+  }
+}
+
 function toObjectId(id) {
   try {
     return new ObjectId(id);
@@ -119,12 +139,14 @@ function toObjectId(id) {
 
 // Queries
 async function findUserByEmail(email) {
+  await ensureConnected();
   const escaped = String(email).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const regex = new RegExp('^' + escaped + '$', 'i');
   return await db.collection('tess_users').findOne({ email: regex });
 }
 
 async function findUserById(id) {
+  await ensureConnected();
   const objId = toObjectId(id);
   if (!objId) return null;
   return await db.collection('tess_users').findOne(
