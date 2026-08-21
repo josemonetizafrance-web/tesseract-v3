@@ -54,7 +54,6 @@ async function initTesseract() {
   } catch (e) {
     console.error('[TESSERACT] ⚠️ Saludo Push init falló:', e.message);
   }
-  if (typeof updateAATabUI === 'function') updateAATabUI();
   try {
     if (typeof initSmartMailing === 'function') await initSmartMailing();
   } catch (e) {
@@ -298,7 +297,6 @@ function createMainPanel() {
 /* Tab-content accent colors */
 #tabMain.tab-content{border-left:3px solid #7c3aed !important;}
 #tabStar.tab-content{border-left:3px solid #f59e0b !important;}
-#tabAA.tab-content{border-left:3px solid #06b6d4 !important;}
 #tabMailing.tab-content{border-left:3px solid #8b5cf6 !important;}
 #tabBlacklist.tab-content{border-left:3px solid #ef4444 !important;}
 </style>
@@ -314,7 +312,6 @@ function createMainPanel() {
 <div class="tab-nav">
   <button class="tab-btn active" data-tab="main">🎮 BOT</button>
   <button class="tab-btn" data-tab="star">⭐ STAR TOOLS</button>
-  <button class="tab-btn" data-tab="aa">🤖 AUTO-ANSWER</button>
   <button class="tab-btn" data-tab="mailing">📬 MAILING</button>
   <button class="tab-btn" data-tab="blacklist">🚫 BLACKLIST</button>
 </div>
@@ -476,31 +473,6 @@ function createMainPanel() {
 <div class="st-bar"><span id="stCount">TOTAL: 0 IDs</span><div><button id="btnClear">🧹 LIMPIAR</button><button id="btnExport">📋 EXPORTAR</button><button id="btnCopy">📝 COPIAR</button></div></div>
 </div>
 
-<!-- PESTAÑA AUTO-ANSWER -->
-<div id="tabAA" class="tab-content">
-<div class="user-bar" style="display:flex;align-items:center;justify-content:center;gap:8px;">
-  🤖 AUTO-ANSWER —
-  <label class="aa-toggle">
-    <input type="checkbox" id="btnToggleAA">
-    <span class="aa-toggle-slider round"></span>
-  </label>
-  <span id="aaStatusInline" style="color:#666;">INACTIVO</span>
-</div>
-<div style="padding:10px;">
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
-    <div class="mod-card"><h4>❤️ LIKE</h4><div class="st" id="aaLikeStatus" style="color:#666;">DESACTIVADO</div></div>
-    <div class="mod-card"><h4>😉 WINK</h4><div class="st" id="aaWinkStatus" style="color:#666;">DESACTIVADO</div></div>
-    <div class="mod-card"><h4>💬 COMMENT</h4><div class="st" id="aaCommentStatus" style="color:#666;">DESACTIVADO</div></div>
-    <div class="mod-card"><h4>🎁 GIFT</h4><div class="st" id="aaGiftStatus" style="color:#666;">DESACTIVADO</div></div>
-  </div>
-  <div class="stats-row">
-    <div class="stat-mini"><span class="val" id="aaTodayResp">0</span>HOY</div>
-    <div class="stat-mini"><span class="val" id="aaDailyLimit">50</span>LÍMITE</div>
-  </div>
-  <button class="btn-auth" id="btnOpenAAConfig" style="margin-top:8px;">⚙ CONFIGURAR AUTO-ANSWER</button>
-</div>
-</div>
-
 <!-- PESTAÑA SMART MAILING -->
 <div id="tabMailing" class="tab-content">
 <div class="user-bar">📬 SMART MAILING — <span id="mlStatusInline">INACTIVO</span></div>
@@ -584,11 +556,10 @@ function setupAllEvents() {
       mainPanel.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       this.classList.add('active');
       currentTab = Tesseract.set('currentTab', clickedTab);
-      const tabMap = { main: 'Main', star: 'Star', aa: 'AA', mailing: 'Mailing', blacklist: 'Blacklist' };
+      const tabMap = { main: 'Main', star: 'Star', mailing: 'Mailing', blacklist: 'Blacklist' };
       mainPanel.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
       document.getElementById('tab' + (tabMap[currentTab] || 'Main')).classList.add('active');
       if (currentTab === 'star') renderStarIds();
-      if (currentTab === 'aa') updateAATabUI();
       if (currentTab === 'mailing') updateMLTabUI();
       if (currentTab === 'blacklist') { /* blacklist removed */ }
     });
@@ -775,18 +746,6 @@ function setupAllEvents() {
   document.getElementById('btnClear').addEventListener('click', function() { if (typeof clearIDs === 'function') clearIDs(); });
   document.getElementById('btnExport').addEventListener('click', function() { if (typeof exportIDs === 'function') exportIDs(); });
   document.getElementById('btnCopy').addEventListener('click', function() { if (typeof copyIDs === 'function') copyIDs(); });
-
-  // Auto-Answer
-  document.getElementById('btnOpenAAConfig').addEventListener('click', () => {
-    if (typeof openAAPanel === 'function') openAAPanel();
-  });
-
-  document.getElementById('btnToggleAA').addEventListener('change', function() {
-    if (typeof window._setAAState === 'function') {
-      window._setAAState(this.checked);
-    }
-    if (typeof updateAATabUI === 'function') setTimeout(updateAATabUI, 300);
-  });
 
   // Mail CRIBS
   document.getElementById('btnToggleMailCribs').addEventListener('change', function() {
@@ -1071,28 +1030,6 @@ function startPeriodicSync() {
     } catch (e) {};
     updateStats();
   }, 10000);
-}
-
-// ============ AUTO-ANSWER TAB UI ============
-function updateAATabUI() {
-  const cfg = typeof getAAConfig === 'function' ? getAAConfig() : null;
-  if (!cfg) return;
-
-  document.getElementById('aaStatusInline').textContent = cfg.enabled ? 'ACTIVO' : 'INACTIVO';
-  document.getElementById('aaStatusInline').style.color = cfg.enabled ? '#4CAF50' : '#666';
-
-  const evts = ['like', 'wink', 'comment', 'gift'];
-  evts.forEach(ev => {
-    const el = document.getElementById('aa' + ev.charAt(0).toUpperCase() + ev.slice(1) + 'Status');
-    if (el) {
-      const enabled = cfg.events?.[ev]?.enabled;
-      el.textContent = enabled ? 'ACTIVO' : 'DESACTIVADO';
-      el.style.color = enabled ? '#4CAF50' : '#666';
-    }
-  });
-
-  document.getElementById('aaTodayResp').textContent = cfg.respondedToday || 0;
-  document.getElementById('aaDailyLimit').textContent = cfg.maxDaily || 50;
 }
 
 // ============ SMART MAILING TAB UI ============
