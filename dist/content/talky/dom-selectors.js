@@ -152,12 +152,12 @@ var TALK_Y = {
   SIDEBAR_DESCRIPTION: '.description',
 
   // ─── DIALOG LIST (Messages Page) ───
-  DIALOG_LIST: 'div.dialogs__scroll-infinite-list',
-  DIALOG_LISTITEM: '[role="listitem"]',
+  DIALOG_LIST: '[data-test-id="dialogs-list-items"], div.dialogs__scroll-infinite-list, div.dialogs__list',
+  DIALOG_LISTITEM: '.dialog-item-root, [role="listitem"]',
   DIALOG_AVATAR: '.ui-avatar',
   DIALOG_GO_TO_CHAT: '[data-test-id="file:source-list-item click:go-to-chat"]',
   DIALOG_ONLINE_TOGGLE: '.online .switch input[type="checkbox"]',
-  DIALOG_TAB_BY_ID: function (id) { return '.in-page-tab-wrapper[id="' + id + '"]'; },
+  DIALOG_TAB_BY_ID: function (id) { return '#' + id + ', .in-page-tab-wrapper[id="' + id + '"], [data-test-id*="on-tab-click-item-id ' + id + '"]'; },
 
   // ─── ICEBREAKERS ───
   ICEBREAKER_SIDEBAR_LINK: 'a[data-test-id="file:statistics item-navigation-to Icebreakers"]',

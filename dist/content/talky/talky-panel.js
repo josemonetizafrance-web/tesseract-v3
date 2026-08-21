@@ -322,7 +322,7 @@ function createMainPanel() {
   <button class="bot-subbtn" data-botsub="likefollow">❤️➕ LIKES & FOLLOWS</button>
   <button class="bot-subbtn" data-botsub="eater">🧠 EATER</button>
   <button class="bot-subbtn" data-botsub="icebreakers">🎯 ICEBREAKERS</button>
-  <button class="bot-subbtn" data-botsub="saludo">👋 SALUDO PUSH</button>
+  <button class="bot-subbtn" data-botsub="saludo">👋 SAY HI!</button>
 </div>
 
 <!-- CONTENEDOR DE VENTANAS -->
@@ -409,32 +409,17 @@ function createMainPanel() {
 <div class="bot-subpanel" id="botsubSaludo" data-z="1">
 <button class="win-close" data-close="botsubSaludo">×</button>
 <div class="mod-card" style="margin-bottom:8px;">
-<h4>👋 SALUDO PUSH</h4>
+<h4>👋 SAY HI!</h4>
 <div class="st" id="spStatus" style="color:#888;font-size:13px;font-weight:bold;margin-bottom:8px;">INACTIVO</div>
 
-<label style="font-size:9px;color:#10b981;font-weight:600;display:block;margin-top:4px;">📨 Saludo 1</label>
-<textarea id="spTemplate1" placeholder="Primer mensaje de saludo..." style="width:100%;padding:5px;background:#000;border:1px solid #10b981;border-radius:4px;color:#e0e0e0;font-family:Arial;font-size:10px;box-sizing:border-box;height:44px;resize:vertical;margin-bottom:4px;"></textarea>
-
-<label style="font-size:9px;color:#10b981;font-weight:600;display:block;">📨 Saludo 2</label>
-<textarea id="spTemplate2" placeholder="Segundo mensaje de saludo..." style="width:100%;padding:5px;background:#000;border:1px solid #10b981;border-radius:4px;color:#e0e0e0;font-family:Arial;font-size:10px;box-sizing:border-box;height:44px;resize:vertical;margin-bottom:4px;"></textarea>
-
-<label style="font-size:9px;color:#f59e0b;font-weight:600;display:block;">🔥 Insistencia 1</label>
-<textarea id="spTemplate3" placeholder="Primer mensaje de insistencia..." style="width:100%;padding:5px;background:#000;border:1px solid #f59e0b;border-radius:4px;color:#e0e0e0;font-family:Arial;font-size:10px;box-sizing:border-box;height:44px;resize:vertical;margin-bottom:4px;"></textarea>
-
-<label style="font-size:9px;color:#f59e0b;font-weight:600;display:block;">🔥 Insistencia 2</label>
-<textarea id="spTemplate4" placeholder="Segundo mensaje de insistencia..." style="width:100%;padding:5px;background:#000;border:1px solid #f59e0b;border-radius:4px;color:#e0e0e0;font-family:Arial;font-size:10px;box-sizing:border-box;height:44px;resize:vertical;margin-bottom:4px;"></textarea>
-
-<label style="font-size:9px;color:#f59e0b;font-weight:600;display:block;">🔥 Insistencia 3</label>
-<textarea id="spTemplate5" placeholder="Tercer mensaje de insistencia..." style="width:100%;padding:5px;background:#000;border:1px solid #f59e0b;border-radius:4px;color:#e0e0e0;font-family:Arial;font-size:10px;box-sizing:border-box;height:44px;resize:vertical;margin-bottom:4px;"></textarea>
+<p style="font-size:9px;color:#aaa;line-height:1.5;margin:0 0 8px;">Genera 5 mensajes con IA (saludo → intriga → remate → pre-cierre → cierre), los traduce al inglés y los envía uno a uno a cada contacto de la pestaña <strong style="color:#10b981;">Active</strong>.</p>
 
 <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap;">
 <label style="display:flex;align-items:center;gap:4px;font-size:9px;color:#ccc;cursor:pointer;"><input type="checkbox" id="spTraducir" style="accent-color:#8b5cf6;" checked> Traducir a ingl\u00E9s</label>
-<label style="display:flex;align-items:center;gap:4px;font-size:9px;color:#ccc;cursor:pointer;"><input type="checkbox" id="spOnlineOnly" style="accent-color:#10b981;"> Solo online</label>
-<label style="display:flex;align-items:center;gap:4px;font-size:9px;color:#ccc;cursor:pointer;"><input type="checkbox" id="spSeguimiento" style="accent-color:#f59e0b;"> Seguimiento</label>
-<label style="display:flex;align-items:center;gap:4px;font-size:9px;color:#ccc;">Limite: <input type="number" id="spMaxDaily" value="30" min="0" style="width:50px;padding:3px 4px;background:#000;border:1px solid #10b981;border-radius:4px;color:#e0e0e0;font-size:9px;"></label>
+<label style="display:flex;align-items:center;gap:4px;font-size:9px;color:#ccc;">L\u00EDmite: <input type="number" id="spMaxDaily" value="30" min="0" style="width:50px;padding:3px 4px;background:#000;border:1px solid #10b981;border-radius:4px;color:#e0e0e0;font-size:9px;"></label>
 <span style="font-size:9px;color:#888;">Enviados hoy: <strong id="spSentToday" style="color:#10b981;">0</strong></span>
 </div>
-<button id="btnSPToggle" style="width:100%;margin-top:8px;padding:10px 8px;border:2px solid #10b981;border-radius:8px;background:linear-gradient(135deg,#10b981,#059669);color:#fff;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;transition:all 0.3s;text-shadow:0 0 10px rgba(16,185,129,0.5);">SALUDO PUSH</button>
+<button id="btnSPToggle" style="width:100%;margin-top:8px;padding:12px 8px;border:2px solid #10b981;border-radius:8px;background:linear-gradient(135deg,#10b981,#059669);color:#fff;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:14px;font-weight:700;letter-spacing:2px;text-transform:uppercase;transition:all 0.3s;text-shadow:0 0 10px rgba(16,185,129,0.5);">SAY HI!</button>
 </div>
 </div>
 
@@ -603,7 +588,7 @@ function setupAllEvents() {
   });
   document.getElementById('btnTranslateClient').addEventListener('click', function() { if (typeof translateEaterToClientLang === 'function') translateEaterToClientLang(); });
 
-  // Saludo Push
+  // Saludo Push (Say Hi!)
   document.getElementById('btnSPToggle').addEventListener('click', function() {
     if (typeof window._executeSaludoPush === 'function' && typeof window._abortSaludoPush === 'function') {
       if (document.getElementById('spStatus').textContent === 'ACTIVO') {
@@ -613,22 +598,10 @@ function setupAllEvents() {
       }
     }
   });
-  ['spTemplate1','spTemplate2','spTemplate3','spTemplate4','spTemplate5'].forEach(function(id) {
+  ['spTraducir','spMaxDaily'].forEach(function(id) {
     document.getElementById(id).addEventListener('change', function() {
       if (typeof window._saveSPPanelConfig === 'function') window._saveSPPanelConfig();
     });
-  });
-  document.getElementById('spMaxDaily').addEventListener('change', function() {
-    if (typeof window._saveSPPanelConfig === 'function') window._saveSPPanelConfig();
-  });
-  document.getElementById('spOnlineOnly').addEventListener('change', function() {
-    if (typeof window._saveSPPanelConfig === 'function') window._saveSPPanelConfig();
-  });
-  document.getElementById('spSeguimiento').addEventListener('change', function() {
-    if (typeof window._saveSPPanelConfig === 'function') window._saveSPPanelConfig();
-  });
-  document.getElementById('spTraducir').addEventListener('change', function() {
-    if (typeof window._saveSPPanelConfig === 'function') window._saveSPPanelConfig();
   });
   var btnIBGen = document.getElementById('btnIBGenerate');
   if (btnIBGen) btnIBGen.addEventListener('click', function() {

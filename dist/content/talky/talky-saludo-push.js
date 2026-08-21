@@ -1,23 +1,27 @@
-﻿// TESSERACT v24.0 - Saludo Push Module
-// Barrido de saludos sobre la bandeja de contactos (pestaña Active)
+﻿// TESSERACT v24.0 - Saludo Push Module ("Say Hi!")
+// Genera con IA una secuencia de 5 mensajes (saludo → intriga → remate → pre-cierre → cierre),
+// los traduce al inglés y los envía uno a uno a cada contacto de la pestaña Active.
 
 const SP_STORAGE_KEY = 'tess_saludo_push_config';
 const SP_CONTACTED_KEY = 'tess_sp_contacted';
+const SP_SEP = '\n|||SP|||\n';
 
 let spConfig = {
-  template1: '',
-  template2: '',
-  template3: '',
-  template4: '',
-  template5: '',
   maxDaily: 30,
   sentToday: 0,
-  onlineOnly: false,
-  modoSeguimiento: false,
   traducir: true
 };
 let spActive = false;
 let spProcessedIds = new Set();
+let spLastSequence = null;
+
+const SP_FALLBACK_SEQ = [
+  'Hola, como has estado?',
+  'Me genera algo de intriga no haber sabido mas nada acerca de ti.',
+  'Pense que habiamos conectado de alguna manera, y que podriamos conocernos mejor.',
+  'Pero si me equivoque debo decir que es una lastima.',
+  'Sin embargo estare esperando una respuesta de tu parte, si hay algo que hacer para seguir con esto me gustaria saberlo, adios!'
+];
 
 async function loadSPConfig() {
   try {
@@ -32,22 +36,47 @@ async function saveSPConfig() {
   } catch (e) {}
 }
 
-function getSPMessages() {
-  return [
-    spConfig.template1 || 'Hola! Vi tu perfil y me pareciste interesante. Te gustaria conversar?',
-    spConfig.template2 || 'Como estas? Espero que tengas un lindo dia!',
-    spConfig.template3 || 'Aun sigo interesado en conocerte, te gustaria charlar un rato?',
-    spConfig.template4 || 'Perdon si insisto, pero realmente me gustaria hablar contigo. Espero tu respuesta!',
-    spConfig.template5 || 'Perdon por insistir tanto, solo quiero saber si te interesa conocerme.'
-  ];
+// ─── GENERACIÓN DE SECUENCIA (IA) ───
+
+function spParseSequence(raw) {
+  if (!raw) return null;
+  var parts = raw.split(/\|\|\|/).map(function (s) {
+    return s.replace(/^\s*\d+[.)]\s*/, '').replace(/["""]/g, '').trim();
+  }).filter(function (s) { return s.length > 0; });
+  if (parts.length < 3) return null;
+  return parts.slice(0, 5).map(function (s) { return s.slice(0, 298); });
 }
 
-function spFindChatInput() {
-  return document.querySelector(TALK_Y.CHAT_TEXTAREA_SP) || document.querySelector(TALK_Y.CHAT_TEXTAREA) || document.querySelector(TALK_Y.CHAT_INPUT_ID) || document.querySelector(TALK_Y.ANY_TEXTAREA);
-}
-
-function spFindSendBtn() {
-  return document.querySelector(TALK_Y.SEND_BTN_SP) || document.querySelector(TALK_Y.SEND_BTN_CLASS) || document.querySelector(TALK_Y.SEND_BTN_ID) || document.querySelector(TALK_Y.SEND_BTN_ARIA);
+async function spGenerateSequence() {
+  var system = [
+    'Eres un hombre escribiendo por chat a una mujer que ya conversó con él pero dejó de responder.',
+    'Debes escribir UNA secuencia de 5 mensajes cortos en español natural latinoamericano, tono cálido pero con dignidad, para reactivar la conversación:',
+    '1. SALUDO INICIAL - saluda y pregunta cómo ha estado. Tono de referencia: "Hola, como has estado?"',
+    '2. COMPLEMENTO - di que te genera intriga no haber sabido más de ella. Tono: "Me genera algo de intriga no haber sabido mas nada acerca de ti."',
+    '3. REMATE - di que pensaste que habían conectado y podrían conocerse mejor. Tono: "Pense que habiamos conectado de alguna manera, y que podriamos conocernos mejor."',
+    '4. PREAMBULO DEL CIERRE - acepta que si te equivocaste sería una lástima. Tono: "Pero si me equivoque debo decir que es una lastima."',
+    '5. CIERRE - di que esperarás su respuesta y despídete. Tono: "Sin embargo estare esperando una respuesta de tu parte, si hay algo que hacer para seguir con esto me gustaria saberlo, adios!"',
+    'REGLAS:',
+    '- Los ejemplos son SOLO guía de tono: varía las palabras en cada generación, NUNCA copies literal.',
+    '- Máximo 280 caracteres por mensaje. Sin emojis, sin comillas, sin numeración.',
+    '- Responde EXACTAMENTE con los 5 mensajes separados por ||| y nada más.'
+  ].join('\n');
+  var user = 'Genera la secuencia ahora. Variacion #' + Math.floor(Math.random() * 100000);
+  try {
+    var data = await Tesseract.callGroq(
+      [{ role: 'system', content: system }, { role: 'user', content: user }],
+      'openai/gpt-oss-120b',
+      1200
+    );
+    var seq = spParseSequence(data?.choices?.[0]?.message?.content);
+    if (seq && seq.length >= 3) {
+      console.log('[SP] Secuencia generada (' + seq.length + ' mensajes)');
+      while (seq.length < 5) seq.push(SP_FALLBACK_SEQ[seq.length]);
+      return seq;
+    }
+    console.warn('[SP] Respuesta IA invalida para secuencia');
+  } catch (e) { console.warn('[SP] Error generando secuencia:', e.message); }
+  return null;
 }
 
 async function spTranslate(text) {
@@ -67,33 +96,92 @@ async function spTranslate(text) {
   return text;
 }
 
-async function spTypeAndSend(text, translated) {
-  var input = spFindChatInput();
-  if (!input) return false;
-  input.removeAttribute('disabled');
-  input.disabled = false;
-  input.value = text;
-  input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
-  input.dispatchEvent(new Event('change', { bubbles: true }));
-  await sleep(600);
-  var form = input.closest('form');
-  if (form) {
-    try { form.requestSubmit(); return true; } catch (e) {}
-  }
-  var sendBtn = spFindSendBtn();
-  if (sendBtn) {
-    sendBtn.removeAttribute('disabled');
-    sendBtn.disabled = false;
-    sendBtn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
-    sendBtn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true }));
-    sendBtn.click();
-    return true;
+async function spTranslateBatch(msgs) {
+  if (!spConfig.traducir) return msgs.slice();
+  try {
+    var joined = msgs.join(' ||| ');
+    var data = await Tesseract.callGroq(
+      [{ role: 'system', content: 'Traduce al inglés cada mensaje separado por |||. Mantén EXACTAMENTE los separadores ||| entre mensajes. Responde solo con la traducción.' }, { role: 'user', content: joined }],
+      'openai/gpt-oss-120b',
+      900
+    );
+    var out = data?.choices?.[0]?.message?.content;
+    if (out) {
+      var parts = out.split(/\|\|\|/).map(function (s) { return s.trim(); }).filter(function (s) { return s.length > 0; });
+      if (parts.length === msgs.length) {
+        console.log('[SP] Lote traducido (' + parts.length + ' mensajes)');
+        return parts.map(function (s) { return s.slice(0, 298); });
+      }
+      console.warn('[SP] Traduccion lote: cantidad no coincide (' + parts.length + '/' + msgs.length + '), traduciendo individual');
+    }
+  } catch (e) { console.warn('[SP] Error traduccion lote:', e.message); }
+  var res = [];
+  for (var i = 0; i < msgs.length; i++) res.push(await spTranslate(msgs[i]));
+  return res;
+}
+
+// ─── DOM HELPERS ───
+
+function spFindChatInput() {
+  return document.querySelector(TALK_Y.CHAT_TEXTAREA_SP) || document.querySelector(TALK_Y.CHAT_TEXTAREA) || document.querySelector(TALK_Y.CHAT_INPUT_ID) || document.querySelector(TALK_Y.ANY_TEXTAREA);
+}
+
+function spFindSendBtn() {
+  return document.querySelector(TALK_Y.SEND_BTN_SP)
+    || document.querySelector('.send-button-wrapper button.send-button')
+    || document.querySelector('button[data-test-id*="send-message send"]')
+    || document.querySelector(TALK_Y.SEND_BTN_CLASS);
+}
+
+async function spWaitSendEnabled(btn, timeoutMs) {
+  var start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (btn && !btn.disabled && btn.getAttribute('aria-disabled') !== 'true') return true;
+    await sleep(250);
+    btn = spFindSendBtn();
   }
   return false;
 }
 
-function spConversationDepth() {
-  return document.querySelectorAll('.tu-message-wrapper.dialog-message').length;
+async function spTypeAndSend(text) {
+  var input = spFindChatInput();
+  if (!input) return false;
+  input.removeAttribute('disabled');
+  input.disabled = false;
+  input.focus();
+  input.value = text;
+  input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+  await sleep(600);
+
+  var btn = spFindSendBtn();
+  var ready = await spWaitSendEnabled(btn, 4000);
+  if (!ready) {
+    console.log('[SP] Boton de envio sigue deshabilitado');
+    return false;
+  }
+  btn.removeAttribute('disabled');
+  btn.disabled = false;
+  btn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+  btn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true }));
+  btn.click();
+
+  // Confirmar: textarea debe quedar vacio tras enviar
+  var start = Date.now();
+  while (Date.now() - start < 3000) {
+    var cur = spFindChatInput();
+    if (!cur || cur.value === '') return true;
+    await sleep(300);
+  }
+  // Reintento con Enter como backup
+  input = spFindChatInput();
+  if (input) {
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+    await sleep(800);
+    var cur2 = spFindChatInput();
+    if (!cur2 || cur2.value === '') return true;
+  }
+  return false;
 }
 
 function spMessageAlreadySent(text) {
@@ -158,24 +246,26 @@ async function spIsProfileContacted(profileId) {
   } catch (e) { return false; }
 }
 
-async function spMarkProfileContacted(profileId, templateIdx) {
+async function spMarkProfileContacted(profileId, seqIdx) {
   try {
     var data = await chrome.storage.local.get([SP_CONTACTED_KEY]);
     var history = data[SP_CONTACTED_KEY] || {};
     var key = String(profileId);
     if (!history[key]) history[key] = [];
-    if (history[key].indexOf(templateIdx) === -1) history[key].push(templateIdx);
+    if (seqIdx !== undefined && seqIdx !== null && history[key].indexOf(seqIdx) === -1) history[key].push(seqIdx);
     await chrome.storage.local.set({ [SP_CONTACTED_KEY]: history });
   } catch (e) {}
 }
 
-async function spGetSentTemplates(profileId) {
+async function spGetSentSeq(profileId) {
   try {
     var data = await chrome.storage.local.get([SP_CONTACTED_KEY]);
     var history = data[SP_CONTACTED_KEY] || {};
     return history[String(profileId)] || [];
   } catch (e) { return []; }
 }
+
+// ─── FLUJO PRINCIPAL ───
 
 async function executeSaludoPush() {
   if (spActive) return;
@@ -193,18 +283,11 @@ async function executeSaludoPush() {
     return;
   }
 
+  // Ir a pestana Active
   var activeTab = document.querySelector(TALK_Y.DIALOG_TAB_BY_ID('active'));
   if (activeTab && activeTab.getAttribute('data-isselected') !== 'true') {
     activeTab.click();
-    await sleep(1000);
-  }
-
-  if (spConfig.onlineOnly) {
-    var onlineToggle = document.querySelector(TALK_Y.DIALOG_ONLINE_TOGGLE);
-    if (onlineToggle && !onlineToggle.checked) {
-      onlineToggle.click();
-      await sleep(500);
-    }
+    await sleep(1200);
   }
 
   var list = document.querySelector(TALK_Y.DIALOG_LIST);
@@ -225,9 +308,10 @@ async function executeSaludoPush() {
     return;
   }
 
+  console.log('[SP] Say Hi! iniciado. Contactos en cola:', items.length);
+  showTessToast('Say Hi! iniciado sobre ' + items.length + ' contactos', 'success');
+
   var sent = 0;
-  var messages = getSPMessages();
-  var prevInput = null;
 
   for (var i = 0; i < items.length; i++) {
     if (!spActive) break;
@@ -256,6 +340,7 @@ async function executeSaludoPush() {
       continue;
     }
 
+    // Abrir chat
     var clickTarget = item.querySelector(TALK_Y.DIALOG_GO_TO_CHAT);
     if (!clickTarget) continue;
     clickTarget.click();
@@ -267,25 +352,21 @@ async function executeSaludoPush() {
       continue;
     }
 
-    if (input === prevInput) {
-      console.log('[SP] Chat no cambio - navegacion fallida, saltando:', profileId);
-      continue;
-    }
-    prevInput = input;
-
-    var depth = spConversationDepth();
-    if (spConfig.modoSeguimiento) {
-      if (depth <= 2) {
-        console.log('[SP] Seguimiento activo - pocos mensajes (' + depth + '), saltando:', profileId);
-        continue;
-      }
+    // Generar secuencia fresca para este contacto
+    var seq = await spGenerateSequence();
+    if (!seq) {
+      seq = spLastSequence || SP_FALLBACK_SEQ.slice();
+      console.log('[SP] Usando secuencia previa/fallback para:', profileId);
     } else {
-      if (depth > 2) {
-        console.log('[SP] Conversacion con', depth, 'mensajes - saltando:', profileId);
-        continue;
-      }
+      spLastSequence = seq.slice();
     }
+    if (!spActive) break;
 
+    // Traducir lote completo
+    var msgs = await spTranslateBatch(seq);
+    if (!spActive) break;
+
+    // Espacio disponible (max 10 msg por conversacion, enviamos hasta 5)
     var maxMsg = 10;
     var curMsg = await spGetMsgCount();
     var room = Math.max(0, maxMsg - curMsg);
@@ -295,29 +376,27 @@ async function executeSaludoPush() {
       continue;
     }
 
-    var sentTemplates = await spGetSentTemplates(profileId);
-    var ok = true;
-    var msgsToSend = Math.min(messages.length, room);
+    var sentSeq = await spGetSentSeq(profileId);
+    var msgsToSend = Math.min(msgs.length, room, 5);
     for (var mi = 0; mi < msgsToSend; mi++) {
       if (!spActive) break;
       if (spConfig.maxDaily > 0 && spConfig.sentToday >= spConfig.maxDaily) break;
 
-      if (sentTemplates.indexOf(mi) !== -1) {
-        console.log('[SP] Mensaje ' + (mi + 1) + ' ya enviado antes a', profileId);
+      if (sentSeq.indexOf(mi) !== -1) {
+        console.log('[SP] Mensaje ' + (mi + 1) + '/5 ya enviado antes a', profileId);
         continue;
       }
 
-      if (spMessageAlreadySent(messages[mi])) {
+      if (spMessageAlreadySent(msgs[mi])) {
         console.log('[SP] Mensaje ' + (mi + 1) + ' detectado en conversacion, saltando:', profileId);
         await spMarkProfileContacted(profileId, mi);
         continue;
       }
 
       await sleep(800 + Math.random() * 400);
-      var msgText = spConfig.traducir ? await spTranslate(messages[mi]) : messages[mi];
-      ok = await spTypeAndSend(msgText);
+      var ok = await spTypeAndSend(msgs[mi]);
       if (!ok) {
-        console.log('[SP] Error al enviar mensaje ' + (mi + 1) + ' para:', profileId);
+        console.log('[SP] Error al enviar mensaje ' + (mi + 1) + '/5 para:', profileId);
         break;
       }
       await sleep(1200 + Math.random() * 800);
@@ -335,7 +414,7 @@ async function executeSaludoPush() {
 
   console.log('[SP] Barrido completado. Enviados:', sent);
   if (sent > 0) {
-    showTessToast('Saludo Push completado: ' + sent + ' mensajes enviados', 'success');
+    showTessToast('Say Hi! completado: ' + sent + ' mensajes enviados', 'success');
   } else {
     showTessToast('No se enviaron saludos. Verifica blacklist y limites.', 'warning');
   }
@@ -346,7 +425,7 @@ async function executeSaludoPush() {
 function abortSaludoPush() {
   spActive = false;
   updateSPUI();
-  showTessToast('Saludo Push detenido', 'warning');
+  showTessToast('Say Hi! detenido', 'warning');
 }
 
 function updateSPUI() {
@@ -357,7 +436,7 @@ function updateSPUI() {
       btn.style.background = '#ef4444';
       btn.style.borderColor = '#ef4444';
     } else {
-      btn.textContent = 'SALUDO PUSH';
+      btn.textContent = 'SAY HI!';
       btn.style.background = 'linear-gradient(135deg,#10b981,#059669)';
       btn.style.borderColor = '#10b981';
     }
@@ -371,36 +450,22 @@ function updateSPUI() {
   if (sentEl) sentEl.textContent = spConfig.sentToday || 0;
 }
 
-function populateSPPanel() {
-  var msgs = getSPMessages();
-  document.getElementById('spTemplate1').value = msgs[0];
-  document.getElementById('spTemplate2').value = msgs[1];
-  document.getElementById('spTemplate3').value = msgs[2];
-  document.getElementById('spTemplate4').value = msgs[3];
-  document.getElementById('spTemplate5').value = msgs[4];
-  document.getElementById('spMaxDaily').value = spConfig.maxDaily || 30;
-  document.getElementById('spOnlineOnly').checked = spConfig.onlineOnly !== false;
-  document.getElementById('spSeguimiento').checked = spConfig.modoSeguimiento === true;
-  document.getElementById('spTraducir').checked = spConfig.traducir !== false;
-  document.getElementById('spSentToday').textContent = spConfig.sentToday || 0;
+async function openSPPanel() {
+  await loadSPConfig();
+  var tr = document.getElementById('spTraducir');
+  if (tr) tr.checked = spConfig.traducir !== false;
+  var md = document.getElementById('spMaxDaily');
+  if (md) md.value = spConfig.maxDaily || 30;
+  var st = document.getElementById('spSentToday');
+  if (st) st.textContent = spConfig.sentToday || 0;
   updateSPUI();
 }
 
-async function openSPPanel() {
-  await loadSPConfig();
-  populateSPPanel();
-}
-
 async function saveSPPanelConfig() {
-  spConfig.template1 = document.getElementById('spTemplate1').value;
-  spConfig.template2 = document.getElementById('spTemplate2').value;
-  spConfig.template3 = document.getElementById('spTemplate3').value;
-  spConfig.template4 = document.getElementById('spTemplate4').value;
-  spConfig.template5 = document.getElementById('spTemplate5').value;
-  spConfig.maxDaily = parseInt(document.getElementById('spMaxDaily').value) || 30;
-  spConfig.onlineOnly = document.getElementById('spOnlineOnly').checked;
-  spConfig.modoSeguimiento = document.getElementById('spSeguimiento').checked;
-  spConfig.traducir = document.getElementById('spTraducir').checked;
+  var tr = document.getElementById('spTraducir');
+  if (tr) spConfig.traducir = tr.checked;
+  var md = document.getElementById('spMaxDaily');
+  if (md) spConfig.maxDaily = parseInt(md.value) || 30;
   await saveSPConfig();
   showMLSavedFeedback();
 }
