@@ -1,7 +1,7 @@
 ﻿// TESSERACT v24 - Mail CRIBS Module
-// Captura estilo de cartas enviadas (ðŸŽ­ en mensajes salientes)
-// Genera respuestas con IA para cartas recibidas (ðŸ¤– en mensajes entrantes)
-// Los Ã­conos van dentro de .message-text .observer
+// Captura estilo de cartas enviadas (🎭 en mensajes salientes)
+// Genera respuestas con IA para cartas recibidas (🤖 en mensajes entrantes)
+// Los íconos van dentro de .message-text .observer
 
 let mailCribsConfig = { enabled: false };
 let mailCribsObserver = null;
@@ -215,7 +215,7 @@ function findPrecedingMailHeader(msgText) {
   return null;
 }
 
-// ============ ðŸŽ­ CAPTURE BUTTON (OUTGOING) ============
+// ============ 🎭 CAPTURE BUTTON (OUTGOING) ============
 function injectCaptureButton(observer, msgText, header) {
   if (observer.querySelector('.tess-mail-capture-trigger')) return;
 
@@ -224,7 +224,7 @@ function injectCaptureButton(observer, msgText, header) {
 
   const trigger = document.createElement('span');
   trigger.className = 'tess-mail-capture-trigger';
-  trigger.textContent = alreadyCaptured ? 'âœ…' : 'ðŸŽ­';
+  trigger.textContent = alreadyCaptured ? '✅' : '🎭';
   trigger.title = alreadyCaptured ? 'Estilo ya capturado' : 'Capturar estilo de carta';
   Object.assign(trigger.style, {
     cursor: 'pointer',
@@ -241,7 +241,7 @@ function injectCaptureButton(observer, msgText, header) {
     e.stopPropagation();
     if (this._processing) return;
     if (alreadyCaptured) { showTessToast('ðŸ“¬ Estilo ya capturado anteriormente', 'info'); return; }
-    if (!capturedText) { showTessToast('âš  No se encontrÃ³ texto de la carta', 'warning'); return; }
+    if (!capturedText) { showTessToast('⚠ No se encontró texto de la carta', 'warning'); return; }
     this._processing = true;
     this.style.opacity = '0.3';
     // Determine the client profile (recipient for outgoing, sender for incoming)
@@ -264,7 +264,7 @@ function injectCaptureButton(observer, msgText, header) {
     if (!profileId) {
       profileId = extractProfileIdFromMail(msgText, header, true);
     }
-    if (!profileId) { showTessToast('âš  No se pudo identificar el perfil', 'warning'); this._processing = false; this.style.opacity = '0.5'; return; }
+    if (!profileId) { showTessToast('⚠ No se pudo identificar el perfil', 'warning'); this._processing = false; this.style.opacity = '0.5'; return; }
     if (!profileName) {
       var avatar = header.querySelector('img[alt]:not([alt=""])');
       if (avatar) profileName = (avatar.alt || '').trim();
@@ -278,22 +278,22 @@ function injectCaptureButton(observer, msgText, header) {
       trigger._processing = false;
       trigger.style.opacity = '0.5';
       capturedLetterCache.add(capturedText.trim().slice(0, 300));
-      trigger.textContent = 'âœ…';
+      trigger.textContent = '✅';
       trigger.title = 'Estilo ya capturado';
     });
   };
 
   observer.appendChild(trigger);
-  console.log('[MAIL-CRIBS] ' + (alreadyCaptured ? 'âœ…' : 'ðŸŽ­') + ' button added' + (alreadyCaptured ? ' (already captured)' : ''));
+  console.log('[MAIL-CRIBS] ' + (alreadyCaptured ? '✅' : '🎭') + ' button added' + (alreadyCaptured ? ' (already captured)' : ''));
 }
 
-// ============ ðŸ¤– RESPONSE BUTTON (INCOMING) ============
+// ============ 🤖 RESPONSE BUTTON (INCOMING) ============
 function injectResponseButton(observer, msgText, header, senderName) {
   if (observer.querySelector('.tess-mail-gen-trigger')) return;
 
   const trigger = document.createElement('span');
   trigger.className = 'tess-mail-gen-trigger';
-  trigger.textContent = 'ðŸ¤–';
+  trigger.textContent = '🤖';
   trigger.title = 'Generar respuesta con IA';
   Object.assign(trigger.style, {
     cursor: 'pointer',
@@ -309,37 +309,37 @@ function injectResponseButton(observer, msgText, header, senderName) {
   trigger.onclick = function (e) {
     e.stopPropagation();
     var profileId = extractProfileIdFromMail(msgText, header, false);
-    if (!profileId) { showTessToast('âš  No se pudo identificar el perfil', 'warning'); return; }
-    this.textContent = 'â³';
+    if (!profileId) { showTessToast('⚠ No se pudo identificar el perfil', 'warning'); return; }
+    this.textContent = '⏳';
     trigger.style.opacity = '1';
     generateMailResponse(msgText, observer, profileId, senderName).then(function () {
       trigger.textContent = 'âœ“';
-      setTimeout(function () { trigger.textContent = 'ðŸ¤–'; }, 2000);
+      setTimeout(function () { trigger.textContent = '🤖'; }, 2000);
     });
   };
 
   observer.appendChild(trigger);
-  console.log('[MAIL-CRIBS] ðŸ¤– button added for', senderName);
+  console.log('[MAIL-CRIBS] 🤖 button added for', senderName);
 }
 
 // ============ AI RESPONSE GENERATION ============
 async function generateMailResponse(msgText, observer, profileId, senderName) {
   const receivedText = extractMailText(msgText);
   if (!receivedText || receivedText.length < 5) {
-    if (typeof showTessToast === 'function') showTessToast('âš  No se encontrÃ³ el texto de la carta', 'warning');
+    if (typeof showTessToast === 'function') showTessToast('⚠ No se encontró el texto de la carta', 'warning');
     return;
   }
 
   await cribLoadOrRefresh(false);
   const entry = cribFindEntry(profileId);
   if (!entry || !entry._id) {
-    if (typeof showTessToast === 'function') showTessToast('âš  Perfil no encontrado en CRIBS', 'warning');
+    if (typeof showTessToast === 'function') showTessToast('⚠ Perfil no encontrado en CRIBS', 'warning');
     return;
   }
 
   const profileInfo = [
     entry.profile_name ? 'Nombre: ' + entry.profile_name : '',
-    entry.country ? 'PaÃ­s: ' + entry.country : '',
+    entry.country ? 'País: ' + entry.country : '',
     entry.age ? 'Edad: ' + entry.age : '',
     entry.interests ? 'Intereses: ' + entry.interests : '',
     entry.bio ? 'Bio: ' + entry.bio : ''
@@ -354,7 +354,7 @@ async function generateMailResponse(msgText, observer, profileId, senderName) {
     }
   }
 
-  const systemMsg = 'Eres un asistente de cartas para una plataforma de citas. Responde a la carta recibida de forma personal, cÃ¡lida y natural. '
+  const systemMsg = 'Eres un asistente de cartas para una plataforma de citas. Responde a la carta recibida de forma personal, cálida y natural. '
     + 'Usa el mismo tono y estilo que el operador usa en sus cartas (se proporciona abajo). '
     + 'La carta debe tener al menos 5000 caracteres. Responde solo con el mensaje, sin explicaciones ni introducciones.'
     + styleHint;
@@ -368,9 +368,9 @@ async function generateMailResponse(msgText, observer, profileId, senderName) {
       'openai/gpt-oss-120b',
       2000
     );
-    if (!groqData) { showTessToast('âš  Error de API Groq', 'error'); return; }
+    if (!groqData) { showTessToast('⚠ Error de API Groq', 'error'); return; }
     const response = groqData.choices?.[0]?.message?.content;
-    if (!response) { showTessToast('âš  No se pudo generar respuesta', 'warning'); return; }
+    if (!response) { showTessToast('⚠ No se pudo generar respuesta', 'warning'); return; }
 
     // Inject into compose area
     var input = (typeof findEmailInput === 'function' ? findEmailInput() : null)
@@ -386,13 +386,13 @@ async function generateMailResponse(msgText, observer, profileId, senderName) {
         input.dispatchEvent(new Event('input', { bubbles: true }));
         input.dispatchEvent(new Event('change', { bubbles: true }));
       }
-      showTessToast('âœ‰ Respuesta generada en el editor', 'success');
+      showTessToast('✉ Respuesta generada en el editor', 'success');
     } else {
-      showTessToast('âš  No se encontrÃ³ el editor de carta', 'warning');
+      showTessToast('⚠ No se encontró el editor de carta', 'warning');
     }
   } catch (e) {
     console.log('[MAIL-CRIBS] Error generating response:', e.message);
-    showTessToast('âš  Error de conexiÃ³n', 'error');
+    showTessToast('⚠ Error de conexión', 'error');
   }
 }
 
@@ -421,13 +421,13 @@ async function sendLetterStyleToCribs(profileId, text, profileName) {
   if (!_tessJwtCache) {
     await new Promise(function (r) { chrome.storage.local.get('tess_jwt', function (d) { _tessJwtCache = d.tess_jwt || ''; r(); }); });
   }
-  if (!_tessJwtCache) { showTessToast('âš  No hay sesiÃ³n activa', 'warning'); return; }
+  if (!_tessJwtCache) { showTessToast('⚠ No hay sesión activa', 'warning'); return; }
 
   // 1. Fetch cribs list directly from API (bypass local cache to avoid stale data)
   var entry = await fetchCribEntryFromApi(profileId);
   if (!entry) {
     console.log('[MAIL-CRIBS] Profile not in CRIBS on server, cannot save letter style');
-    if (typeof showTessToast === 'function') showTessToast('âš  Perfil no encontrado en CRIBS. AgrÃ©galo desde el dashboard.', 'warning');
+    if (typeof showTessToast === 'function') showTessToast('⚠ Perfil no encontrado en CRIBS. Agrégalo desde el dashboard.', 'warning');
     return;
   }
 
@@ -474,7 +474,7 @@ async function sendLetterStyleToCribs(profileId, text, profileName) {
     showTessToast('ðŸ“¬ Estilo de carta capturado', 'success');
   } catch (e) {
     console.log('[MAIL-CRIBS] Error saving letter style:', e.message);
-    showTessToast('âš  Error al guardar estilo', 'error');
+    showTessToast('⚠ Error al guardar estilo', 'error');
   }
 }
 
@@ -566,7 +566,7 @@ function extractProfileIdFromMail(msgText, header, preferOperator) {
   var urlMatch3 = location.href.match(/\/(\d{6,15})(?:[/?#]|$)/);
   if (urlMatch3) return urlMatch3[1].replace(/^0+/, '');
   // 10. Use Eater's detected profile ID if available
-  // For outgoing (ðŸŽ­): prefer operator ID from chat context or storage
+  // For outgoing (🎭): prefer operator ID from chat context or storage
   if (preferOperator) {
     if (window._cribsChatIds && window._cribsChatIds[0]) {
       console.log('[MAIL-CRIBS] Using operator ID from chat:', window._cribsChatIds[0]);

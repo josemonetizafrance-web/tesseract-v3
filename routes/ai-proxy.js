@@ -70,13 +70,13 @@ router.post('/api/chatgpt/chat', validateToken, async (req, res) => {
     if (groqResult.ok && extractContent(groqResult.data)) {
       return res.json(groqResult.data);
     }
-    console.error('[AI-PROXY] Groq fallÃ³:', JSON.stringify({ status: groqResult.status, error: groqResult.data?.error || groqResult.data }));
+    console.error('[AI-PROXY] Groq falló:', JSON.stringify({ status: groqResult.status, error: groqResult.data?.error || groqResult.data }));
 
     const openaiResult = await tryOpenAI(payload.messages, 'gpt-3.5-turbo', payload.max_tokens);
     if (openaiResult.ok && extractContent(openaiResult.data)) {
       return res.json(openaiResult.data);
     }
-    console.error('[AI-PROXY] OpenAI fallÃ³:', JSON.stringify({ status: openaiResult.status, error: openaiResult.data?.error || openaiResult.data }));
+    console.error('[AI-PROXY] OpenAI falló:', JSON.stringify({ status: openaiResult.status, error: openaiResult.data?.error || openaiResult.data }));
 
     const groqError = groqResult.data?.error?.message || groqResult.data?.error || 'desconocido';
     const openaiError = openaiResult.data?.error?.message || openaiResult.data?.error || 'no configurado';
@@ -92,7 +92,7 @@ router.post('/api/chatgpt/chat', validateToken, async (req, res) => {
   }
 });
 
-// POST /api/openai/translate - TraducciÃ³n
+// POST /api/openai/translate - Traducción
 router.post('/api/openai/translate', validateToken, async (req, res) => {
   try {
     const { text, targetLang, targetName, forceSpanish } = req.body;
@@ -105,13 +105,13 @@ router.post('/api/openai/translate', validateToken, async (req, res) => {
       langName = targetName;
     } else if (forceSpanish) {
       langCode = 'es';
-      langName = 'espaÃ±ol';
+      langName = 'español';
     } else {
       langCode = 'en';
-      langName = 'inglÃ©s';
+      langName = 'inglés';
     }
 
-    const systemMsg = `Traduce el siguiente texto del espaÃ±ol al ${langName} (${langCode}). Responde SOLO con la traducciÃ³n, sin explicaciones ni notas.`;
+    const systemMsg = `Traduce el siguiente texto del español al ${langName} (${langCode}). Responde SOLO con la traducción, sin explicaciones ni notas.`;
 
     var groqResult2 = await tryGroqWithFallback([{ role: 'system', content: systemMsg }, { role: 'user', content: text }], GROQ_MODEL, 500);
     var content2 = groqResult2.ok ? extractContent(groqResult2.data) : null;
@@ -137,7 +137,7 @@ router.post('/api/deepl/translate', validateToken, async (req, res) => {
     const { text, target } = req.body;
     if (!text) return res.status(400).json({ error: 'Texto requerido' });
 
-    const systemMsg = `Traduce al ${target || 'espaÃ±ol'}. Solo responde con el texto traducido.`;
+    const systemMsg = `Traduce al ${target || 'español'}. Solo responde con el texto traducido.`;
 
     var groqResult3 = await tryGroqWithFallback([{ role: 'system', content: systemMsg }, { role: 'user', content: text }], GROQ_MODEL, 500);
     var content4 = groqResult3.ok ? extractContent(groqResult3.data) : null;
