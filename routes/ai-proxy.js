@@ -11,8 +11,8 @@ const GROQ_MODEL_FALLBACK = process.env.GROQ_MODEL_FALLBACK || 'qwen/qwen3.6-27b
 // Reintenta con modelo alternativo si el primario no existe (404)
 async function tryGroqWithFallback(messages, model, maxTokens) {
   let result = await tryGroq(messages, model, maxTokens);
-  if ((!result.ok || !extractContent(result.data)) && result.status === 404 && (!model || model === GROQ_MODEL)) {
-    console.warn('[AI-PROXY] Modelo Groq 404, reintentando con fallback:', GROQ_MODEL_FALLBACK);
+  if ((!result.ok || !extractContent(result.data)) && result.status === 404 && model !== GROQ_MODEL_FALLBACK) {
+    console.warn('[AI-PROXY] Modelo Groq 404 (' + model + '), reintentando con fallback:', GROQ_MODEL_FALLBACK);
     result = await tryGroq(messages, GROQ_MODEL_FALLBACK, maxTokens);
   }
   return result;
@@ -64,13 +64,13 @@ router.post('/api/chatgpt/chat', validateToken, async (req, res) => {
     const { messages, model, max_tokens } = req.body;
     const payload = { messages, model, max_tokens };
 
-    const groqResult = await tryGroqWithFallback(payload.messages, payload.model || GROQ_MODEL, payload.max_tokens);
+    const groqResult = await tryGroqWithFallback(payload.messages, GROQ_MODEL, payload.max_tokens);
     if (groqResult.ok && extractContent(groqResult.data)) {
       return res.json(groqResult.data);
     }
     console.error('[AI-PROXY] Groq fallÃ³:', JSON.stringify({ status: groqResult.status, error: groqResult.data?.error || groqResult.data }));
 
-    const openaiResult = await tryOpenAI(payload.messages, payload.model || 'gpt-3.5-turbo', payload.max_tokens);
+    const openaiResult = await tryOpenAI(payload.messages, 'gpt-3.5-turbo', payload.max_tokens);
     if (openaiResult.ok && extractContent(openaiResult.data)) {
       return res.json(openaiResult.data);
     }
