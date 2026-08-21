@@ -1,4 +1,4 @@
-// background.js - TESSERACT v24.0 (Backend Integrado)
+﻿// background.js - TESSERACT v24.0 (Backend Integrado)
 // API URL: defined in dist/modules/config.js, loaded via service worker registration
 var TESSERACT_API = (typeof TESSERACT_API_OVERRIDE !== 'undefined') ? TESSERACT_API_OVERRIDE : 'https://tesseract-v3-production.up.railway.app';
 
@@ -32,7 +32,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       try {
         const stored = await chrome.storage.local.get(['tess_jwt']);
         if (!stored.tess_jwt) {
-          sendResponse({ error: 'Inicia sesión para usar la IA.' });
+          sendResponse({ error: 'Inicia sesiÃ³n para usar la IA.' });
           return;
         }
         try {
@@ -47,7 +47,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             return;
           }
           const errMsg = json.error?.message || json.error || ('Error ' + res.status);
-          console.warn('[BG] AI proxy falló:', res.status, errMsg);
+          console.warn('[BG] AI proxy fallÃ³:', res.status, errMsg);
           sendResponse({ error: errMsg });
         } catch (e) {
           console.warn('[BG] Error en fetch AI:', e.message);
@@ -63,7 +63,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       try {
         const auth = await chrome.storage.local.get('tess_jwt');
         if (!auth.tess_jwt) {
-          sendResponse({ error: 'Inicia sesión para usar la IA.' });
+          sendResponse({ error: 'Inicia sesiÃ³n para usar la IA.' });
           return;
         }
         const res = await fetch(TESSERACT_API + '/api/chatgpt/chat', {
@@ -74,7 +74,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           },
           body: JSON.stringify({
             messages: message.messages,
-            model: message.model || 'llama-3.3-70b-versatile',
+            model: message.model || 'openai/gpt-oss-120b',
             max_tokens: message.maxTokens || 500
           })
         });
@@ -84,7 +84,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           return;
         }
         const errMsg = json.error?.message || json.error || ('Error ' + res.status);
-        console.warn('[BG] Proxy falló:', res.status, errMsg);
+        console.warn('[BG] Proxy fallÃ³:', res.status, errMsg);
         sendResponse({ error: errMsg });
       } catch (e) {
         sendResponse({ error: e.message });

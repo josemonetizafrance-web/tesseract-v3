@@ -1,4 +1,4 @@
-require('dotenv').config();
+﻿require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 
@@ -66,7 +66,7 @@ app.get('/api/health', async (req, res) => {
     db: dbStatus,
     mongoHost: m ? m[1] : 'no configurada',
     groq: process.env.GROQ_API_KEY ? 'configurada' : 'no configurada',
-    model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile'
+    model: process.env.GROQ_MODEL || 'openai/gpt-oss-120b'
   });
 });
 

@@ -1,11 +1,22 @@
-const { Router } = require('express');
+﻿const { Router } = require('express');
 const { validateToken } = require('../middleware/auth-tesseract.js');
 
 const router = Router();
 
 const GROQ_API = 'https://api.groq.com/openai/v1/chat/completions';
 const OPENAI_API = 'https://api.openai.com/v1/chat/completions';
-const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+const GROQ_MODEL = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
+const GROQ_MODEL_FALLBACK = process.env.GROQ_MODEL_FALLBACK || 'qwen/qwen3.6-27b';
+
+// Reintenta con modelo alternativo si el primario no existe (404)
+async function tryGroqWithFallback(messages, model, maxTokens) {
+  let result = await tryGroqWithFallback(messages, model, maxTokens);
+  if ((!result.ok || !extractContent(result.data)) && result.status === 404 && (!model || model === GROQ_MODEL)) {
+    console.warn('[AI-PROXY] Modelo Groq 404, reintentando con fallback:', GROQ_MODEL_FALLBACK);
+    result = await tryGroqWithFallback(messages, GROQ_MODEL_FALLBACK, maxTokens);
+  }
+  return result;
+}
 
 async function callAI(apiUrl, apiKey, model, messages, maxTokens) {
   const response = await fetch(apiUrl, {
@@ -53,17 +64,17 @@ router.post('/api/chatgpt/chat', validateToken, async (req, res) => {
     const { messages, model, max_tokens } = req.body;
     const payload = { messages, model, max_tokens };
 
-    const groqResult = await tryGroq(payload.messages, payload.model || GROQ_MODEL, payload.max_tokens);
+    const groqResult = await tryGroqWithFallback(payload.messages, payload.model || GROQ_MODEL, payload.max_tokens);
     if (groqResult.ok && extractContent(groqResult.data)) {
       return res.json(groqResult.data);
     }
-    console.error('[AI-PROXY] Groq falló:', JSON.stringify({ status: groqResult.status, error: groqResult.data?.error || groqResult.data }));
+    console.error('[AI-PROXY] Groq fallÃ³:', JSON.stringify({ status: groqResult.status, error: groqResult.data?.error || groqResult.data }));
 
     const openaiResult = await tryOpenAI(payload.messages, payload.model || 'gpt-3.5-turbo', payload.max_tokens);
     if (openaiResult.ok && extractContent(openaiResult.data)) {
       return res.json(openaiResult.data);
     }
-    console.error('[AI-PROXY] OpenAI falló:', JSON.stringify({ status: openaiResult.status, error: openaiResult.data?.error || openaiResult.data }));
+    console.error('[AI-PROXY] OpenAI fallÃ³:', JSON.stringify({ status: openaiResult.status, error: openaiResult.data?.error || openaiResult.data }));
 
     const groqError = groqResult.data?.error?.message || groqResult.data?.error || 'desconocido';
     const openaiError = openaiResult.data?.error?.message || openaiResult.data?.error || 'no configurado';
@@ -79,7 +90,7 @@ router.post('/api/chatgpt/chat', validateToken, async (req, res) => {
   }
 });
 
-// POST /api/openai/translate - Traducción
+// POST /api/openai/translate - TraducciÃ³n
 router.post('/api/openai/translate', validateToken, async (req, res) => {
   try {
     const { text, targetLang, targetName, forceSpanish } = req.body;
@@ -92,15 +103,15 @@ router.post('/api/openai/translate', validateToken, async (req, res) => {
       langName = targetName;
     } else if (forceSpanish) {
       langCode = 'es';
-      langName = 'español';
+      langName = 'espaÃ±ol';
     } else {
       langCode = 'en';
-      langName = 'inglés';
+      langName = 'inglÃ©s';
     }
 
-    const systemMsg = `Traduce el siguiente texto del español al ${langName} (${langCode}). Responde SOLO con la traducción, sin explicaciones ni notas.`;
+    const systemMsg = `Traduce el siguiente texto del espaÃ±ol al ${langName} (${langCode}). Responde SOLO con la traducciÃ³n, sin explicaciones ni notas.`;
 
-    var groqResult2 = await tryGroq([{ role: 'system', content: systemMsg }, { role: 'user', content: text }], GROQ_MODEL, 500);
+    var groqResult2 = await tryGroqWithFallback([{ role: 'system', content: systemMsg }, { role: 'user', content: text }], GROQ_MODEL, 500);
     var content2 = groqResult2.ok ? extractContent(groqResult2.data) : null;
     if (content2) {
       return res.json({ success: true, data: { translations: [{ text: content2.trim() }] } });
@@ -124,9 +135,9 @@ router.post('/api/deepl/translate', validateToken, async (req, res) => {
     const { text, target } = req.body;
     if (!text) return res.status(400).json({ error: 'Texto requerido' });
 
-    const systemMsg = `Traduce al ${target || 'español'}. Solo responde con el texto traducido.`;
+    const systemMsg = `Traduce al ${target || 'espaÃ±ol'}. Solo responde con el texto traducido.`;
 
-    var groqResult3 = await tryGroq([{ role: 'system', content: systemMsg }, { role: 'user', content: text }], GROQ_MODEL, 500);
+    var groqResult3 = await tryGroqWithFallback([{ role: 'system', content: systemMsg }, { role: 'user', content: text }], GROQ_MODEL, 500);
     var content4 = groqResult3.ok ? extractContent(groqResult3.data) : null;
     if (content4) {
       return res.json({ translatedText: content4.trim() });

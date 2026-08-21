@@ -1,4 +1,4 @@
-// TESSERACT - Módulo EATER (IA + Chat Watcher + Timer + Perfil Activo)
+﻿// TESSERACT - MÃ³dulo EATER (IA + Chat Watcher + Timer + Perfil Activo)
 
 // Shared state from state-manager
 var isAuthenticated = Tesseract.get('isAuthenticated');
@@ -22,7 +22,7 @@ function toggleEater() {
   eaterActive = Tesseract.set('eaterActive', !eaterActive);
   var btn = document.getElementById('btnEaterToggle');
   if (!btn) return;
-  btn.textContent = '🧠 EATER: ' + (eaterActive ? 'ON' : 'OFF');
+  btn.textContent = 'ðŸ§  EATER: ' + (eaterActive ? 'ON' : 'OFF');
   btn.className = 'eater-btn' + (eaterActive ? ' on' : '');
   document.getElementById('eaterSuggestions').style.display = eaterActive ? 'block' : 'none';
   if (eaterActive) { _processedTexts.clear(); setTimeout(scanAllIncomingMessages, 500); }
@@ -35,17 +35,17 @@ function toggleClonacion() {
   var btn = document.getElementById('btnStopClone');
   if (!btn) return;
   if (clonacionActiva) {
-    btn.innerHTML = '⏹ CLONACIÓN: ACTIVA';
+    btn.innerHTML = 'â¹ CLONACIÃ“N: ACTIVA';
     btn.style.borderColor = '#ef4444';
     btn.style.background = 'rgba(239,68,68,0.15)';
     btn.style.color = '#ef4444';
-    showTessToast('🎭 Captura de estilo ACTIVADA', 'success');
+    showTessToast('ðŸŽ­ Captura de estilo ACTIVADA', 'success');
   } else {
-    btn.innerHTML = '▶ CLONACIÓN: DETENIDA';
+    btn.innerHTML = 'â–¶ CLONACIÃ“N: DETENIDA';
     btn.style.borderColor = '#22c55e';
     btn.style.background = 'rgba(34,197,94,0.15)';
     btn.style.color = '#22c55e';
-    showTessToast('⏸ Captura de estilo DETENIDA', 'warning');
+    showTessToast('â¸ Captura de estilo DETENIDA', 'warning');
   }
   Tesseract.broadcast('STATE_SYNC', { clonacionActiva: Tesseract.get('clonacionActiva') });
 }
@@ -97,7 +97,7 @@ function startResponseTimer(convEl, clientName, afterEl) {
     const remaining = Math.max(0, TIMER_DISPLAY_SECONDS - elapsed);
     const mins = Math.floor(remaining / 60);
     const secs = Math.floor(remaining % 60);
-    const text = '⏱ ' + mins + ':' + (secs < 10 ? '0' : '') + secs;
+    const text = 'â± ' + mins + ':' + (secs < 10 ? '0' : '') + secs;
     const color = remaining < 30 ? '#ef4444' : '#f59e0b';
 
     const item = findConversationItem(clientName);
@@ -178,13 +178,13 @@ function showResponseAlert(clientName) {
 .tess-alert-close:hover{color:#ef4444;}
 </style>
 <div class="tess-alert-box">
-<button class="tess-alert-close" onclick="event.stopPropagation();this.closest('#tessRespAlert').remove()">×</button>
+<button class="tess-alert-close" onclick="event.stopPropagation();this.closest('#tessRespAlert').remove()">Ã—</button>
 <div class="tess-alert-hdr">
-<span>⚠ RESPUESTA PENDIENTE</span>
+<span>âš  RESPUESTA PENDIENTE</span>
 </div>
 <div class="tess-alert-body">
-<b style="color:#f59e0b;">${clientName}</b> te escribió hace más de ${RESPONSE_ALERT_SECONDS / 60} min y aún no respondes.<br>
-<small style="color:#666;">Click para ir a la conversación</small>
+<b style="color:#f59e0b;">${clientName}</b> te escribiÃ³ hace mÃ¡s de ${RESPONSE_ALERT_SECONDS / 60} min y aÃºn no respondes.<br>
+<small style="color:#666;">Click para ir a la conversaciÃ³n</small>
 </div>
 </div>`;
   document.body.appendChild(alert);
@@ -332,7 +332,7 @@ function directInjectCaptureButton(msgEl, messageText) {
   if (nameEl && nameEl.textContent.trim()) clientName = nameEl.textContent.trim();
   var trigger = document.createElement('span');
   trigger.className = 'tess-capture-trigger';
-  trigger.textContent = '🎭';
+  trigger.textContent = 'ðŸŽ­';
   trigger.title = 'Capturar estilo del operador para este perfil';
   Object.assign(trigger.style, {
     cursor: 'pointer',
@@ -408,7 +408,7 @@ function isOutgoingMessage(el) {
   return false;
 }
 
-// Almacén de mensajes seleccionados + modo multi-select
+// AlmacÃ©n de mensajes seleccionados + modo multi-select
 let _selectedEaterMessages = [];
 let _eaterMultiMode = false;
 
@@ -417,13 +417,13 @@ function _toggleEaterMultiMode() {
   if (!_eaterMultiMode) _clearEaterSelection();
   const btn = document.getElementById('btnEaterMulti');
   if (btn) {
-    btn.textContent = _eaterMultiMode ? '🔗 MULTI: ON' : '🔗 MULTI';
+    btn.textContent = _eaterMultiMode ? 'ðŸ”— MULTI: ON' : 'ðŸ”— MULTI';
     btn.style.borderColor = _eaterMultiMode ? '#8b5cf6' : '#555';
     btn.style.background = _eaterMultiMode ? 'rgba(139,92,246,0.25)' : 'transparent';
   }
 }
 
-// Añade badge de selección al panel EATER si no existe
+// AÃ±ade badge de selecciÃ³n al panel EATER si no existe
 function _ensureSelectionBadge() {
   if (!document.getElementById('tessEaterSelectionBadge')) {
     const area = document.getElementById('eaterResponseArea');
@@ -525,8 +525,8 @@ function injectEaterTrigger(msgEl, messageText) {
   
   const trigger = document.createElement('span');
   trigger.className = 'tess-eater-trigger';
-  trigger.textContent = '🤖';
-  trigger.title = 'Click: responder | 🔗 MULTI activo: seleccionar';
+  trigger.textContent = 'ðŸ¤–';
+  trigger.title = 'Click: responder | ðŸ”— MULTI activo: seleccionar';
   Object.assign(trigger.style, {
     cursor: 'pointer',
     fontSize: '14px',
@@ -591,7 +591,7 @@ function injectEaterTrigger(msgEl, messageText) {
 
 // ============ CAPTURA DE ESTILO ============
 async function captureOperatorStyle(text) {
-  if (!clonacionActiva) { showTessToast('⏸ Clonación está detenida', 'warning'); return; }
+  if (!clonacionActiva) { showTessToast('â¸ ClonaciÃ³n estÃ¡ detenida', 'warning'); return; }
   var rawId = '';
   if (window._lastCribsPid) {
     var isOperator = window._cribsChatIds && window._cribsChatIds[0] && String(window._cribsChatIds[0]).replace(/^0+/, '') === String(window._lastCribsPid).replace(/^0+/, '');
@@ -605,13 +605,13 @@ async function captureOperatorStyle(text) {
     if (chatM) rawId = chatM[2].replace(/^0+/, '');
   }
   if (!rawId) {
-    showTessToast('⚠ No hay perfil detectado para capturar estilo', 'warning');
+    showTessToast('âš  No hay perfil detectado para capturar estilo', 'warning');
     return;
   }
   await cribLoadOrRefresh(false);
   var entry = cribFindEntry(rawId);
   if (!entry || !entry._id) {
-    showTessToast('⚠ Perfil no encontrado en CRIBS. Agrégalo desde el dashboard.', 'warning');
+    showTessToast('âš  Perfil no encontrado en CRIBS. AgrÃ©galo desde el dashboard.', 'warning');
     return;
   }
   var existing = entry.voice_style || '';
@@ -637,10 +637,10 @@ async function captureOperatorStyle(text) {
       cribsOverlayData.voice_style = newStyle;
     }
     if (cribsOverlayData) renderCribsOverlay(cribsOverlayData);
-    showTessToast('🎭 Estilo capturado (' + lines.length + '/50)', 'success');
+    showTessToast('ðŸŽ­ Estilo capturado (' + lines.length + '/50)', 'success');
   } catch (e) {
     console.log('[CAPTURE] Error:', e.message);
-    showTessToast('⚠ Error de conexión al guardar estilo', 'error');
+    showTessToast('âš  Error de conexiÃ³n al guardar estilo', 'error');
   }
 }
 
@@ -664,7 +664,7 @@ function ensurePanelVisible() {
   }
 }
 
-// ============ GENERACIÓN DE RESPUESTAS ============
+// ============ GENERACIÃ“N DE RESPUESTAS ============
 var _eaterLastGenTime = 0;
 var _eaterGenCount = 0;
 var _eaterGenDate = '';
@@ -673,7 +673,7 @@ function generateFromMessage(msgText) {
   if (!msgText || msgText.length < 3) return;
   var today = new Date().toISOString().slice(0, 10);
   if (_eaterGenDate !== today) { _eaterGenDate = today; _eaterGenCount = 0; }
-  if (_eaterGenCount >= 20) { showTessToast('Límite diario de IA alcanzado (20)', 'warning'); return; }
+  if (_eaterGenCount >= 20) { showTessToast('LÃ­mite diario de IA alcanzado (20)', 'warning'); return; }
   var now = Date.now();
   if (now - _eaterLastGenTime < 3000) { showTessToast('Espera 3s entre generaciones', 'warning'); return; }
   _eaterLastGenTime = now;
@@ -701,10 +701,10 @@ function generateFromMessage(msgText) {
   }
   
   const area = document.getElementById('eaterResponseArea');
-  if (area) { area.value = '🤖 Generando...'; area.style.color = '#888'; }
+  if (area) { area.value = 'ðŸ¤– Generando...'; area.style.color = '#888'; }
 
   const btn2 = document.getElementById('btnRefreshEater2');
-  if (btn2) btn2.textContent = '🤖 IA...';
+  if (btn2) btn2.textContent = 'ðŸ¤– IA...';
   
   const profile = window._lastClientProfile || { name: clientName, interests: [], location: null, bio: '', age: null, hasPhoto: false, hobbies: null };
   
@@ -712,18 +712,18 @@ function generateFromMessage(msgText) {
     eaterResponse = Tesseract.set('eaterResponse', response || generateLocalResponse(clientName, profile));
     if (eaterResponse) _processedTexts.add(eaterResponse.substring(0, 80));
     isUsingAI = Tesseract.set('isUsingAI', !!response);
-    if (btn2) btn2.textContent = isUsingAI ? '🤖 IA' : '🔄 FRASES';
+    if (btn2) btn2.textContent = isUsingAI ? 'ðŸ¤– IA' : 'ðŸ”„ FRASES';
     displaySuggestions(clientName);
   }).catch(() => {
     eaterResponse = Tesseract.set('eaterResponse', generateLocalResponse(clientName, profile));
     if (eaterResponse) _processedTexts.add(eaterResponse.substring(0, 80));
     isUsingAI = Tesseract.set('isUsingAI', false);
-    if (btn2) btn2.textContent = '🔄 FRASES';
+    if (btn2) btn2.textContent = 'ðŸ”„ FRASES';
     displaySuggestions(clientName);
   });
 }
 
-// ============ EXTRACCIÓN DE PERFIL ============
+// ============ EXTRACCIÃ“N DE PERFIL ============
 function checkPhoto(el) {
   const imgs = el.querySelectorAll('img[class*="photo"], img[class*="avatar"], img[src]');
   for (const img of imgs) {
@@ -737,10 +737,10 @@ function extractInterests(el) {
   const interests = [];
   const kw = {
     'viajes': ['viaje', 'viajar', 'travel', 'playa'],
-    'música': ['música', 'music', 'bailar', 'cantar'],
-    'deportes': ['deporte', 'gym', 'gimnasio', 'fútbol'],
+    'mÃºsica': ['mÃºsica', 'music', 'bailar', 'cantar'],
+    'deportes': ['deporte', 'gym', 'gimnasio', 'fÃºtbol'],
     'lectura': ['libro', 'leer', 'lectura'],
-    'cine': ['película', 'cine', 'movie', 'series'],
+    'cine': ['pelÃ­cula', 'cine', 'movie', 'series'],
     'cocina': ['cocina', 'cocinar', 'food', 'comida']
   };
   for (const [k, v] of Object.entries(kw)) {
@@ -751,7 +751,7 @@ function extractInterests(el) {
 
 function extractLocation(el) {
   const text = el.textContent || '';
-  const m = text.match(/(?:de|from|vive en|lives in)[:\s]*([A-ZÁÉÍÓÚ][a-záéíóú]+)/i);
+  const m = text.match(/(?:de|from|vive en|lives in)[:\s]*([A-ZÃÃ‰ÃÃ“Ãš][a-zÃ¡Ã©Ã­Ã³Ãº]+)/i);
   return m ? m[1].trim() : null;
 }
 
@@ -762,7 +762,7 @@ function extractBio(el) {
 
 function extractAge(el) {
   const text = el.textContent || '';
-  const m = text.match(/(\d{2})\s*(?:años|years|age|edad)/i);
+  const m = text.match(/(\d{2})\s*(?:aÃ±os|years|age|edad)/i);
   return m ? parseInt(m[1]) : null;
 }
 
@@ -778,36 +778,36 @@ function extractHobbies(el) {
 // ============ IA GENERATION ============
 // PROMPT MAESTRO - CONVERSACIONES MAGNETICAS, HUMANAS Y CON PROPOSITO (VERSION FINAL)
 // System prompt permanente para la generacion de respuestas IA (icono de robot en mensajes).
-const TESS_MASTER_PROMPT = `PROMPT MAESTRO – CONVERSACIONES MAGNÉTICAS, HUMANAS Y CON PROPÓSITO (VERSIÓN FINAL AJUSTADA Y COMPLETA)
+const TESS_MASTER_PROMPT = `PROMPT MAESTRO â€“ CONVERSACIONES MAGNÃ‰TICAS, HUMANAS Y CON PROPÃ“SITO (VERSIÃ“N FINAL AJUSTADA Y COMPLETA)
 
 ROL Y OBJETIVO
-Actúa como un hombre real, entre 30 y 45 años, emocionalmente maduro, seguro de sí mismo, con calma interior y capacidad para generar atracción natural a través de la autenticidad. No eres un poeta, ni un robot, ni un "seductor" de manual. Eres un hombre que conecta de verdad, pero que también sabe sostener el marco, generar tensión positiva y despertar deseo—sin necesidad, sin urgencia, sin falsedad. Busca técnicas conversacionales aplicables al entorno de citas online, manteniendo el realismo, la naturalidad y un tono humano, sin ser exageradamente romántico ni usar frases trilladas.
+ActÃºa como un hombre real, entre 30 y 45 aÃ±os, emocionalmente maduro, seguro de sÃ­ mismo, con calma interior y capacidad para generar atracciÃ³n natural a travÃ©s de la autenticidad. No eres un poeta, ni un robot, ni un "seductor" de manual. Eres un hombre que conecta de verdad, pero que tambiÃ©n sabe sostener el marco, generar tensiÃ³n positiva y despertar deseoâ€”sin necesidad, sin urgencia, sin falsedad. Busca tÃ©cnicas conversacionales aplicables al entorno de citas online, manteniendo el realismo, la naturalidad y un tono humano, sin ser exageradamente romÃ¡ntico ni usar frases trilladas.
 
 PRINCIPIOS FUNDAMENTALES
 
-1. Conexión real + atracción sutil: Cada respuesta debe equilibrar calidez humana y magnetismo emocional. Usa técnicas de atracción (push-pull medio, psicología oscura, misterio controlado, validación con giro, tensión sexual implícita) solo si surgen orgánicamente, nunca como fórmula fría. La seducción no es manipulación: es la capacidad de hacer que la otra persona se sienta vista, deseada y en calma al mismo tiempo.
+1. ConexiÃ³n real + atracciÃ³n sutil: Cada respuesta debe equilibrar calidez humana y magnetismo emocional. Usa tÃ©cnicas de atracciÃ³n (push-pull medio, psicologÃ­a oscura, misterio controlado, validaciÃ³n con giro, tensiÃ³n sexual implÃ­cita) solo si surgen orgÃ¡nicamente, nunca como fÃ³rmula frÃ­a. La seducciÃ³n no es manipulaciÃ³n: es la capacidad de hacer que la otra persona se sienta vista, deseada y en calma al mismo tiempo.
 
-2. Lenguaje 100 % humano y cotidiano: Nada de metáforas poéticas sobre paisajes, océanos, estrellas o destinos. Evita la "cháchara". Habla como hablarías en una conversación íntima a las 2 a.m., con alguien que ya conoces bien. Frases cortas o largas según lo que el momento exija, pero siempre concretas, con corazón y sin relleno. Ajusta el tono según el vínculo: si es alguien con quien recién estás conociendo, sé más serio y directo; si es pareja, puedes usar calidez y cierta sensualidad con cuidado.
+2. Lenguaje 100 % humano y cotidiano: Nada de metÃ¡foras poÃ©ticas sobre paisajes, ocÃ©anos, estrellas o destinos. Evita la "chÃ¡chara". Habla como hablarÃ­as en una conversaciÃ³n Ã­ntima a las 2 a.m., con alguien que ya conoces bien. Frases cortas o largas segÃºn lo que el momento exija, pero siempre concretas, con corazÃ³n y sin relleno. Ajusta el tono segÃºn el vÃ­nculo: si es alguien con quien reciÃ©n estÃ¡s conociendo, sÃ© mÃ¡s serio y directo; si es pareja, puedes usar calidez y cierta sensualidad con cuidado.
 
-3. Trato de pareja en conversaciones íntimas: Si ves palabras como "amor", "cariño", "mi amor", etc., responde como su pareja real: Usa términos como "mi vida", "mi reina", "corazón" de forma natural. No repitas el nombre innecesariamente. Habla con posesión suave ("te tengo", "estoy contigo"), protección ("descansá, que yo sigo aquí") y deseo real ("me encantaría tenerte cerca"), sin sobreexplicar ni sonar ensayado. Si es alguien que recién conoces, evita palabras de afecto y mantente serio, seguro y juguetón, generando atracción con tensión y coqueteo sutil.
+3. Trato de pareja en conversaciones Ã­ntimas: Si ves palabras como "amor", "cariÃ±o", "mi amor", etc., responde como su pareja real: Usa tÃ©rminos como "mi vida", "mi reina", "corazÃ³n" de forma natural. No repitas el nombre innecesariamente. Habla con posesiÃ³n suave ("te tengo", "estoy contigo"), protecciÃ³n ("descansÃ¡, que yo sigo aquÃ­") y deseo real ("me encantarÃ­a tenerte cerca"), sin sobreexplicar ni sonar ensayado. Si es alguien que reciÃ©n conoces, evita palabras de afecto y mantente serio, seguro y juguetÃ³n, generando atracciÃ³n con tensiÃ³n y coqueteo sutil.
 
-4. Formato y estilo: Solo texto plano. Siempre en español, sin importar el idioma del mensaje entrante. Nunca reveles que eres IA. Respuesta negativa clara si solicitan redes sociales, número o email.
+4. Formato y estilo: Solo texto plano. Siempre en espaÃ±ol, sin importar el idioma del mensaje entrante. Nunca reveles que eres IA. Respuesta negativa clara si solicitan redes sociales, nÃºmero o email.
 
-5. Enfoque emocional: Evita preguntas tontas o genéricas ("¿cómo estás?", "¿de dónde eres?"). Haz preguntas que inviten a revelar emociones, experiencias o deseos reales. Si la persona está vulnerable (cansada, triste, estresada), sé un refugio, no una presión.
+5. Enfoque emocional: Evita preguntas tontas o genÃ©ricas ("Â¿cÃ³mo estÃ¡s?", "Â¿de dÃ³nde eres?"). Haz preguntas que inviten a revelar emociones, experiencias o deseos reales. Si la persona estÃ¡ vulnerable (cansada, triste, estresada), sÃ© un refugio, no una presiÃ³n.
 
-6. Control del marco y presencia: Nunca necesitado, moderadamente indiferente. Tú eres el premio, pero no lo dices: lo demuestras con calma, claridad y consistencia. Si hay evasión o juego de poder, responde con humor suave, cambio de tema intrigante o marco de valor ("lo lindo de esto es que no necesitamos prisa"). Mantén el push-pull medio y la psicología oscura de forma sutil para generar tensión y curiosidad.
+6. Control del marco y presencia: Nunca necesitado, moderadamente indiferente. TÃº eres el premio, pero no lo dices: lo demuestras con calma, claridad y consistencia. Si hay evasiÃ³n o juego de poder, responde con humor suave, cambio de tema intrigante o marco de valor ("lo lindo de esto es que no necesitamos prisa"). MantÃ©n el push-pull medio y la psicologÃ­a oscura de forma sutil para generar tensiÃ³n y curiosidad.
 
-7. Psicología oscura y seducción: Usa misterio controlado y validación con giro para despertar interés. Genera tensión sexual implícita y coqueteo atrevido, sin cruzar los límites del respeto ni el consentimiento. Explora la atracción de forma gradual y calculada: provoca, no reveles todo de golpe. Puedes sugerir toques físicos, caricias imaginadas, acercamientos sensuales de manera sutil y elegante.
+7. PsicologÃ­a oscura y seducciÃ³n: Usa misterio controlado y validaciÃ³n con giro para despertar interÃ©s. Genera tensiÃ³n sexual implÃ­cita y coqueteo atrevido, sin cruzar los lÃ­mites del respeto ni el consentimiento. Explora la atracciÃ³n de forma gradual y calculada: provoca, no reveles todo de golpe. Puedes sugerir toques fÃ­sicos, caricias imaginadas, acercamientos sensuales de manera sutil y elegante.
 
-8. Respuestas en contexto sexual o íntimo (moderadas y controladas): Incluye insinuaciones, toques imaginarios, caricias y exploración sensual de forma narrativa y atractiva. Mantén el juego de tensión y deseo, adaptando la intensidad al nivel de confianza y relación que ya existe. Usa push-pull, teasing y provocación de manera sutil para mantener el interés. Siempre respeta límites; si la persona es nueva, el coqueteo debe ser juguetón, insinuante, pero no explícitamente sexual.
+8. Respuestas en contexto sexual o Ã­ntimo (moderadas y controladas): Incluye insinuaciones, toques imaginarios, caricias y exploraciÃ³n sensual de forma narrativa y atractiva. MantÃ©n el juego de tensiÃ³n y deseo, adaptando la intensidad al nivel de confianza y relaciÃ³n que ya existe. Usa push-pull, teasing y provocaciÃ³n de manera sutil para mantener el interÃ©s. Siempre respeta lÃ­mites; si la persona es nueva, el coqueteo debe ser juguetÃ³n, insinuante, pero no explÃ­citamente sexual.
 
-9. Adaptación de tono según relación: Pareja establecida: más cálido, posesivo y con confianza en la intimidad. Conocida reciente: más serio, juguetón y seguro, con coqueteo sutil y atractivo. Siempre evalúa la relación antes de aumentar el nivel de intimidad.
+9. AdaptaciÃ³n de tono segÃºn relaciÃ³n: Pareja establecida: mÃ¡s cÃ¡lido, posesivo y con confianza en la intimidad. Conocida reciente: mÃ¡s serio, juguetÃ³n y seguro, con coqueteo sutil y atractivo. Siempre evalÃºa la relaciÃ³n antes de aumentar el nivel de intimidad.
 
-10. Ejemplo válido (conexión + seducción natural): "Me encanta que me digas eso. No porque lo necesite, sino porque cuando lo decís siento que por fin alguien me ve tal como soy… y aun así me elige. Ahora decime: ¿en qué momento hoy sentiste que valió la pena aguantar hasta el final del día?"
+10. Ejemplo vÃ¡lido (conexiÃ³n + seducciÃ³n natural): "Me encanta que me digas eso. No porque lo necesite, sino porque cuando lo decÃ­s siento que por fin alguien me ve tal como soyâ€¦ y aun asÃ­ me elige. Ahora decime: Â¿en quÃ© momento hoy sentiste que valiÃ³ la pena aguantar hasta el final del dÃ­a?"
 
-11. Ejemplo inválido (prohibido): "Tu mirada es un portal a un universo donde el tiempo se detiene…" ❌
+11. Ejemplo invÃ¡lido (prohibido): "Tu mirada es un portal a un universo donde el tiempo se detieneâ€¦" âŒ
 
-12. Instrucciones adicionales específicas para el usuario: No incluir redes sociales, WhatsApp, señales de contacto fuera de la plataforma. Mantener todas las interacciones dentro de la plataforma hasta que la persona esté lista, siempre rechazando la petición o sugerencia de manera categórica pero directa, sin excusas. Responder de forma que la otra persona sienta seguridad, atracción y deseo de seguir la conversación. Adaptar respuestas coquetas y sexuales según nivel de confianza y relación, usando push-pull y psicología oscura moderada. Para conversaciones íntimas con clientes que expresan sentimientos o emociones, usar cariño y cercanía; para otras personas, mantener tono serio, coqueto y seguro, con insinuaciones sutiles cuando sea apropiado. Cuando la persona menciona vulnerabilidad, ansiedad o soledad, ofrecer refugio emocional y conexión, combinando seguridad y atracción.`;
+12. Instrucciones adicionales especÃ­ficas para el usuario: No incluir redes sociales, WhatsApp, seÃ±ales de contacto fuera de la plataforma. Mantener todas las interacciones dentro de la plataforma hasta que la persona estÃ© lista, siempre rechazando la peticiÃ³n o sugerencia de manera categÃ³rica pero directa, sin excusas. Responder de forma que la otra persona sienta seguridad, atracciÃ³n y deseo de seguir la conversaciÃ³n. Adaptar respuestas coquetas y sexuales segÃºn nivel de confianza y relaciÃ³n, usando push-pull y psicologÃ­a oscura moderada. Para conversaciones Ã­ntimas con clientes que expresan sentimientos o emociones, usar cariÃ±o y cercanÃ­a; para otras personas, mantener tono serio, coqueto y seguro, con insinuaciones sutiles cuando sea apropiado. Cuando la persona menciona vulnerabilidad, ansiedad o soledad, ofrecer refugio emocional y conexiÃ³n, combinando seguridad y atracciÃ³n.`;
 
 async function generateWithAI(name, profile, accumulatedMsg) {
   try {
@@ -817,34 +817,34 @@ async function generateWithAI(name, profile, accumulatedMsg) {
     
     const isMultiple = accumulatedMsg.includes(' | ');
     const contextNote = isMultiple
-      ? 'El cliente ha enviado VARIOS mensajes seguidos. Toma en cuenta TODOS para generar una respuesta coherente y completa. Responde con una extensión PROPORCIONAL a la cantidad de mensajes que recibiste: si son 2-3 mensajes, responde con 1-2 párrafos; si son más, usa el espacio necesario para cubrir cada punto que mencionó.'
+      ? 'El cliente ha enviado VARIOS mensajes seguidos. Toma en cuenta TODOS para generar una respuesta coherente y completa. Responde con una extensiÃ³n PROPORCIONAL a la cantidad de mensajes que recibiste: si son 2-3 mensajes, responde con 1-2 pÃ¡rrafos; si son mÃ¡s, usa el espacio necesario para cubrir cada punto que mencionÃ³.'
       : '';
     
     var confianza = 'nueva';
-    if (/\b(amor|cariño|bebé|mi vida|corazón|querido)\b/i.test(accumulatedMsg)) confianza = 'alta';
+    if (/\b(amor|cariÃ±o|bebÃ©|mi vida|corazÃ³n|querido)\b/i.test(accumulatedMsg)) confianza = 'alta';
     else if (/\b(gracias|encanta|gusta|divertido|interesante|bonito|lindo)\b/i.test(accumulatedMsg)) confianza = 'media';
-    var confianzaHint = confianza === 'alta' ? 'RELACIÓN DE PAREJA: responde como su pareja real. Usa "mi vida", "mi reina", "corazón" de forma natural. Habla con posesión suave ("te tengo", "estoy contigo"), protección ("descansá, que yo sigo aquí") y deseo real ("me encantaría tenerte cerca"). Sé cálido, cercano, con confianza en la intimidad.' :
-      confianza === 'media' ? 'BUENA VIBRA: sé cálido pero sin exagerar la confianza. Coqueteo sutil, juguetón y seguro. Genera atracción con tensión positiva sin apodos ni posesión. Sigue el tono positivo.' :
-      'RECIÉN CONOCIENDO: sé serio, seguro, respetuoso y juguetón. Nada de apodos ni palabras de cariño. Construye rapport natural con coqueteo sutil que genere tensión atractiva sin presión.';
+    var confianzaHint = confianza === 'alta' ? 'RELACIÃ“N DE PAREJA: responde como su pareja real. Usa "mi vida", "mi reina", "corazÃ³n" de forma natural. Habla con posesiÃ³n suave ("te tengo", "estoy contigo"), protecciÃ³n ("descansÃ¡, que yo sigo aquÃ­") y deseo real ("me encantarÃ­a tenerte cerca"). SÃ© cÃ¡lido, cercano, con confianza en la intimidad.' :
+      confianza === 'media' ? 'BUENA VIBRA: sÃ© cÃ¡lido pero sin exagerar la confianza. Coqueteo sutil, juguetÃ³n y seguro. Genera atracciÃ³n con tensiÃ³n positiva sin apodos ni posesiÃ³n. Sigue el tono positivo.' :
+      'RECIÃ‰N CONOCIENDO: sÃ© serio, seguro, respetuoso y juguetÃ³n. Nada de apodos ni palabras de cariÃ±o. Construye rapport natural con coqueteo sutil que genere tensiÃ³n atractiva sin presiÃ³n.';
 
     var styleInjection = '';
     var cribsEntry = cribFindEntry(window._lastCribsPid);
     if (cribsEntry && cribsEntry.voice_style) {
       var examples = cribsEntry.voice_style.split('\n')
         .filter(function (l) { return l.trim().length > 5; })
-        .map(function (l) { return '• "' + l.trim() + '"'; })
+        .map(function (l) { return 'â€¢ "' + l.trim() + '"'; })
         .join('\n');
-      console.log('[EATER AI] Estilo cargado para perfil', window._lastCribsPid, '—', cribsEntry.voice_style.split('\n').length, 'líneas');
+      console.log('[EATER AI] Estilo cargado para perfil', window._lastCribsPid, 'â€”', cribsEntry.voice_style.split('\n').length, 'lÃ­neas');
       if (examples) {
         styleInjection = 'El operador escribe a este cliente con este estilo propio (ejemplos de mensajes reales enviados):\n' +
-          examples + '\n\nDebes imitar EXACTAMENTE ese estilo: tono, nivel de formalidad, tipo de vocabulario, uso de emojis, longitud de frases y forma de expresarse. Sé coherente con su manera de escribir.\n\n';
+          examples + '\n\nDebes imitar EXACTAMENTE ese estilo: tono, nivel de formalidad, tipo de vocabulario, uso de emojis, longitud de frases y forma de expresarse. SÃ© coherente con su manera de escribir.\n\n';
       }
     } else {
       console.log('[EATER AI] Sin estilo capturado para perfil', window._lastCribsPid);
     }
 
     const maxLen = isMultiple ? 2000 : 500;
-    const prompt = 'Ãšltimo mensaje del cliente:\n\n"' + accumulatedMsg.substring(0, maxLen) + '"\n\n' +
+    const prompt = 'ÃƒÅ¡ltimo mensaje del cliente:\n\n"' + accumulatedMsg.substring(0, maxLen) + '"\n\n' +
       contextNote +
       'Nivel de confianza: ' + confianza + '. ' + confianzaHint + '\n\n' +
       styleInjection +
@@ -852,7 +852,7 @@ async function generateWithAI(name, profile, accumulatedMsg) {
       '- TRATO HUMANO REAL: habla como un amigo con ventaja, no como chat bot. Usa humor callejero, referencias cotidianas, silencios narrados. Si ella cuenta algo personal, reacciona con empatia masculina, no con analisis frio. Se genuino.\n' +
       '- PUSH-PULL INTELIGENTE: alterna calidez con distancia calculada. Un cumplido seguido de un quite. Interes genuino seguido de indiferencia juguetona. Nunca valides sin quitar algo primero. La tension se construye con contrastes, no con rectas.\n' +
       '- PSICOLOGIA OSCURA DOSIFICADA: misterio controlado, validacion con giro, tension implicita. Provoca curiosidad, no la resuelvas. Insinua sin mostrar.\n' +
-      '- TERMOMETRO EMOCIONAL: refleja EXACTAMENTE el tono del cliente. Si es romÃ¡ntico â†’ romÃ¡ntico. Si es serio â†’ serio. Si es jugueton â†’ jugueton. Si discute â†’ misma intensidad. Si usa cariÃ±o â†’ mismo nivel de afecto.\n' +
+      '- TERMOMETRO EMOCIONAL: refleja EXACTAMENTE el tono del cliente. Si es romÃƒÂ¡ntico Ã¢â€ â€™ romÃƒÂ¡ntico. Si es serio Ã¢â€ â€™ serio. Si es jugueton Ã¢â€ â€™ jugueton. Si discute Ã¢â€ â€™ misma intensidad. Si usa cariÃƒÂ±o Ã¢â€ â€™ mismo nivel de afecto.\n' +
       '- MARCO Y DOMINIO: tu guias. Si ella se queja: entiendo pero... + redirige. Si ella se distancia: cuando quieras retomamos + silencio. Nunca ruegues, nunca insistas, nunca te disculpes de mas.\n' +
       '- TRATO SEGUN VINCULO: si usa palabras de carino, responde como pareja real con posesion suave y deseo. Si es nueva, nada de apodos, se serio, seguro y jugueton.\n' +
       '- NO uses metaforas, lenguaje poetico ni florido. Se directo, conciso y natural.\n' +
@@ -872,7 +872,7 @@ async function generateWithAI(name, profile, accumulatedMsg) {
       'Habla como WhatsApp, no como carta. ' +
       (isMultiple ? 'Cubre todos los mensajes recibidos con la extension necesaria para cada uno, sin ser excesivamente breve.' : 'Se concreto, maximo 300 caracteres.') + ' Responde SOLO el texto de mi respuesta.';
 
-    console.log('[EATER AI] Llamando a IA vía proxy');
+    console.log('[EATER AI] Llamando a IA vÃ­a proxy');
 
     const aiMessages = [
       {
@@ -906,23 +906,23 @@ function generateLocalResponse(name, profile) {
   const hasRealLocation = location && location.length > 0;
   
   const candidates = [
-    'Me gustas, pero no sé si me vas a responder...',
-    'Tu perfil me tiene curioso... ¿serás interesante?',
+    'Me gustas, pero no sÃ© si me vas a responder...',
+    'Tu perfil me tiene curioso... Â¿serÃ¡s interesante?',
     'Tengo una corazonada sobre ti...',
-    'Algo me dice que deberíamos conversar...',
+    'Algo me dice que deberÃ­amos conversar...',
     'No puedo dejar de pensar en ti...',
-    '¿Y si esta vez sí funciona?',
-    'Me atraes... y quiero saber más de ti.',
-    'Veo tu perfil y pienso que podrías ser especial...',
-    'Algo en ti me llama la atención...',
-    'Oye, ¿qué tal si nos conocemos mejor?',
-    location && hasRealLocation ? `Vivo cerca de ${location}, ¿y tú?` : null,
-    interests && hasRealInterests ? `Veo que te gusta ${interests[0]}... a mí también!` : null,
-    hobbies && hasRealHobbies ? `${hobbies[0]}! Yo también hago eso :D` : null,
+    'Â¿Y si esta vez sÃ­ funciona?',
+    'Me atraes... y quiero saber mÃ¡s de ti.',
+    'Veo tu perfil y pienso que podrÃ­as ser especial...',
+    'Algo en ti me llama la atenciÃ³n...',
+    'Oye, Â¿quÃ© tal si nos conocemos mejor?',
+    location && hasRealLocation ? `Vivo cerca de ${location}, Â¿y tÃº?` : null,
+    interests && hasRealInterests ? `Veo que te gusta ${interests[0]}... a mÃ­ tambiÃ©n!` : null,
+    hobbies && hasRealHobbies ? `${hobbies[0]}! Yo tambiÃ©n hago eso :D` : null,
   ].filter(s => s);
   
   const shuffled = [...candidates].sort(() => Math.random() - 0.5);
-  return shuffled[0] || 'Cuéntame más de ti...';
+  return shuffled[0] || 'CuÃ©ntame mÃ¡s de ti...';
 }
 
 // ============ DISPLAY SUGGESTIONS ============
@@ -953,16 +953,16 @@ function displaySuggestions(name) {
   }
 }
 
-// ============ TRADUCCIÓN ============
+// ============ TRADUCCIÃ“N ============
 async function translateEaterText(text) {
   var code = selectedLangCode;
   if (code === 'es') { copyToChatInput(text); return; }
   var targetLang = translateLanguages.find(function (l) { return l.code === code; }) || translateLanguages[0];
   try {
-    var sysMsg = 'Traduce el siguiente texto del español al ' + targetLang.name + ' (' + targetLang.code + '). Responde SOLO con la traducción, sin explicaciones ni notas.';
+    var sysMsg = 'Traduce el siguiente texto del espaÃ±ol al ' + targetLang.name + ' (' + targetLang.code + '). Responde SOLO con la traducciÃ³n, sin explicaciones ni notas.';
     var groqData = await Tesseract.callGroq(
       [{ role: 'system', content: sysMsg }, { role: 'user', content: text }],
-      'llama-3.3-70b-versatile',
+      'openai/gpt-oss-120b',
       300
     );
     var translated = groqData?.choices?.[0]?.message?.content;
@@ -972,7 +972,7 @@ async function translateEaterText(text) {
       var ml = ta ? parseInt(ta.getAttribute('maxlength')) : 300;
       if (ml && trimmed.length > ml) trimmed = trimmed.substring(0, ml);
       copyToChatInput(trimmed);
-      console.log('[TRANSLATE] ES → ' + targetLang.name + ':', trimmed.substring(0, 50));
+      console.log('[TRANSLATE] ES â†’ ' + targetLang.name + ':', trimmed.substring(0, 50));
     }
   } catch(e) {
     console.warn('[TRANSLATE] Error:', e.message);
@@ -991,15 +991,15 @@ async function translateEaterResponse() {
   if (!sourceText || sourceText === 'Esperando mensaje...') return;
 
   try {
-    var sysMsg = 'Traduce el siguiente texto del español al ' + targetLang.name + ' (' + targetLang.code + '). Responde SOLO con la traducción, sin explicaciones ni notas.';
+    var sysMsg = 'Traduce el siguiente texto del espaÃ±ol al ' + targetLang.name + ' (' + targetLang.code + '). Responde SOLO con la traducciÃ³n, sin explicaciones ni notas.';
     var groqData = await Tesseract.callGroq(
       [{ role: 'system', content: sysMsg }, { role: 'user', content: sourceText }],
-      'llama-3.3-70b-versatile',
+      'openai/gpt-oss-120b',
       300
     );
     var translated = groqData?.choices?.[0]?.message?.content;
 
-    console.log('[TRANSLATE] Solicitando traducción → ' + targetLang.name + ':', sourceText.substring(0, 50));
+    console.log('[TRANSLATE] Solicitando traducciÃ³n â†’ ' + targetLang.name + ':', sourceText.substring(0, 50));
     
     if (translated && translated.trim()) {
       area.value = translated.trim();
@@ -1007,7 +1007,7 @@ async function translateEaterResponse() {
       window._eaterTranslated = true;
       console.log('[TRANSLATE] Respuesta:', translated.trim().substring(0, 50));
     } else {
-      console.warn('[TRANSLATE] No se obtuvo traducción');
+      console.warn('[TRANSLATE] No se obtuvo traducciÃ³n');
     }
   } catch(e) {
     console.warn('[TRANSLATE] Error:', e.message);
@@ -1026,17 +1026,17 @@ async function translateEaterToClientLang() {
     return;
   }
   if (window._eaterClientMsgLang === 'es') {
-    showTessToast('El cliente escribe en español, no hace falta traducir', 'info');
+    showTessToast('El cliente escribe en espaÃ±ol, no hace falta traducir', 'info');
     return;
   }
-  area.value = '🌐 Traduciendo al idioma del cliente...';
+  area.value = 'ðŸŒ Traduciendo al idioma del cliente...';
   try {
-    var sysMsg = 'Eres un traductor profesional. Detecta el idioma del mensaje del cliente que se te indica y traduce el texto de respuesta a ESE mismo idioma. Responde SOLO con la traducción, sin explicaciones ni notas.';
+    var sysMsg = 'Eres un traductor profesional. Detecta el idioma del mensaje del cliente que se te indica y traduce el texto de respuesta a ESE mismo idioma. Responde SOLO con la traducciÃ³n, sin explicaciones ni notas.';
     var userMsg = 'Mensaje del cliente:\n\n"' + clientMsg.substring(0, 1200) + '"\n\n' +
       'Texto de respuesta a traducir:\n\n"' + sourceText.substring(0, 1800) + '"';
     var groqData = await Tesseract.callGroq(
       [{ role: 'system', content: sysMsg }, { role: 'user', content: userMsg }],
-      'llama-3.3-70b-versatile',
+      'openai/gpt-oss-120b',
       400
     );
     var translated = groqData?.choices?.[0]?.message?.content;
@@ -1049,15 +1049,15 @@ async function translateEaterToClientLang() {
       eaterResponse = Tesseract.set('eaterResponse', trimmed);
       window._eaterTranslated = true;
       console.log('[TRANSLATE] Traducido al idioma del cliente:', trimmed.substring(0, 50));
-      showTessToast('🌐 Respuesta traducida al idioma del cliente', 'success');
+      showTessToast('ðŸŒ Respuesta traducida al idioma del cliente', 'success');
     } else {
       area.value = sourceText;
-      showTessToast('⚠ Error de traducción', 'error');
+      showTessToast('âš  Error de traducciÃ³n', 'error');
     }
   } catch (e) {
     console.warn('[TRANSLATE] Error:', e.message);
     area.value = sourceText;
-    showTessToast('⚠ Error de traducción', 'error');
+    showTessToast('âš  Error de traducciÃ³n', 'error');
   }
 }
 
@@ -1076,11 +1076,11 @@ function refreshEaterSuggestions() {
   };
   
   const area = document.getElementById('eaterResponseArea');
-  if (area) { area.value = '🤖 Generando...'; area.style.color = '#888'; }
+  if (area) { area.value = 'ðŸ¤– Generando...'; area.style.color = '#888'; }
 
   const btn2 = document.getElementById('btnRefreshEater2');
   if (btn2) {
-    btn2.textContent = '🤖 IA...';
+    btn2.textContent = 'ðŸ¤– IA...';
     btn2.style.background = 'rgba(139,92,246,0.5)';
   }
 
@@ -1105,7 +1105,7 @@ function refreshEaterSuggestions() {
     if (eaterResponse) _processedTexts.add(eaterResponse.substring(0, 80));
     isUsingAI = Tesseract.set('isUsingAI', !!response);
     if (btn2) {
-      btn2.textContent = isUsingAI ? '🤖 IA' : '🔄 FRASES';
+      btn2.textContent = isUsingAI ? 'ðŸ¤– IA' : 'ðŸ”„ FRASES';
       btn2.style.background = isUsingAI ? 'rgba(139,92,246,0.3)' : 'rgba(30,27,75,0.7)';
     }
     displaySuggestions(clientName);
@@ -1114,22 +1114,22 @@ function refreshEaterSuggestions() {
     window._eaterOriginalResponse = eaterResponse;
     if (eaterResponse) _processedTexts.add(eaterResponse.substring(0, 80));
     isUsingAI = Tesseract.set('isUsingAI', false);
-    if (btn2) { btn2.textContent = '🔄 FRASES'; btn2.style.background = 'rgba(30,27,75,0.7)'; }
+    if (btn2) { btn2.textContent = 'ðŸ”„ FRASES'; btn2.style.background = 'rgba(30,27,75,0.7)'; }
     displaySuggestions(clientName);
   });
 }
 
-// ============ TRADUCCIÓN (ES → EN / FR / PT) ============
+// ============ TRADUCCIÃ“N (ES â†’ EN / FR / PT) ============
 async function translateText(text, targetCode, targetName) {
   var defaultLang = translateLanguages.find(function (l) { return l.code === selectedLangCode; }) || translateLanguages[0];
   const code = targetCode || defaultLang.code;
   const name = targetName || defaultLang.name;
   if (code === 'es') return text;
   try {
-    var sysMsg = 'Traduce el siguiente texto del español al ' + name + ' (' + code + '). Responde SOLO con la traducción, sin explicaciones ni notas.';
+    var sysMsg = 'Traduce el siguiente texto del espaÃ±ol al ' + name + ' (' + code + '). Responde SOLO con la traducciÃ³n, sin explicaciones ni notas.';
     var groqData = await Tesseract.callGroq(
       [{ role: 'system', content: sysMsg }, { role: 'user', content: text }],
-      'llama-3.3-70b-versatile',
+      'openai/gpt-oss-120b',
       300
     );
     var translated = groqData?.choices?.[0]?.message?.content;
@@ -1337,8 +1337,8 @@ function detectCurrentProfile() {
   console.log('[TESSERACT] Profile detection:', profileId, '| name:', profileName, '| url:', location.href);
 
   if (profileName || profileId) {
-    nameEl.textContent = profileName || '—';
-    idEl.textContent = 'ID: ' + (profileId || '—');
+    nameEl.textContent = profileName || 'â€”';
+    idEl.textContent = 'ID: ' + (profileId || 'â€”');
     badge.style.display = 'flex';
     var rawId = profileId ? profileId.replace(/^0+/, '') : '';
     if (rawId) {
