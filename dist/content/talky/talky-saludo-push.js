@@ -352,6 +352,12 @@ async function executeSaludoPush() {
       continue;
     }
 
+    // Auto-bloqueo: intercambio previo de mas de 10 mensajes (recibidos + enviados)
+    if (typeof window._mlAutoBlockIfInteraction === 'function' && window._mlAutoBlockIfInteraction(profileId)) {
+      console.log('[SP] Contacto auto-bloqueado por interaccion previa:', profileId);
+      continue;
+    }
+
     // Generar secuencia fresca para este contacto
     var seq = await spGenerateSequence();
     if (!seq) {

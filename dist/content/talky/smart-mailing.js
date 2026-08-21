@@ -842,5 +842,31 @@ window._removeFromMLBlacklist = function(id) {
   }
 };
 window._getMailingAbortState = function() { return mailingAbort; };
+
+// ─── AUTO-BLOQUEO POR INTERACCIÓN PREVIA ───
+// Si hay un intercambio de MÁS de 10 mensajes (recibidos + enviados) en el chat
+// abierto, el contacto se bloquea automáticamente (blacklist).
+const ML_AUTOBLOCK_THRESHOLD = 10;
+
+function mlCountChatMessages() {
+  var area = document.querySelector(TALK_Y.PAGE_CHAT_BODY) || document;
+  var sent = area.querySelectorAll('.text-message.my-text-message').length;
+  var recv = area.querySelectorAll('.text-message:not(.my-text-message)').length;
+  return { received: recv, sent: sent, total: recv + sent };
+}
+
+function mlAutoBlockIfInteraction(profileId) {
+  if (!profileId) return false;
+  var c = mlCountChatMessages();
+  if (c.total > ML_AUTOBLOCK_THRESHOLD) {
+    console.log('[ML] Auto-bloqueo: intercambio de ' + c.total + ' mensajes (' + c.received + ' recibidos / ' + c.sent + ' enviados) con', profileId);
+    window._addToMLBlacklist(String(profileId));
+    try { showTessToast('⛔ Auto-bloqueo: ' + profileId + ' (' + c.total + ' mensajes intercambiados)', 'warning'); } catch (e) {}
+    return true;
+  }
+  return false;
+}
+window._mlCountChatMessages = mlCountChatMessages;
+window._mlAutoBlockIfInteraction = mlAutoBlockIfInteraction;
 window._getMailingStats = getMailingStats;
 window._scrapeActiveLimitsIds = scrapeActiveLimitsIds;
