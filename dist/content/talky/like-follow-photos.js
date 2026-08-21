@@ -526,7 +526,7 @@ executeLFPMessages = window.executeLFPMessages = async function () {
 // Auto-resume LFP Messages after page reload — handles both profile and messages pages
 (function autoResumeLFPMsgs() {
   var stateRaw = localStorage.getItem('lfpMsgState');
-  if (!stateRaw || localStorage.getItem('lfpMsgSweepActive') !== '1') { console.log('[LFP-MSG] No saved state to resume'); return; }
+  if (!stateRaw || localStorage.getItem('lfpMsgSweepActive') !== '1') return;
 
   console.log('[LFP-MSG] Auto-resume state found, checking...');
 

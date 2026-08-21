@@ -809,6 +809,35 @@ PRINCIPIOS FUNDAMENTALES
 
 12. Instrucciones adicionales especÃ­ficas para el usuario: No incluir redes sociales, WhatsApp, seÃ±ales de contacto fuera de la plataforma. Mantener todas las interacciones dentro de la plataforma hasta que la persona estÃ© lista, siempre rechazando la peticiÃ³n o sugerencia de manera categÃ³rica pero directa, sin excusas. Responder de forma que la otra persona sienta seguridad, atracciÃ³n y deseo de seguir la conversaciÃ³n. Adaptar respuestas coquetas y sexuales segÃºn nivel de confianza y relaciÃ³n, usando push-pull y psicologÃ­a oscura moderada. Para conversaciones Ã­ntimas con clientes que expresan sentimientos o emociones, usar cariÃ±o y cercanÃ­a; para otras personas, mantener tono serio, coqueto y seguro, con insinuaciones sutiles cuando sea apropiado. Cuando la persona menciona vulnerabilidad, ansiedad o soledad, ofrecer refugio emocional y conexiÃ³n, combinando seguridad y atracciÃ³n.`;
 
+// Recolecta los ultimos N turnos del chat visible (mios vs cliente) para dar contexto a la IA
+function collectRecentConversation(maxTurns) {
+  try {
+    var selectors = ['.text-message', '[data-test-id*="text-msg"]', '[data-test-id*="message"]:not([class*="my"])'];
+    var best = [];
+    for (var s = 0; s < selectors.length; s++) {
+      try {
+        var nodes = document.querySelectorAll(selectors[s]);
+        if (nodes.length > best.length) best = Array.prototype.slice.call(nodes);
+      } catch (e2) {}
+    }
+    var turns = [];
+    var seen = {};
+    for (var i = 0; i < best.length; i++) {
+      var el = best[i];
+      var text = (el.textContent || '').replace(/\s+/g, ' ').trim();
+      if (!text || text.length < 2 || seen[text]) continue;
+      seen[text] = 1;
+      var mine = false;
+      try {
+        mine = !!(el.matches && el.matches('[class*="own"], [class*="my"], [class*="sent"]')) ||
+               !!(el.closest && el.closest('[class*="my-text-message"], [class*="own"], [class*="sent"]'));
+      } catch (e3) {}
+      turns.push({ mine: mine, content: text.substring(0, 300) });
+    }
+    return turns.slice(-(maxTurns || 10));
+  } catch (e) { return []; }
+}
+
 async function generateWithAI(name, profile, accumulatedMsg) {
   try {
     if (!accumulatedMsg || accumulatedMsg.trim().length < 3) {
@@ -878,11 +907,26 @@ async function generateWithAI(name, profile, accumulatedMsg) {
       {
         role: 'system',
         content: TESS_MASTER_PROMPT,
-      },
-      { role: 'user', content: prompt }
+      }
     ];
 
-    const aiData = await Tesseract.callAI(aiMessages, isMultiple ? 400 : 300);
+    const history = collectRecentConversation(10);
+    if (history.length) {
+      console.log('[EATER AI] Historial incluido:', history.length, 'turnos');
+      for (var hi = 0; hi < history.length; hi++) {
+        aiMessages.push(history[hi].mine ? { role: 'assistant', content: history[hi].content } : { role: 'user', content: history[hi].content });
+      }
+    } else {
+      console.log('[EATER AI] Sin historial visible, solo ultimo mensaje');
+    }
+
+    aiMessages.push({ role: 'user', content: prompt });
+
+    const aiData = await Tesseract.callAI(aiMessages, isMultiple ? 900 : 600);
+
+    if (aiData && aiData.usage) {
+      console.log('[EATER AI] usage:', JSON.stringify(aiData.usage), '| finish:', aiData.choices && aiData.choices[0] && aiData.choices[0].finish_reason);
+    }
     
     console.log('[EATER AI] AI response:', aiData);
     
