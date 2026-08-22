@@ -259,7 +259,14 @@
     timeEl.textContent = 'Acceso ilimitado';
 
     var adminBtn = document.getElementById('btn-admin');
-    if (adminBtn) adminBtn.style.display = 'none';
+    // Panel admin visible SOLO para admins/desarrolladores verificados por el servidor
+    try {
+      const vres = await fetch(TESSERACT_API + '/api/tess/auth/verify', { headers: { 'Authorization': 'Bearer ' + currentJwt } });
+      const vjson = await vres.json();
+      if (adminBtn && vres.ok && (vjson.isAdmin || vjson.isDeveloper)) {
+        adminBtn.style.display = '';
+      }
+    } catch (e) { /* sin permisos: queda oculto */ }
 
     document.getElementById('btn-open-bot').addEventListener('click', function () {
       chrome.tabs.create({ url: 'https://talkytimes.com/', active: true });
