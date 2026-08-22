@@ -111,11 +111,6 @@ function startResponseTimer(convEl, clientName, afterEl) {
       td.style.color = color;
     }
 
-    if (elapsed >= RESPONSE_ALERT_SECONDS && !_alertTriggered) {
-      _alertTriggered = true;
-      showResponseAlert(clientName);
-    }
-
     if (remaining <= 0) {
       clearInterval(timerId);
     }
@@ -146,53 +141,6 @@ function stopResponseTimer(clientName) {
   }
   document.querySelectorAll(TALK_Y.TIMER_ELEMENT).forEach(el => el.remove());
   _responseTimers.clear();
-}
-
-function showResponseAlert(clientName) {
-  const oldAlert = document.getElementById('tessRespAlert');
-  if (oldAlert) oldAlert.remove();
-  
-  const alert = document.createElement('div');
-  alert.id = 'tessRespAlert';
-  alert.style.cursor = 'pointer';
-  alert.addEventListener('click', () => {
-    const items = document.querySelectorAll(TALK_Y.DIALOG_ITEM_CONTENT);
-    for (const item of items) {
-      const nameEl = item.querySelector(TALK_Y.DIALOG_ITEM_NAME);
-      if (nameEl && nameEl.textContent.trim() === clientName) {
-        item.click();
-        break;
-      }
-    }
-    alert.remove();
-  });
-  alert.innerHTML = `
-<style>
-#tessRespAlert{position:fixed;top:80px;right:20px;z-index:999999;}
-.tess-alert-box{background:#0a0a0a;border:2px solid #ef4444;border-radius:12px;padding:16px 20px;box-shadow:0 0 30px rgba(239,68,68,0.5);min-width:260px;animation:tessAlertIn 0.3s ease-out;}
-@keyframes tessAlertIn{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}
-.tess-alert-hdr{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
-.tess-alert-hdr span{font-family:'Orbitron',sans-serif;font-size:11px;letter-spacing:2px;color:#ef4444;}
-.tess-alert-body{font-size:12px;color:#e0e0e0;font-family:'Segoe UI',sans-serif;line-height:1.4;}
-.tess-alert-close{position:absolute;top:6px;right:10px;cursor:pointer;color:#666;font-size:16px;font-family:sans-serif;background:none;border:none;z-index:2;}
-.tess-alert-close:hover{color:#ef4444;}
-</style>
-<div class="tess-alert-box">
-<button class="tess-alert-close" onclick="event.stopPropagation();this.closest('#tessRespAlert').remove()">×</button>
-<div class="tess-alert-hdr">
-<span>⚠ RESPUESTA PENDIENTE</span>
-</div>
-<div class="tess-alert-body">
-<b style="color:#f59e0b;">${clientName}</b> te escribió hace más de ${RESPONSE_ALERT_SECONDS / 60} min y aún no respondes.<br>
-<small style="color:#666;">Click para ir a la conversación</small>
-</div>
-</div>`;
-  document.body.appendChild(alert);
-  
-  setTimeout(() => {
-    const a = document.getElementById('tessRespAlert');
-    if (a) a.remove();
-  }, 8000);
 }
 
 function checkForSentMessages() {
