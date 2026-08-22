@@ -1164,10 +1164,27 @@ async function getOperatorSnapshots(userId, days = 60) {
 // ============ CHAT ADMIN <-> OPERADORES ============
 const CHAT_ADMIN_ID = 'ADMIN';
 
-async function saveChatMessage(from, to, text) {
-  const doc = { from: String(from), to: String(to), text: String(text).slice(0, 2000), ts: Date.now(), read: false };
+async function saveChatMessage(from, to, text, extra) {
+  const doc = Object.assign(
+    { from: String(from), to: String(to), text: String(text || '').slice(0, 2000), ts: Date.now(), read: false },
+    extra || {}
+  );
   await db.collection('tess_chat').insertOne(doc);
   return doc;
+}
+
+async function saveChatMedia({ data, mime, by, to }) {
+  const doc = { data: String(data), mime: String(mime || 'image/jpeg'), by: String(by), to: String(to), ts: Date.now() };
+  const r = await db.collection('tess_chat_media').insertOne(doc);
+  return { id: r.insertedId, doc };
+}
+
+async function getChatMedia(id) {
+  try {
+    const objId = toObjectId(id);
+    if (!objId) return null;
+    return await db.collection('tess_chat_media').findOne({ _id: objId });
+  } catch (e) { return null; }
 }
 
 async function getChatMessages(userA, userB, after = 0, limit = 300) {
@@ -1251,5 +1268,6 @@ module.exports = {
   getOperatorSnapshots,
   createStaffUser, getStaffUsers,
   getMyThreads, getChatContacts,
-  saveChatMessage, getChatMessages, markChatRead, getAdminThreads
+  saveChatMessage, getChatMessages, markChatRead, getAdminThreads,
+  saveChatMedia, getChatMedia
 };

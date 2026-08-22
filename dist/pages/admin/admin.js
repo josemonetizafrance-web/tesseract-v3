@@ -219,6 +219,109 @@ async function loadOperatorStats() {
   }
 }
 // ============ CHAT ============
+const ADMIN_EMOJIS = ['😀','😁','😂','🤣','😊','😍','😘','😜','😎','🤩','😏','🙂','🙃','😉','😇','🥰','😭','😅','🥺','😢','😡','🤔','🤗','🤫','🙌','👏','👍','👎','💪','🙏','💯','🔥','✨','⭐','❤️','💔','🌹','🌸','🍀','🎉','☕','🍕','⚽','🚀','💤','🤑','👀'];
+let chatErrCount = 0;
+const chatMediaCache = {};
+
+function chatTicks(m, mine) {
+  if (!mine) return '';
+  return m.read ? '<span style="color:#53bdeb;">✓✓</span>' : '<span style="color:#8696a0;">✓</span>';
+}
+
+function appendChatImg(div, m) {
+  const img = document.createElement('img');
+  img.className = 'wa-img';
+  div.appendChild(img);
+  const mid = String(m.mediaId);
+  const wire = () => { img.onclick = () => { const w = window.open(); if (w && img.src) w.document.write('<img src="' + img.src + '" style="max-width:100%">'); }; };
+  if (chatMediaCache[mid]) { img.src = chatMediaCache[mid]; wire(); return; }
+  apiFetch('/api/tess/chat/media/' + mid).then(d => {
+    const url = 'data:' + d.mime + ';base64,' + d.data;
+    chatMediaCache[mid] = url;
+    img.src = url;
+    wire();
+  }).catch(() => { img.alt = 'imagen no disponible'; });
+}
+
+function renderChatMsg(m) {
+  const boxEl = document.getElementById('chat-msgs');
+  if (!boxEl) return;
+  const ph = boxEl.querySelector('.empty-chat');
+  if (ph) ph.remove();
+  const mine = m.from === 'ADMIN';
+  const div = document.createElement('div');
+  div.className = 'bubble ' + (mine ? 'mine' : 'theirs');
+  if (m.kind === 'image' && m.mediaId) {
+    appendChatImg(div, m);
+    if (m.text) { const c = document.createElement('div'); c.textContent = m.text; div.appendChild(c); }
+  } else {
+    div.textContent = m.text || '';
+  }
+  const meta = document.createElement('span');
+  meta.className = 'wa-t';
+  meta.innerHTML = new Date(m.ts).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) + ' ' + chatTicks(m, mine);
+  div.appendChild(meta);
+  boxEl.appendChild(div);
+  boxEl.scrollTop = boxEl.scrollHeight;
+}
+
+function compressChatImage(file) {
+  return new Promise((resolve, reject) => {
+    if (file.type === 'image/gif' && file.size <= 1500000) {
+      const fr = new FileReader();
+      fr.onload = () => resolve(fr.result);
+      fr.onerror = reject;
+      fr.readAsDataURL(file);
+      return;
+    }
+    const fr = new FileReader();
+    fr.onload = () => {
+      const im = new Image();
+      im.onload = () => {
+        const max = 1280;
+        let w = im.width, h = im.height;
+        if (w > max || h > max) { const k = Math.min(max / w, max / h); w = Math.round(w * k); h = Math.round(h * k); }
+        const cv = document.createElement('canvas');
+        cv.width = w; cv.height = h;
+        cv.getContext('2d').drawImage(im, 0, 0, w, h);
+        resolve(cv.toDataURL('image/jpeg', 0.82));
+      };
+      im.onerror = reject;
+      im.src = fr.result;
+    };
+    fr.onerror = reject;
+    fr.readAsDataURL(file);
+  });
+}
+
+async function sendChatImage(file) {
+  if (!file || !chatWith) return;
+  showTmpStatus('Enviando imagen…');
+  try {
+    const dataUrl = await compressChatImage(file);
+    await apiFetch('/api/tess/chat/send-image', { method: 'POST', body: { to: chatWith, dataUrl } });
+    await pollThread(false);
+  } catch (e) { alert('Error al enviar imagen: ' + e.message); }
+}
+
+function showTmpStatus(txt) {
+  document.getElementById('chat-head').innerHTML = `<span style="color:#8696a0;">${esc(txt)}</span>`;
+}
+
+function buildAdminEmojiBar() {
+  const bar = document.getElementById('emoji-bar-admin');
+  if (!bar || bar.dataset.built) return;
+  ADMIN_EMOJIS.forEach(em => {
+    const b = document.createElement('button');
+    b.className = 'wa-emoji';
+    b.type = 'button';
+    b.textContent = em;
+    b.addEventListener('click', () => { const i = document.getElementById('chat-text'); i.value += em; i.focus(); });
+    bar.appendChild(b);
+  });
+  bar.dataset.built = '1';
+}
+
 function initChatUI() {
   document.getElementById('btn-chat-send').addEventListener('click', sendChatMsg);
   document.getElementById('chat-text').addEventListener('keypress', e => { if (e.key === 'Enter') sendChatMsg(); });
@@ -239,6 +342,16 @@ function initChatUI() {
       if (chatWith) await openThread(chatWith);
       else document.getElementById('chat-msgs').innerHTML = '<div class="empty-chat">Selecciona una conversación.</div>';
     } finally { btnRefresh.textContent = '⟳'; }
+  });
+  document.getElementById('btn-attach').addEventListener('click', () => document.getElementById('chat-file').click());
+  document.getElementById('chat-file').addEventListener('change', e => {
+    if (e.target.files[0]) sendChatImage(e.target.files[0]);
+    e.target.value = '';
+  });
+  document.getElementById('btn-emoji').addEventListener('click', () => {
+    buildAdminEmojiBar();
+    const bar = document.getElementById('emoji-bar-admin');
+    bar.style.display = bar.style.display === 'none' ? 'flex' : 'none';
   });
 }
 
@@ -289,16 +402,7 @@ async function pollThread(full) {
   const boxEl = document.getElementById('chat-msgs');
   if (full) boxEl.innerHTML = '';
   for (const m of msgs) {
-    const mine = m.from === 'ADMIN';
-    const div = document.createElement('div');
-    div.className = 'bubble ' + (mine ? 'mine' : 'theirs');
-    const time = new Date(m.ts).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
-    div.textContent = m.text;
-    const t = document.createElement('span');
-    t.className = 't';
-    t.textContent = (mine ? 'Tú · ' : '') + time;
-    div.appendChild(t);
-    boxEl.appendChild(div);
+    renderChatMsg(m);
     chatLastTs[chatWith] = Math.max(chatLastTs[chatWith] || 0, m.ts);
   }
   boxEl.scrollTop = boxEl.scrollHeight;
@@ -317,7 +421,14 @@ async function sendChatMsg() {
 
 // Refresco continuo de hilos: un operador nuevo aparece sin importar la pestana activa
 timers.push(setInterval(() => { refreshThreads(); }, 5000));
-timers.push(setInterval(() => { if (activeTab === 'chat' && chatWith) pollThread(false).catch(() => {}); }, 4000));
+// Poll del hilo abierto con auto-reparacion: si falla 3 veces seguidas, recarga completa
+let chatPollErrs = 0;
+timers.push(setInterval(() => {
+  if (activeTab !== 'chat' || !chatWith) return;
+  pollThread(false)
+    .then(() => { chatPollErrs = 0; })
+    .catch(() => { if (++chatPollErrs >= 3) { chatPollErrs = 0; openThread(chatWith); } });
+}, 4000));
 
 // ============ STAFF (solo admin raiz) ============
 const STAFF_ROLE_LABEL = { admin: ['ADMIN GLOBAL', 'dev'], office: ['ADMIN OFICINA', 'premium'], master: ['MASTER', 'dev'] };

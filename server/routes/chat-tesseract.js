@@ -3,7 +3,7 @@
  * PRIVACIDAD: cada usuario solo ve los hilos donde participa. Nadie mas puede leerlos.
  */
 const { Router } = require('express');
-const { saveChatMessage, getChatMessages, markChatRead, getAdminThreads, getMyThreads, getChatContacts, findUserByEmail } = require('../db/tesseract.js');
+const { saveChatMessage, getChatMessages, markChatRead, getAdminThreads, getMyThreads, getChatContacts, findUserByEmail, saveChatMedia, getChatMedia } = require('../db/tesseract.js');
 const { validateToken, requireTesseractAdmin, requireRootMaster } = require('../middleware/auth-tesseract.js');
 
 const router = Router();
@@ -130,6 +130,53 @@ router.post('/api/tess/admin/chat/migrate-legacy', validateToken, requireTessera
       { $set: { to: ADMIN_ID } }
     );
     res.json({ success: true, migrated: r1.modifiedCount + r2.modifiedCount });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Enviar imagen (sube el media y crea el mensaje en una sola llamada)
+router.post('/api/tess/chat/send-image', validateToken, async (req, res) => {
+  try {
+    const { to, dataUrl } = req.body;
+    const m = /^data:(image\/(?:png|jpe?g|webp|gif));base64,(.+)$/.exec(String(dataUrl || ''));
+    if (!m) return res.status(400).json({ error: 'Imagen inválida' });
+    if (m[2].length > 2800000) return res.status(413).json({ error: 'Imagen demasiado grande (máx ~2MB)' });
+    const staff = !!(req.user.is_admin || req.user.is_developer);
+    const rawTo = String(to || '').trim().toLowerCase();
+    let fromId, target;
+    if (!rawTo || rawTo === ADMIN_ID.toLowerCase()) {
+      if (staff) return res.status(400).json({ error: 'Destinatario requerido' });
+      fromId = req.user.email;
+      target = ADMIN_ID;
+    } else {
+      const dest = await findUserByEmail(rawTo);
+      if (!dest) return res.status(404).json({ error: 'Usuario destino no encontrado' });
+      target = String(dest.email).toLowerCase();
+      fromId = staff ? ADMIN_ID : req.user.email;
+    }
+    const media = await saveChatMedia({ data: m[2], mime: m[1], by: fromId, to: target });
+    const msg = await saveChatMessage(fromId, target, '', { kind: 'image', mediaId: String(media.id), mime: m[1] });
+    res.json({ success: true, message: msg });
+  } catch (err) {
+    console.error('[CHAT] send-image error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Descargar imagen de un chat. Solo participantes (o admin para moderar).
+router.get('/api/tess/chat/media/:id', validateToken, async (req, res) => {
+  try {
+    const media = await getChatMedia(req.params.id);
+    if (!media) return res.status(404).json({ error: 'Imagen no encontrada' });
+    const me = String(req.user.email || '').toLowerCase();
+    const isAdmin = !!(req.user.is_admin || req.user.is_developer);
+    const allowed = isAdmin ||
+      me === String(media.by).toLowerCase() ||
+      me === String(media.to).toLowerCase() ||
+      (String(media.to) === ADMIN_ID && me === ADMIN_ID.toLowerCase());
+    if (!allowed) return res.status(403).json({ error: 'Sin acceso a esta imagen' });
+    res.json({ mime: media.mime, data: media.data });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

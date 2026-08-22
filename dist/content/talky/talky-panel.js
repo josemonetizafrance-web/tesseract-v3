@@ -491,20 +491,34 @@ function createMainPanel() {
 
 <!-- PESTAÑA MENSAJES (SOPORTE + CHAT PRIVADO ENTRE USUARIOS) -->
 <div id="tabSoporte" class="tab-content">
+<style>
+#tabSoporte .wa-msgs{background:#0b141a;flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:5px;border-radius:8px;padding:10px;border:1px solid #2a2a44;}
+#tabSoporte .wa-b{max-width:80%;padding:7px 9px;border-radius:11px;font-size:11px;line-height:1.35;position:relative;word-break:break-word;white-space:pre-wrap;}
+#tabSoporte .wa-me{align-self:flex-end;background:#005c4b;color:#e9edef;border-bottom-right-radius:3px;}
+#tabSoporte .wa-you{align-self:flex-start;background:#202c33;color:#e9edef;border-bottom-left-radius:3px;}
+#tabSoporte .wa-t{font-size:8px;color:#8696a0;text-align:right;margin-top:3px;display:block;}
+#tabSoporte .wa-img{max-width:180px;max-height:180px;border-radius:8px;display:block;cursor:pointer;margin-bottom:2px;background:#111;}
+#tabSoporte .wa-emoji{background:transparent;border:none;font-size:16px;padding:2px 3px;cursor:pointer;line-height:1;}
+#tabSoprite .x{}
+</style>
 <div class="user-bar">💬 MENSAJES — <span id="opChatWho">🛡 SOPORTE</span></div>
-<div style="display:flex;flex-direction:column;height:320px;padding:8px;gap:6px;">
+<div style="display:flex;flex-direction:column;height:360px;padding:8px;gap:6px;">
   <div style="display:flex;gap:6px;">
     <select id="opChatPeer" style="flex:1;background:#12121f;border:1px solid #26263a;color:#e0e0e0;border-radius:6px;padding:6px 8px;font-size:11px;outline:none;">
       <option value="ADMIN">🛡 SOPORTE (administrador)</option>
     </select>
-    <button id="btnOpChatRefresh" title="Actualizar contactos" style="background:#16162a;border:1px solid #2a2a44;color:#bbb;border-radius:6px;width:32px;cursor:pointer;font-size:12px;">⟳</button>
+    <button id="btnOpChatRefresh" title="Reiniciar vista del chat" style="background:#16162a;border:1px solid #2a2a44;color:#bbb;border-radius:6px;width:32px;cursor:pointer;font-size:12px;">⟳</button>
   </div>
-  <div id="opChatMsgs" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:6px;background:#0a0a0a;border:1px solid #2a2a44;border-radius:8px;padding:8px;">
+  <div id="opChatMsgs" class="wa-msgs">
     <div style="margin:auto;color:#666;font-size:10px;text-align:center;">Selecciona un contacto arriba.<br>🛡 SOPORTE te conecta con el administrador.<br>Tus conversaciones son privadas.</div>
   </div>
-  <div style="display:flex;gap:6px;">
+  <div id="opEmojiBar" style="display:none;flex-wrap:wrap;gap:1px;background:#12121f;border:1px solid #26263a;border-radius:8px;padding:4px;max-height:74px;overflow-y:auto;"></div>
+  <div style="display:flex;gap:5px;align-items:center;">
+    <button id="btnOpChatAttach" title="Enviar imagen" style="background:#16162a;border:1px solid #2a2a44;color:#bbb;border-radius:6px;width:30px;height:30px;cursor:pointer;font-size:13px;">📎</button>
+    <input id="opChatFile" type="file" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none;">
     <input type="text" id="opChatInput" maxlength="2000" placeholder="Mensaje…" style="flex:1;background:#12121f;border:1px solid #26263a;color:#e0e0e0;border-radius:6px;padding:7px 10px;font-size:11px;outline:none;">
-    <button id="btnOpChatSend" style="background:#22c55e;border:none;color:#fff;border-radius:6px;padding:0 14px;font-size:11px;font-weight:700;cursor:pointer;">➤</button>
+    <button id="btnOpChatEmoji" title="Emojis" style="background:#16162a;border:1px solid #2a2a44;color:#bbb;border-radius:6px;width:30px;height:30px;cursor:pointer;font-size:13px;">😊</button>
+    <button id="btnOpChatSend" style="background:#22c55e;border:none;color:#fff;border-radius:6px;width:34px;height:30px;font-size:12px;font-weight:700;cursor:pointer;">➤</button>
   </div>
 </div>
 </div>
@@ -1353,15 +1367,18 @@ if (document.readyState === 'loading') {
   safeInit();
 }
 
-// ============ MENSAJES: SOPORTE + CHAT PRIVADO ENTRE USUARIOS ============
+// ============ MENSAJES v3: ESTILO WHATSAPP (SOPORTE + CHAT PRIVADO) ============
 (function initSupportChat() {
   const TAPI = 'https://tesseract-v3-production.up.railway.app';
   const ADMIN_PEER = 'ADMIN';
+  const EMOJIS = ['ðŸ˜€','ðŸ˜','ðŸ˜‚','ðŸ¤£','ðŸ˜Š','ðŸ˜','ðŸ˜˜','ðŸ˜œ','ðŸ˜Ž','ðŸ¤©','ðŸ˜','ðŸ™‚','ðŸ™ƒ','ðŸ˜‰','ðŸ˜‡','ðŸ¥°','ðŸ˜­','ðŸ˜…','ðŸ¥º','ðŸ˜¢','ðŸ˜¡','ðŸ¤”','ðŸ¤—','ðŸ¤«','ðŸ™Œ','ðŸ‘','ðŸ‘','ðŸ‘Ž','ðŸ’ª','ðŸ™','ðŸ’¯','ðŸ”¥','âœ¨','â­','â¤ï¸','ðŸ’”','ðŸŒ¹','ðŸŒ¸','ðŸ€','ðŸŽ‰','â˜•','ðŸ•','âš½','ðŸš€','ðŸ’¤','ðŸ¤‘','ðŸ‘€'];
   let myEmail = '';
   let activePeer = ADMIN_PEER;
   let lastTsBy = {};
+  let fails = 0;
   let unreadTotal = 0;
   let contactsCache = [];
+  const mediaCache = {};
 
   function els() {
     return {
@@ -1370,42 +1387,34 @@ if (document.readyState === 'loading') {
       sendBtn: document.getElementById('btnOpChatSend'),
       peerSel: document.getElementById('opChatPeer'),
       refreshBtn: document.getElementById('btnOpChatRefresh'),
+      attachBtn: document.getElementById('btnOpChatAttach'),
+      fileInput: document.getElementById('opChatFile'),
+      emojiBtn: document.getElementById('btnOpChatEmoji'),
+      emojiBar: document.getElementById('opEmojiBar'),
       who: document.getElementById('opChatWho'),
       tabBtn: document.querySelector('.tab-btn[data-tab="soporte"]')
     };
   }
 
-  async function stGet(keys) {
-    return new Promise(r => chrome.storage.local.get(keys, d => r(d)));
-  }
-
-  async function jwt() {
-    try { return (await stGet(['tess_jwt'])).tess_jwt || ''; }
-    catch (e) { return ''; }
-  }
-
+  async function stGet(keys) { return new Promise(r => chrome.storage.local.get(keys, d => r(d))); }
+  async function jwt() { try { return (await stGet(['tess_jwt'])).tess_jwt || ''; } catch (e) { return ''; } }
   async function ensureToken() {
-    let token = await jwt();
-    if (token) return token;
-    if (typeof tryRefreshToken === 'function') {
-      const ok = await tryRefreshToken();
-      if (ok) token = await jwt();
-    }
-    return token;
+    let t = await jwt();
+    if (t) return t;
+    if (typeof tryRefreshToken === 'function') { if (await tryRefreshToken()) t = await jwt(); }
+    return t;
   }
-
   function updateBadge() {
     const t = els().tabBtn;
     if (!t) return;
     t.textContent = unreadTotal > 0 ? 'ðŸ’¬ MENSAJES (' + unreadTotal + ')' : 'ðŸ’¬ MENSAJES';
   }
-
-  function labelFor(email, name, online, unread) {
-    let l = email === ADMIN_PEER ? 'ðŸ›¡ SOPORTE' : ((name || email.split('@')[0]) + (online ? ' â—' : ''));
-    if (unread > 0) l += ' (' + unread + ')';
-    return l;
+  function qs(peer, after) {
+    const p = [];
+    if (peer !== ADMIN_PEER) p.push('with=' + encodeURIComponent(peer));
+    if (after) p.push('after=' + after);
+    return '/api/tess/chat/messages' + (p.length ? '?' + p.join('&') : '');
   }
-
   async function api(path) {
     const token = await ensureToken();
     if (!token) throw new Error('sin-sesion');
@@ -1416,63 +1425,56 @@ if (document.readyState === 'loading') {
     if (!res.ok) throw new Error('HTTP ' + res.status);
     return res.json();
   }
-
-  async function loadContacts() {
-    try {
-      const d = await api('/api/tess/chat/contacts');
-      contactsCache = d.contacts || [];
-      renderPeerSelect();
-    } catch (e) {}
+  function labelFor(email, name, online, unread) {
+    let l = email === ADMIN_PEER ? 'ðŸ›¡ SOPORTE' : ((name || email.split('@')[0]) + (online ? ' â—' : ''));
+    if (unread > 0) l += ' (' + unread + ')';
+    return l;
   }
-
-  async function loadMyThreads() {
-    let map = {};
-    unreadTotal = 0;
-    try {
-      const d = await api('/api/tess/chat/my-threads');
-      (d.threads || []).forEach(t => { map[t.email] = t.unread; unreadTotal += t.unread; });
-    } catch (e) {}
-    renderPeerSelect(map);
-    updateBadge();
-  }
-
-  function renderPeerSelect(unreadMap) {
-    const sel = els().peerSel;
-    if (!sel) return;
-    const prev = sel.value || ADMIN_PEER;
-    let html = '<option value="' + ADMIN_PEER + '"' + (prev === ADMIN_PEER ? ' selected' : '') + '>' +
-      labelFor(ADMIN_PEER, null, false, unreadMap ? (unreadMap[ADMIN_PEER] || 0) : 0) + '</option>';
-    for (const c of contactsCache) {
-      const u = unreadMap ? (unreadMap[c.email] || 0) : 0;
-      html += '<option value="' + escAttr(c.email) + '"' + (prev === c.email ? ' selected' : '') + '>' +
-        escAttr(labelFor(c.email, c.name, c.online, u)) + '</option>';
-    }
-    sel.innerHTML = html;
-    updateWho();
-  }
-
   function escAttr(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
-
-  function updateWho() {
-    const w = els().who;
-    if (!w) return;
-    w.textContent = activePeer === ADMIN_PEER ? 'ðŸ›¡ SOPORTE' : activePeer.split('@')[0];
+  function clearEmpty(box) { const e = box.querySelector('.wa-empty'); if (e) e.remove(); }
+  function ticks(m, mine) {
+    if (!mine) return '';
+    return m.read ? '<span style="color:#53bdeb;">âœ“âœ“</span>' : '<span style="color:#8696a0;">âœ“</span>';
   }
 
-  function bubble(m) {
+
+  function appendMediaImg(div, m) {
+    const img = document.createElement('img');
+    img.className = 'wa-img';
+    div.appendChild(img);
+    const mid = String(m.mediaId);
+    if (mediaCache[mid]) { img.src = mediaCache[mid]; wireOpen(img); return; }
+    api('/api/tess/chat/media/' + mid).then(d => {
+      const url = 'data:' + d.mime + ';base64,' + d.data;
+      mediaCache[mid] = url;
+      img.src = url;
+      wireOpen(img);
+    }).catch(() => { img.alt = 'imagen no disponible'; });
+    function wireOpen(i) {
+      i.onclick = () => {
+        const w = window.open();
+        if (w && i.src) w.document.write('<img src="' + i.src + '" style="max-width:100%">');
+      };
+    }
+  }
+
+  function renderMsg(m) {
     const box = els().msgs;
     if (!box) return;
-    const empty = box.querySelector('div[style*="margin:auto"]');
-    if (empty) empty.remove();
-    const mineMsg = m.from === myEmail;
+    clearEmpty(box);
+    const mine = m.from === myEmail;
     const div = document.createElement('div');
-    div.style.cssText = 'max-width:80%;padding:7px 10px;border-radius:9px;font-size:11px;line-height:1.4;white-space:pre-wrap;word-break:break-word;' +
-      (mineMsg ? 'align-self:flex-end;background:#22c55e;color:#06220f;' : 'align-self:flex-start;background:#1b1b2c;color:#ddd;');
-    div.textContent = (activePeer === ADMIN_PEER && !mineMsg ? 'ðŸ›¡ ' : '') + m.text;
-    const t = document.createElement('span');
-    t.style.cssText = 'display:block;font-size:8px;opacity:.55;margin-top:3px;';
-    t.textContent = new Date(m.ts).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
-    div.appendChild(t);
+    div.className = 'wa-b ' + (mine ? 'wa-me' : 'wa-you');
+    if (m.kind === 'image' && m.mediaId) {
+      appendMediaImg(div, m);
+      if (m.text) { const c = document.createElement('div'); c.textContent = m.text; div.appendChild(c); }
+    } else {
+      div.textContent = (activePeer === ADMIN_PEER && !mine ? 'ðŸ›¡ ' : '') + (m.text || '');
+    }
+    const meta = document.createElement('span');
+    meta.className = 'wa-t';
+    meta.innerHTML = new Date(m.ts).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) + ' ' + ticks(m, mine);
+    div.appendChild(meta);
     box.appendChild(div);
     box.scrollTop = box.scrollHeight;
   }
@@ -1480,7 +1482,7 @@ if (document.readyState === 'loading') {
   function sessionNotice() {
     const box = els().msgs;
     if (!box) return;
-    box.innerHTML = '<div style="margin:auto;color:#f59e0b;font-size:11px;text-align:center;padding:10px;">Tu sesiÃ³n expirÃ³.<br>Vuelve a iniciar sesiÃ³n para usar los mensajes.<br><button id="opChatRelog" style="margin-top:8px;background:#f59e0b;border:none;color:#000;font-weight:700;font-size:11px;padding:6px 14px;border-radius:6px;cursor:pointer;">INICIAR SESIÃ“N</button></div>';
+    box.innerHTML = '<div class="wa-empty" style="margin:auto;color:#f59e0b;font-size:11px;text-align:center;padding:10px;">Tu sesiÃ³n expirÃ³.<br>Vuelve a iniciar sesiÃ³n.<br><button id="opChatRelog" style="margin-top:8px;background:#f59e0b;border:none;color:#000;font-weight:700;font-size:11px;padding:6px 14px;border-radius:6px;cursor:pointer;">INICIAR SESIÃ“N</button></div>';
     const b = document.getElementById('opChatRelog');
     if (b) b.addEventListener('click', () => {
       window.open(chrome.runtime.getURL('dist/pages/login/login.html'), '_blank');
@@ -1488,66 +1490,116 @@ if (document.readyState === 'loading') {
     });
   }
 
-  function qs(peer, after) {
-    const params = [];
-    if (peer !== ADMIN_PEER) params.push('with=' + encodeURIComponent(peer));
-    if (after) params.push('after=' + after);
-    return '/api/tess/chat/messages' + (params.length ? '?' + params.join('&') : '');
-  }
-
   async function openPeer(peer) {
     activePeer = peer || ADMIN_PEER;
     lastTsBy[activePeer] = 0;
+    fails = 0;
     const box = els().msgs;
-    if (box) box.innerHTML = '<div style="margin:auto;color:#555;font-size:10px;">Cargandoâ€¦</div>';
+    if (box) box.innerHTML = '<div class="wa-empty" style="margin:auto;color:#555;font-size:10px;">Cargandoâ€¦</div>';
     updateWho();
     await pollActive(true);
   }
 
   async function pollActive(full) {
     let data;
-    try { data = await api(qs(activePeer, full ? 0 : (lastTsBy[activePeer] || 0))); }
-    catch (e) { if (e.message === 'sin-sesion' && full) sessionNotice(); return; }
+    try { data = await api(qs(activePeer, full ? 0 : (lastTsBy[activePeer] || 0))); fails = 0; }
+    catch (e) {
+      if (e.message === 'sin-sesion' && full) sessionNotice();
+      else {
+        fails++;
+        if (fails >= 3 && !full) { lastTsBy[activePeer] = 0; fails = 0; return pollActive(true); }
+      }
+      return;
+    }
     const msgs = data.messages || [];
     const box = els().msgs;
     if (full && box) box.innerHTML = '';
     if (!msgs.length && full && box) {
-      box.innerHTML = '<div style="margin:auto;color:#666;font-size:10px;text-align:center;">AÃºn no hay mensajes en esta conversaciÃ³n.</div>';
+      box.innerHTML = '<div class="wa-empty" style="margin:auto;color:#666;font-size:10px;text-align:center;">AÃºn no hay mensajes. Escribe el primero ðŸ‘‹</div>';
       return;
     }
-    for (const m of msgs) {
-      bubble(m);
-      lastTsBy[activePeer] = Math.max(lastTsBy[activePeer] || 0, m.ts);
-    }
+    for (const m of msgs) { renderMsg(m); lastTsBy[activePeer] = Math.max(lastTsBy[activePeer] || 0, m.ts); }
     if (msgs.length && !full) loadMyThreads();
   }
 
-  async function sendMsg() {
+  async function post(payload, image) {
+    const token = await ensureToken();
+    if (!token) { sessionNotice(); showTessToast('SesiÃ³n expirada â€” inicia sesiÃ³n de nuevo', 'error'); return null; }
+    try {
+      const res = await fetch(TAPI + '/api/tess/chat/' + (image ? 'send-image' : 'send'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { showTessToast('âš  Mensajes: ' + (data.error || ('Error ' + res.status)), 'error'); return null; }
+      return data.message;
+    } catch (e) { showTessToast('âš  Sin conexiÃ³n con el servidor', 'error'); return null; }
+  }
+
+  async function sendText() {
     const input = els().input;
     const text = (input.value || '').trim();
     if (!text) return;
-    const token = await ensureToken();
-    if (!token) { input.value = text; sessionNotice(); showTessToast('SesiÃ³n expirada â€” inicia sesiÃ³n de nuevo', 'error'); return; }
     input.value = '';
-    try {
-      const body = activePeer === ADMIN_PEER ? { text } : { to: activePeer, text };
-      const res = await fetch(TAPI + '/api/tess/chat/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-        body: JSON.stringify(body)
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        showTessToast('âš  Mensajes: ' + (data.error || ('Error ' + res.status)), 'error');
-        input.value = text;
+    const payload = activePeer === ADMIN_PEER ? { text } : { to: activePeer, text };
+    const msg = await post(payload, false);
+    if (msg) { renderMsg(msg); lastTsBy[activePeer] = Math.max(lastTsBy[activePeer] || 0, msg.ts); }
+    else input.value = text;
+  }
+
+  function compressImage(file) {
+    return new Promise((resolve, reject) => {
+      if (file.type === 'image/gif' && file.size <= 1500000) {
+        const fr = new FileReader();
+        fr.onload = () => resolve(fr.result);
+        fr.onerror = reject;
+        fr.readAsDataURL(file);
         return;
       }
-      if (data.message) bubble(data.message);
-      lastTsBy[activePeer] = Math.max(lastTsBy[activePeer] || 0, data.message ? data.message.ts : 0);
-    } catch (e) {
-      showTessToast('âš  Sin conexiÃ³n con el servidor', 'error');
-      input.value = text;
-    }
+      const fr = new FileReader();
+      fr.onload = () => {
+        const im = new Image();
+        im.onload = () => {
+          const max = 1280;
+          let w = im.width, h = im.height;
+          if (w > max || h > max) { const k = Math.min(max / w, max / h); w = Math.round(w * k); h = Math.round(h * k); }
+          const cv = document.createElement('canvas');
+          cv.width = w; cv.height = h;
+          cv.getContext('2d').drawImage(im, 0, 0, w, h);
+          resolve(cv.toDataURL('image/jpeg', 0.82));
+        };
+        im.onerror = reject;
+        im.src = fr.result;
+      };
+      fr.onerror = reject;
+      fr.readAsDataURL(file);
+    });
+  }
+
+  async function sendImage(file) {
+    if (!file) return;
+    if (!/^image\//.test(file.type)) { showTessToast('Solo se permiten imÃ¡genes', 'error'); return; }
+    showTessToast('Enviando imagenâ€¦', 'info');
+    let dataUrl;
+    try { dataUrl = await compressImage(file); } catch (e) { showTessToast('No se pudo procesar la imagen', 'error'); return; }
+    const payload = activePeer === ADMIN_PEER ? { dataUrl } : { to: activePeer, dataUrl };
+    const msg = await post(payload, true);
+    if (msg) { renderMsg(msg); lastTsBy[activePeer] = Math.max(lastTsBy[activePeer] || 0, msg.ts); }
+  }
+
+  function buildEmojiBar() {
+    const bar = els().emojiBar;
+    if (!bar || bar.dataset.built) return;
+    EMOJIS.forEach(em => {
+      const b = document.createElement('button');
+      b.className = 'wa-emoji';
+      b.type = 'button';
+      b.textContent = em;
+      b.addEventListener('click', () => { els().input.value += em; els().input.focus(); });
+      bar.appendChild(b);
+    });
+    bar.dataset.built = '1';
   }
 
   window._startSupportChat = function () {
@@ -1556,37 +1608,31 @@ if (document.readyState === 'loading') {
     pollActive(true);
   };
 
-  // Enlazar eventos cuando el panel exista
-  const bootTimer = setInterval(async () => {
+  const bootTimer = setInterval(() => {
     const e = els();
-    if (e.input && e.sendBtn && e.peerSel) {
-      e.sendBtn.addEventListener('click', sendMsg);
-      e.input.addEventListener('keypress', ev => { if (ev.key === 'Enter') sendMsg(); });
-      e.peerSel.addEventListener('change', () => openPeer(e.peerSel.value));
-      e.refreshBtn.addEventListener('click', async () => {
-        e.refreshBtn.textContent = '⋯';
-        try {
-          await loadContacts();
-          await loadMyThreads();
-          await openPeer(activePeer);
-        } finally { e.refreshBtn.textContent = '⟳'; }
-      });
-      clearInterval(bootTimer);
-    }
+    if (!(e.input && e.sendBtn && e.peerSel)) return;
+    e.sendBtn.addEventListener('click', sendText);
+    e.input.addEventListener('keypress', ev => { if (ev.key === 'Enter') sendText(); });
+    e.peerSel.addEventListener('change', () => openPeer(e.peerSel.value));
+    e.refreshBtn.addEventListener('click', async () => {
+      e.refreshBtn.textContent = 'â‹¯';
+      try { await loadContacts(); await loadMyThreads(); await openPeer(activePeer); }
+      finally { e.refreshBtn.textContent = 'âŸ³'; }
+    });
+    e.attachBtn.addEventListener('click', () => e.fileInput.click());
+    e.fileInput.addEventListener('change', () => { if (e.fileInput.files[0]) sendImage(e.fileInput.files[0]); e.fileInput.value = ''; });
+    e.emojiBtn.addEventListener('click', () => { buildEmojiBar(); e.emojiBar.style.display = e.emojiBar.style.display === 'none' ? 'flex' : 'none'; });
+    clearInterval(bootTimer);
   }, 1500);
 
-  // Ciclos de fondo: hilo activo 5s; contactos+no-leidos 15s
-  setInterval(() => {
-    if (!document.getElementById('tesseract-main-panel')) return;
-    pollActive(false).catch(() => {});
-  }, 5000);
+  setInterval(() => { if (document.getElementById('tesseract-main-panel')) pollActive(false).catch(() => {}); }, 5000);
   setInterval(() => {
     if (!document.getElementById('tesseract-main-panel')) return;
     loadMyThreads().catch(() => {});
     if (Math.floor(Date.now() / 60000) % 3 === 0) loadContacts().catch(() => {});
   }, 15000);
 
-  // Identidad propia (para alinear mis burbujas a la derecha)
-  stGet(['user_email', 'tess_user']).then(d => { myEmail = (d.user_email && String(d.user_email).includes('@')) ? d.user_email : (d.tess_user && String(d.tess_user).includes('@') ? d.tess_user : ''); });
+  stGet(['user_email', 'tess_user']).then(d => {
+    myEmail = (d.user_email && String(d.user_email).includes('@')) ? d.user_email : (d.tess_user && String(d.tess_user).includes('@') ? d.tess_user : '');
+  });
 })();
-
