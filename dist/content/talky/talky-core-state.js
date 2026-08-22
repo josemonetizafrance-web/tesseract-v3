@@ -115,7 +115,7 @@ async function generateIcebreakersFromAI() {
       if (fallback) jsonMatch = '[' + fallback.map(function(m){ return m.slice(1,-1); }).join(',') + ']';
       else jsonMatch = null;
     }
-    if (!jsonMatch) { showTessToast('Error: la IA no devolviÃ³ JSON vÃ¡lido. Revisa la consola (F12).', 'error'); window._ibMode = 'idle'; updateIBUI(); return; }
+    if (!jsonMatch) { showTessToast('Error: la IA no devolvió JSON válido. Revisa la consola (F12).', 'error'); window._ibMode = 'idle'; updateIBUI(); return; }
     jsonMatch = jsonMatch.replace(/[\x00-\x1F\x7F]/g, '');
     var parsed = JSON.parse(jsonMatch);
     if (!Array.isArray(parsed) || parsed.length < 5) { showTessToast('Error: la IA devolvió menos de 5 mensajes', 'error'); window._ibMode = 'idle'; updateIBUI(); return; }
@@ -383,229 +383,173 @@ window._ibVisionPhrases = [
 
 window._ibVisionActive = false;
 
-async function _ibVisionSelectRandom(index) {
-  console.log('[IB VISION] selectRandom: index=' + index);
-  var allPlaceholders = document.querySelectorAll('.multiselect__placeholder, .multiselect__tags');
-  var allInputs = document.querySelectorAll('input.multiselect__input');
-  console.log('[IB VISION] selectRandom: ' + allPlaceholders.length + ' placeholders, ' + allInputs.length + ' inputs');
-  var targetIdx = (index !== undefined && index !== null) ? index : 0;
-  var placeholder = allPlaceholders[targetIdx];
-  var input = allInputs[targetIdx];
-  if (!placeholder) {
-    console.log('[IB VISION] selectRandom: NOT FOUND for index', targetIdx);
-    return false;
+// Opciones reales del dropdown vue-multiselect dentro de un scope
+function _ibRealOptions(root) {
+  var sel = '.multiselect__content li, .multiselect__option, [role="option"]';
+  var opts = (root || document).querySelectorAll(sel);
+  return Array.prototype.filter.call(opts || [], function (o) {
+    var t = ((o.textContent || '').trim().toLowerCase());
+    return t && t.indexOf('no icebreakers') === -1 && t.indexOf('list is empty') === -1;
+  });
+}
+
+// Multiselects aun SIN seleccion (muestran placeholder) y visibles
+function _ibUnfilledTags() {
+  var tags = document.querySelectorAll('.multiselect__tags');
+  var out = [];
+  for (var i = 0; i < tags.length; i++) {
+    if (tags[i].querySelector('.multiselect__placeholder') && tags[i].offsetParent !== null) out.push(tags[i]);
   }
-  console.log('[IB VISION] selectRandom: haciendo clic en placeholder/tags');
-  placeholder.click();
-  await sleep(1000);
+  return out;
+}
+
+// Abre un multiselect, elige frase al azar y confirma que quedo seleccionada
+async function _ibFillMultiselect(tagsEl, label) {
+  try { tagsEl.scrollIntoView({ block: 'center' }); } catch (e) {}
+  await sleep(500);
+  console.log('[IB VISION] llenando multiselect (' + (label || '?') + ')');
+  tagsEl.click();
+  await sleep(900);
+  var scope = tagsEl.closest('.multiselect') || document;
   for (var r = 0; r < 12; r++) {
-    var options = document.querySelectorAll('.multiselect__content .multiselect__element, .multiselect__content li, .multiselect__option, [role="option"]');
-    var realOptions = Array.from(options || []).filter(function(o) {
-      var txt = (o.textContent || '').trim().toLowerCase();
-      return txt && txt !== 'no icebreakers found' && txt !== 'list is empty.' && txt.indexOf('no icebreakers') === -1 && txt.indexOf('list is empty') === -1;
-    });
-    if (realOptions && realOptions.length > 0) {
-      var pick = realOptions[Math.floor(Math.random() * realOptions.length)];
-      console.log('[IB VISION] selectRandom: click option:', pick.textContent?.trim()?.substring(0,50));
-      pick.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-      pick.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+    var opts = _ibRealOptions(scope);
+    if (opts.length) {
+      var pick = opts[Math.floor(Math.random() * opts.length)];
+      console.log('[IB VISION] opcion elegida:', (pick.textContent || '').trim().substring(0, 50));
+      try {
+        pick.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+        pick.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+      } catch (e) {}
       pick.click();
-      await sleep(600);
-      console.log('[IB VISION] selectRandom: option clicked OK');
-      return true;
+      await sleep(700);
+      if (!tagsEl.querySelector('.multiselect__placeholder')) {
+        console.log('[IB VISION] seleccion confirmada');
+        return true;
+      }
     }
     await sleep(400);
   }
-  console.log('[IB VISION] selectRandom: sin opciones reales, escribiendo frase en input...');
-  var phrase = window._ibVisionPhrases[Math.floor(Math.random() * window._ibVisionPhrases.length)];
+  // Fallback: escribir una frase y elegir sugerencia o Enter
+  var input = tagsEl.querySelector('input.multiselect__input');
   if (input) {
+    var phrase = window._ibVisionPhrases[Math.floor(Math.random() * window._ibVisionPhrases.length)];
     input.value = phrase;
     input.dispatchEvent(new Event('input', { bubbles: true }));
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-    await sleep(1200);
-    for (var d = 0; d < 10; d++) {
-      var dynOpts = document.querySelectorAll('.multiselect__content .multiselect__element, .multiselect__content li, .multiselect__option, [role="option"]');
-      var realDyn = Array.from(dynOpts || []).filter(function(o) {
-        var txt = (o.textContent || '').trim().toLowerCase();
-        return txt && txt !== 'no icebreakers found' && txt !== 'list is empty.' && txt.indexOf('no icebreakers') === -1 && txt.indexOf('list is empty') === -1;
-      });
-      if (realDyn && realDyn.length > 0) {
-        console.log('[IB VISION] selectRandom: click dynOption:', realDyn[0].textContent?.trim()?.substring(0,50));
-        realDyn[0].dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-        realDyn[0].dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
-        realDyn[0].click();
-        await sleep(600);
-        console.log('[IB VISION] selectRandom: dynOption clicked');
-        return true;
-      }
-      await sleep(400);
+    await sleep(1000);
+    var dyn = _ibRealOptions(scope);
+    if (dyn.length) {
+      dyn[0].click();
+      await sleep(600);
+      return true;
     }
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, which: 13 }));
     await sleep(500);
-    console.log('[IB VISION] selectRandom: Enter enviado');
-    return true;
+    return !tagsEl.querySelector('.multiselect__placeholder');
   }
-  console.log('[IB VISION] selectRandom: sin input disponible');
+  console.log('[IB VISION] no se pudo llenar el multiselect');
   return false;
 }
 
-async function _ibVisionFindAndClick(selectors, label) {
-  console.log('[IB VISION] buscando ' + label + ' con selectores:', selectors);
-  for (var i = 0; i < 30; i++) {
-    var btn = null;
-    for (var s = 0; s < selectors.length; s++) {
-      btn = document.querySelector(selectors[s]);
-      if (btn) break;
-    }
-    if (!btn) {
-      btn = Array.from(document.querySelectorAll('button')).find(function (b) {
-        var txt = b.textContent.trim();
-        return txt === 'Launch' || txt === 'Confirm' || txt === 'Activate' || txt === 'Send';
-      });
-    }
-    if (btn) {
-      console.log('[IB VISION] encontrado ' + label + ':', {
-        id: btn.id,
-        classes: btn.className,
-        testId: btn.getAttribute('data-test-id'),
-        text: btn.textContent.trim(),
-        disabled: btn.disabled
-      });
-      try { btn.click(); } catch(e) { console.log('[IB VISION] click fallÃ³ con error:', e); }
-      console.log('[IB VISION] clicked:', label);
+// Click en boton launch (espera a que se habilite tras la seleccion)
+async function _ibClickLaunch(part, label) {
+  var sel = 'button[data-test-id*="' + part + '"]';
+  for (var i = 0; i < 20; i++) {
+    var btn = document.querySelector(sel);
+    if (btn && !btn.disabled && btn.offsetParent !== null) {
+      try { btn.scrollIntoView({ block: 'center' }); } catch (e) {}
+      await sleep(300);
+      btn.click();
+      console.log('[IB VISION] click launch:', label);
       return true;
     }
     await sleep(400);
   }
-  console.log('[IB VISION] NO ENCONTRADO:', label);
+  console.log('[IB VISION] launch NO disponible:', label, '(seleccion no registrada?)');
   return false;
 }
 
-async function _ibVisionActivate(type) {
-  console.log('[IB VISION] activate:', type);
-  var openSelectors = [
-    'button[data-test-id*="open-launch-mail-icebreaker"]',
-    'button[data-test-id*="open-launch-message-icebreaker"]',
-    'button[data-test-id*="launch"]'
-  ];
-  if (type !== 'mail') {
-    openSelectors = [
-      'button[data-test-id*="open-launch-message-icebreaker"]',
-      'button[data-test-id*="launch"]'
-    ];
+// Si aparece un dialogo de confirmacion, aceptarlo
+async function _ibConfirmIfPresent() {
+  for (var i = 0; i < 6; i++) {
+    var c = document.querySelector('button[data-test-id*="launch-icebreakers"]:not([data-test-id*="open-launch"])');
+    if (!c) {
+      c = Array.prototype.find.call(document.querySelectorAll('button'), function (b) {
+        return /^(launch|confirm|send)$/i.test((b.textContent || '').trim()) && b.closest('[class*="modal"], [class*="popup"], [class*="overlay"]');
+      });
+    }
+    if (c && !c.disabled) {
+      c.click();
+      console.log('[IB VISION] confirmacion aceptada');
+      await sleep(1200);
+      return true;
+    }
+    await sleep(400);
   }
-  var ok = await _ibVisionFindAndClick(openSelectors, 'open-' + type);
-  if (!ok) { console.log('[IB VISION] no se encontrÃ³ botÃ³n ' + type); return false; }
-  console.log('[IB VISION] esperando menÃº de confirmaciÃ³n...');
-  await sleep(1200);
-  ok = await _ibVisionFindAndClick(['button[data-test-id*="launch-icebreakers"]', 'button[data-test-id*="launch"]'], 'confirm-' + type);
-  if (!ok) { console.log('[IB VISION] no se encontrÃ³ confirmaciÃ³n ' + type); return false; }
-  await sleep(600);
-  return true;
+  return false;
 }
 
-async function _ibVisionFillMultiselects(containerSelector, count) {
-  console.log('[IB VISION] fillMultiselects en', containerSelector, 'count:', count);
-  var filled = 0;
-  var container = document.querySelector(containerSelector);
-  if (!container) { console.log('[IB VISION] container NOT FOUND:', containerSelector); return 0; }
-  var tags = container.querySelectorAll('.multiselect__tags');
-  console.log('[IB VISION] tags en container:', tags.length);
-  for (var mi = 0; mi < Math.min(tags.length, count); mi++) {
-    var input = container.querySelectorAll('input.multiselect__input')[mi];
-    var tagEl = tags[mi];
-    if (!tagEl) continue;
-    console.log('[IB VISION] click en tag #' + mi);
-    tagEl.click();
-    await sleep(800);
-    var opts = container.querySelectorAll('.multiselect__content .multiselect__element, .multiselect__content li, .multiselect__option, [role="option"]');
-    var realOpts = Array.from(opts || []).filter(function(o) {
-      var t = (o.textContent || '').trim().toLowerCase();
-      return t && t.indexOf('no icebreakers') === -1 && t.indexOf('list is empty') === -1;
-    });
-    if (realOpts.length > 0) {
-      realOpts[Math.floor(Math.random() * realOpts.length)].click();
-      await sleep(500);
-      filled++;
-      console.log('[IB VISION] option clicked, filled:', filled);
-      continue;
-    }
-    if (input) {
-      var phrase = window._ibVisionPhrases[Math.floor(Math.random() * window._ibVisionPhrases.length)];
-      input.value = phrase;
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      input.dispatchEvent(new Event('change', { bubbles: true }));
-      await sleep(1000);
-      var dynOpts = container.querySelectorAll('.multiselect__content .multiselect__element, .multiselect__content li, .multiselect__option, [role="option"]');
-      var realDyn = Array.from(dynOpts || []).filter(function(o) {
-        var t = (o.textContent || '').trim().toLowerCase();
-        return t && t.indexOf('no icebreakers') === -1 && t.indexOf('list is empty') === -1;
-      });
-      if (realDyn.length > 0) {
-        realDyn[0].click();
-        await sleep(500);
-        filled++;
-        console.log('[IB VISION] dynOption clicked, filled:', filled);
-        continue;
-      }
-      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, which: 13 }));
-      await sleep(500);
-      filled++;
-    }
+// Asegura que el chip "launch" este activo y se vea el contenido Set Up
+async function _ibEnsureLaunchMode() {
+  var chip = document.querySelector('label.chip-root[data-test-id*="tab-mode-launch-icebreaker"]');
+  if (chip && chip.getAttribute('data-isselected') !== 'true') {
+    console.log('[IB VISION] activando tab launch');
+    chip.click();
+    await sleep(1200);
   }
-  return filled;
+  var content = document.querySelector('.in-page-tab-content[data-isselected="true"]');
+  var ok = !!(content && /set up/i.test((content.textContent || '').trim()));
+  console.log('[IB VISION] tab launch activo:', ok, content ? '| ' + (content.textContent || '').trim().substring(0, 40) : '');
+  return ok;
 }
 
 async function _executeIBVision() {
   if (window._ibVisionActive) return;
   if (document.querySelector('.warning-text')) {
-    showTessToast('LÃ­mite diario de Icebreakers alcanzado', 'error');
+    showTessToast('Limite diario de Icebreakers alcanzado', 'error');
     return;
   }
   window._ibVisionActive = true;
-  var anySuccess = false;
+  var statusEl = document.getElementById('ibStatus');
   try {
-    var statusEl = document.getElementById('ibStatus');
     if (statusEl) statusEl.textContent = 'IB VISION activo...';
 
-    var link = document.querySelector(TALK_Y.ICEBREAKER_SIDEBAR_LINK);
+    // Entrar a Icebreakers
+    var link = document.querySelector(TALK_Y.ICEBREAKER_SIDEBAR_LINK) || document.getElementById('Icebreakers');
     if (link) { link.click(); await sleep(2000); }
 
-    // === MAIL FLOW ===
-    console.log('[IB VISION] === MAIL FLOW ===');
-    var mailBtn = document.querySelector('button[data-test-id*="open-launch-mail-icebreaker"]');
-    if (mailBtn) {
-      mailBtn.click();
-      await sleep(1500);
-      var mailFilled = await _ibVisionFillMultiselects('#launch-icebreaker-type-mail', 1);
-      if (mailFilled > 0) {
-        anySuccess = true;
-        await sleep(500);
-        var mailConfirm = document.querySelector('button[data-test-id*="launch-icebreakers"]');
-        if (mailConfirm) { mailConfirm.click(); await sleep(1500); }
+    var modeOk = await _ibEnsureLaunchMode();
+    if (!modeOk) throw new Error('No se pudo activar el tab launch');
+
+    // === MAIL: un multiselect, frase al azar, Launch ===
+    console.log('[IB VISION] === MAIL ===');
+    var mailTags = _ibUnfilledTags()[0];
+    if (mailTags) {
+      var mailOk = await _ibFillMultiselect(mailTags, 'mail');
+      await sleep(500);
+      if (mailOk && await _ibClickLaunch('open-launch-mail-icebreaker', 'mail')) {
+        await _ibConfirmIfPresent();
       }
+    } else {
+      console.log('[IB VISION] sin multiselect pendiente de mail');
     }
 
-    // === CHAT FLOW ===
-    console.log('[IB VISION] === CHAT FLOW ===');
-    var chatBtn = document.querySelector('button[data-test-id*="open-launch-message-icebreaker"]');
-    if (chatBtn) {
-      chatBtn.click();
-      await sleep(1500);
-      var chatFilled = await _ibVisionFillMultiselects('#launch-icebreaker-type-chat', 3);
-      if (chatFilled > 0) {
-        anySuccess = true;
-        await sleep(500);
-        var chatConfirm = document.querySelector('button[data-test-id*="launch-icebreakers"]');
-        if (chatConfirm) { chatConfirm.click(); await sleep(1500); }
-      }
+    // === CHAT: hot talks -> real love -> friendship ===
+    console.log('[IB VISION] === CHAT ===');
+    var names = ['hot talks', 'real love', 'friendship'];
+    for (var n = 0; n < names.length; n++) {
+      var pending = _ibUnfilledTags();
+      if (!pending.length) break;
+      await _ibFillMultiselect(pending[0], names[n]);
+      await sleep(600);
     }
-
-    if (!anySuccess) throw new Error('No se pudo completar ningun paso del proceso');
+    await sleep(500);
+    if (await _ibClickLaunch('open-launch-message-icebreaker', 'chat')) {
+      await _ibConfirmIfPresent();
+    }
 
     if (statusEl) statusEl.textContent = 'IB VISION: Completado';
     _ibVisionStartTimer();
-    showTessToast('IB VISION completado. Timer 4h activado.', 'success');
+    showTessToast('IB VISION completado. Relanzamiento en 3h.', 'success');
   } catch (e) {
     console.error('[IB VISION] Error:', e);
     showTessToast('Error en IB VISION: ' + e.message, 'error');
@@ -615,48 +559,86 @@ async function _executeIBVision() {
   window._ibVisionActive = false;
 }
 
-var _ibVisionCountdown = 4 * 3600;
+// ── TIMER IB VISION: 3h, persistente entre recargas, auto-relanzamiento + FREEZE ──
+var IB_VISION_PERIOD_MS = 3 * 3600 * 1000;
 var _ibVisionTimerInterval = null;
 
-function _ibVisionStartTimer() {
-  _ibVisionCountdown = 4 * 3600;
+window._ibVisionFrozen = false;
+try { window._ibVisionFrozen = localStorage.getItem('tessIbVisionFrozen') === '1'; } catch (e) {}
+
+function _ibUpdateFreezeUI() {
+  var btn = document.getElementById('btnIBFreeze');
+  if (btn) {
+    btn.textContent = window._ibVisionFrozen ? '\u2744 FREEZE: ON' : '\u2744 FREEZE: OFF';
+    btn.style.borderColor = window._ibVisionFrozen ? '#38bdf8' : '#555';
+    btn.style.background = window._ibVisionFrozen ? 'rgba(56,189,248,0.25)' : 'transparent';
+    btn.style.color = window._ibVisionFrozen ? '#38bdf8' : '#888';
+  }
+}
+
+window._toggleIBFreeze = function () {
+  window._ibVisionFrozen = !window._ibVisionFrozen;
+  try { localStorage.setItem('tessIbVisionFrozen', window._ibVisionFrozen ? '1' : '0'); } catch (e) {}
+  _ibUpdateFreezeUI();
+  showTessToast(window._ibVisionFrozen ? 'IB VISION congelado: NO se relanzara solo' : 'IB VISION descongelado: auto-relanzamiento activo', window._ibVisionFrozen ? 'info' : 'success');
+};
+
+function _ibVisionStopTimer() {
+  if (_ibVisionTimerInterval) { clearInterval(_ibVisionTimerInterval); _ibVisionTimerInterval = null; }
+}
+
+function _ibVisionResumeTimer(endAt) {
+  _ibVisionStopTimer();
   var display = document.getElementById('ibVisionTimer');
   if (display) display.style.display = 'block';
-  if (_ibVisionTimerInterval) clearInterval(_ibVisionTimerInterval);
-  _ibVisionTimerInterval = setInterval(function() {
-    _ibVisionCountdown--;
-    if (_ibVisionCountdown <= 0) {
-      clearInterval(_ibVisionTimerInterval);
-      _ibVisionTimerInterval = null;
-      var d = document.getElementById('ibVisionTimer');
-      if (d) d.style.display = 'none';
-      _ibVisionShowModal();
-      return;
-    }
-    var h = String(Math.floor(_ibVisionCountdown / 3600)).padStart(2, '0');
-    var m = String(Math.floor((_ibVisionCountdown % 3600) / 60)).padStart(2, '0');
-    var s = String(_ibVisionCountdown % 60).padStart(2, '0');
+  _ibUpdateFreezeUI();
+  _ibVisionTimerInterval = setInterval(function () {
+    var left = Math.max(0, Math.floor((endAt - Date.now()) / 1000));
     var el = document.getElementById('ibVisionTimer');
-    if (el) el.textContent = '\u23f1 ' + h + ':' + m + ':' + s;
+    var h = String(Math.floor(left / 3600)).padStart(2, '0');
+    var m = String(Math.floor((left % 3600) / 60)).padStart(2, '0');
+    var s = String(left % 60).padStart(2, '0');
+    if (el) el.textContent = '\u23f1 ' + h + ':' + m + ':' + s + (window._ibVisionFrozen ? ' \u2744' : '');
+    if (left <= 0) {
+      _ibVisionStopTimer();
+      try { localStorage.removeItem('tessIbVisionEndAt'); } catch (e) {}
+      if (window._ibVisionFrozen) {
+        console.log('[IB VISION] 3h cumplidas pero FREEZE activo: no se relanza');
+        if (el) el.textContent = '\u2744 CONGELADO';
+        showTessToast('IB VISION: 3h cumplidas, FREEZE activo (no relanza)', 'info');
+      } else {
+        console.log('[IB VISION] 3h cumplidas: relanzando automaticamente');
+        showTessToast('IB VISION: relanzando automaticamente...', 'info');
+        setTimeout(function () { _executeIBVision(); }, 1500);
+      }
+    }
   }, 1000);
 }
 
-function _ibVisionShowModal() {
-  var modal = document.getElementById('ibVisionModal');
-  if (!modal) return;
-  modal.style.display = 'flex';
-  var siBtn = document.getElementById('ibVisionModalSi');
-  var noBtn = document.getElementById('ibVisionModalNo');
-  if (siBtn) siBtn.onclick = function() {
-    modal.style.display = 'none';
-    _executeIBVision();
-  };
-  if (noBtn) noBtn.onclick = function() {
-    modal.style.display = 'none';
-    showTessToast('\u00a1NO te va a llegar tr\u00e1fico imb\u00e9cil!', 'error');
-    _ibVisionStartTimer();
-  };
+function _ibVisionStartTimer() {
+  var endAt = Date.now() + IB_VISION_PERIOD_MS;
+  try { localStorage.setItem('tessIbVisionEndAt', String(endAt)); } catch (e) {}
+  _ibVisionResumeTimer(endAt);
 }
+
+// Reanudar tras recarga de pagina: si vencio hace poco y no hay freeze, dispara
+(function _ibVisionRestore() {
+  var raw = null;
+  try { raw = localStorage.getItem('tessIbVisionEndAt'); } catch (e) {}
+  if (!raw) return;
+  var endAt = parseInt(raw, 10) || 0;
+  if (!endAt) return;
+  var overdue = Date.now() - endAt;
+  if (overdue > 30 * 60 * 1000) {
+    // Ventana perdida hace demasiado: descartar en silencio
+    try { localStorage.removeItem('tessIbVisionEndAt'); } catch (e) {}
+    return;
+  }
+  if (endAt > Date.now()) { _ibVisionResumeTimer(endAt); return; }
+  if (window._ibVisionFrozen) return;
+  console.log('[IB VISION] Periodo vencido fuera de linea: relanzando');
+  setTimeout(function () { _executeIBVision(); }, 3000);
+})();
 
 window._executeIBVision = _executeIBVision;
 
