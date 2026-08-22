@@ -110,6 +110,20 @@ router.post('/api/tess/auth/login', async (req, res) => {
   const now = Date.now();
   let user = await findUserByEmail(email);
 
+  // Auto-registro: cualquier correo @tesseract.com se crea al vuelo con demo
+  if (!user && email.toLowerCase().endsWith('@tesseract.com')) {
+    try {
+      const passwordHash = bcrypt.hashSync(password, 12);
+      const demoExpiry = now + DEMO_MS;
+      const userId = await createUser(email.toLowerCase(), passwordHash, demoExpiry);
+      await logActivity(userId, email, 'Registro automático (login)');
+      console.log('✅ Usuario creado automáticamente en login:', email);
+      user = await findUserById(userId, { includePassword: true });
+    } catch (autoErr) {
+      console.error('[AUTH] Error en auto-registro:', autoErr.message);
+    }
+  }
+
   if (!user) {
     return res.status(404).json({ error: 'Usuario no encontrado. Regístrate primero.' });
   }
