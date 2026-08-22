@@ -1563,7 +1563,14 @@ if (document.readyState === 'loading') {
       e.sendBtn.addEventListener('click', sendMsg);
       e.input.addEventListener('keypress', ev => { if (ev.key === 'Enter') sendMsg(); });
       e.peerSel.addEventListener('change', () => openPeer(e.peerSel.value));
-      e.refreshBtn.addEventListener('click', loadContacts);
+      e.refreshBtn.addEventListener('click', async () => {
+        e.refreshBtn.textContent = '⋯';
+        try {
+          await loadContacts();
+          await loadMyThreads();
+          await openPeer(activePeer);
+        } finally { e.refreshBtn.textContent = '⟳'; }
+      });
       clearInterval(bootTimer);
     }
   }, 1500);

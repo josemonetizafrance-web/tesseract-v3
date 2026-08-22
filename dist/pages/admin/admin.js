@@ -230,6 +230,16 @@ function initChatUI() {
     const sel = document.getElementById('new-chat-user');
     if (sel.value) openThread(sel.value);
   });
+  const btnRefresh = document.getElementById('btn-chat-refresh');
+  btnRefresh.addEventListener('click', async () => {
+    btnRefresh.textContent = '⋯';
+    try {
+      await loadUsers(true);
+      await refreshThreads();
+      if (chatWith) await openThread(chatWith);
+      else document.getElementById('chat-msgs').innerHTML = '<div class="empty-chat">Selecciona una conversación.</div>';
+    } finally { btnRefresh.textContent = '⟳'; }
+  });
 }
 
 async function refreshThreads() {
