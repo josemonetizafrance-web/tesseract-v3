@@ -11,6 +11,8 @@ var TESSERACT_CONFIG = {
   ALLOWED_DOMAIN: 'talkytimes.com',
   SYNC_TIMEOUT: 15000,
   API_TIMEOUT: 20000
+
+  // Claves de IA en dist/modules/keys.local.js (no versionado)
 };
 
 // Backward-compatible aliases
