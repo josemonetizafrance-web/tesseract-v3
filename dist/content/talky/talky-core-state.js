@@ -364,6 +364,27 @@ window._updateIBUI = updateIBUI;
 
 var IB_REMINDER_PERIOD_MS = 3 * 3600 * 1000;
 var _ibReminderInterval = null;
+var _ibCurrentEndAt = 0;
+
+// ── FREEZE: pausa el contador (persistente) ──
+window._ibFrozen = false;
+try { window._ibFrozen = localStorage.getItem('tessIbFrozen') === '1'; } catch (e) {}
+
+function _ibSetFrozenUI(on) {
+  var btn = document.getElementById('btnIBFreeze');
+  if (!btn) return;
+  btn.textContent = on ? '\u2744 CONGELADO' : '\u2744 FREEZE';
+  btn.style.borderColor = on ? '#38bdf8' : '#555';
+  btn.style.background = on ? 'rgba(56,189,248,0.25)' : 'transparent';
+  btn.style.color = on ? '#38bdf8' : '#888';
+}
+
+function _ibStartTicking(endAt) {
+  _ibCurrentEndAt = endAt;
+  try { localStorage.setItem('tessIbVisionEndAt', String(endAt)); } catch (e) {}
+  if (_ibReminderInterval) clearInterval(_ibReminderInterval);
+  _ibReminderInterval = setInterval(function () { _ibReminderTick(endAt); }, 1000);
+}
 
 function _ibReminderShow() {
   showTessToast('ACTUALIZA IB MALPARID@', 'error');
@@ -395,12 +416,40 @@ function _ibReminderTick(endAt) {
 
 function startIbReminder() {
   var endAt = Date.now() + IB_REMINDER_PERIOD_MS;
-  try { localStorage.removeItem('tessIbOverdue'); localStorage.setItem('tessIbVisionEndAt', String(endAt)); } catch (e) {}
-  if (_ibReminderInterval) clearInterval(_ibReminderInterval);
-  _ibReminderInterval = setInterval(function () { _ibReminderTick(endAt); }, 1000);
+  try {
+    localStorage.removeItem('tessIbOverdue');
+    localStorage.removeItem('tessIbFrozenRemaining');
+    localStorage.removeItem('tessIbFrozen');
+  } catch (e) {}
+  window._ibFrozen = false;
+  _ibSetFrozenUI(false);
+  _ibStartTicking(endAt);
   console.log('[IB] Lanzamiento manual detectado - contador de 3h activado');
 }
 window.startIbReminder = startIbReminder;
+
+// Toggle FREEZE: detiene el contador y lo deja pausado hasta descongelar
+window._toggleIBFreeze = function () {
+  window._ibFrozen = !window._ibFrozen;
+  try { localStorage.setItem('tessIbFrozen', window._ibFrozen ? '1' : '0'); } catch (e) {}
+  var el = document.getElementById('ibVisionTimer');
+  if (window._ibFrozen) {
+    if (_ibReminderInterval) {
+      var left = Math.max(0, _ibCurrentEndAt - Date.now());
+      try { localStorage.setItem('tessIbFrozenRemaining', String(left)); } catch (e) {}
+      clearInterval(_ibReminderInterval);
+      _ibReminderInterval = null;
+    }
+    if (el && !el.textContent.includes('ACTUALIZA')) el.textContent = '\u2744 CONGELADO';
+    showTessToast('Contador congelado: NO avisara al cumplir 3h', 'info');
+  } else {
+    var rem = 0;
+    try { rem = parseInt(localStorage.getItem('tessIbFrozenRemaining'), 10) || 0; } catch (e) {}
+    if (rem > 0) _ibStartTicking(Date.now() + rem);
+    showTessToast(rem > 0 ? 'Contador reanudado' : 'Descongelado', rem > 0 ? 'success' : 'info');
+  }
+  _ibSetFrozenUI(window._ibFrozen);
+};
 
 // Click en cualquiera de los dos botones Launch (mail o chat) => contador
 document.addEventListener('click', function (ev) {
@@ -412,11 +461,23 @@ document.addEventListener('click', function (ev) {
 
 // Reanudar tras recarga de pagina
 (function _ibReminderRestore() {
+  _ibSetFrozenUI(window._ibFrozen);
+  var frozenRem = 0;
+  try { frozenRem = parseInt(localStorage.getItem('tessIbFrozenRemaining'), 10) || 0; } catch (e) {}
   var raw = null;
   try { raw = localStorage.getItem('tessIbVisionEndAt'); } catch (e) {}
   var endAt = parseInt(raw, 10) || 0;
+  // Congelado: mostrar pausado, sin tick
+  if (window._ibFrozen) {
+    if (frozenRem > 0 || endAt > Date.now()) {
+      var el = document.getElementById('ibVisionTimer');
+      if (el) { el.style.display = 'block'; el.textContent = '\u2744 CONGELADO'; }
+      return;
+    }
+    return;
+  }
   if (endAt > Date.now()) {
-    _ibReminderInterval = setInterval(function () { _ibReminderTick(endAt); }, 1000);
+    _ibStartTicking(endAt);
     return;
   }
   var overdue = false;

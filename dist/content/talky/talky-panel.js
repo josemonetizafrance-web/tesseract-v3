@@ -389,6 +389,7 @@ function createMainPanel() {
 </div>
 <div style="font-size:9px;color:#888;margin-bottom:4px;text-align:center;" id="ibStatus">Listo</div>
 <div style="font-size:9px;color:#f59e0b;margin-bottom:4px;text-align:center;font-family:'Orbitron',monospace;letter-spacing:2px;display:none;" id="ibVisionTimer">⏱ 03:00:00</div>
+<button id="btnIBFreeze" style="width:100%;padding:7px 4px;margin-bottom:4px;border:1px solid #555;border-radius:6px;background:transparent;color:#888;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:9px;font-weight:700;letter-spacing:1px;transition:all 0.3s;" title="Detiene el contador de 3h hasta que lo descongeles">❄ FREEZE</button>
 <div style="margin-bottom:4px;font-size:9px;color:#8b5cf6;letter-spacing:1px;">PREVIEW</div>
 <div id="ibPreview" style="display:flex;flex-direction:column;gap:2px;padding:2px;max-height:340px;overflow-y:auto;">
 <div style="color:#666;font-size:10px;text-align:center;padding:8px;">Genera mensajes con el botón 🎲 GENERAR</div>
@@ -610,6 +611,10 @@ function setupAllEvents() {
   var btnIBSend = document.getElementById('btnIBSend');
   if (btnIBSend) btnIBSend.addEventListener('click', function() {
     if (typeof window._executeIcebreakerSweep === 'function') window._executeIcebreakerSweep();
+  });
+  var btnIBFreeze = document.getElementById('btnIBFreeze');
+  if (btnIBFreeze) btnIBFreeze.addEventListener('click', function() {
+    if (typeof window._toggleIBFreeze === 'function') window._toggleIBFreeze();
   });
   var btnIBTranslate = document.getElementById('btnIBTranslate');
   if (btnIBTranslate) btnIBTranslate.addEventListener('click', function() {
