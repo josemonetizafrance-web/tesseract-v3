@@ -1488,7 +1488,12 @@ if (document.readyState === 'loading') {
     });
   }
 
-  function qs(peer, after) { return '/api/tess/chat/messages' + (peer === ADMIN_PEER ? '' : '?with=' + encodeURIComponent(peer)) + (after ? '&after=' + after : ''); }
+  function qs(peer, after) {
+    const params = [];
+    if (peer !== ADMIN_PEER) params.push('with=' + encodeURIComponent(peer));
+    if (after) params.push('after=' + after);
+    return '/api/tess/chat/messages' + (params.length ? '?' + params.join('&') : '');
+  }
 
   async function openPeer(peer) {
     activePeer = peer || ADMIN_PEER;
