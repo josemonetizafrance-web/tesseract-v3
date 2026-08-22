@@ -340,6 +340,7 @@ function createMainPanel() {
 </div>
 <div style="margin-top:6px;">
 <button id="btnLFPMessages" style="width:100%;padding:10px 8px;border:2px solid #3b82f6;border-radius:8px;background:linear-gradient(135deg,#3b82f6,#1d4ed8);color:#fff;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;transition:all 0.3s;text-shadow:0 0 10px rgba(59,130,246,0.5);">💬 L+F+P MENSAJES</button>
+<button id="btnLFPMsgStop" style="width:100%;margin-top:6px;padding:8px;border:2px solid #ef4444;border-radius:8px;background:rgba(239,68,68,0.15);color:#ef4444;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;transition:all 0.3s;">⏹ STOP MENSAJES</button>
 </div>
 </div>
 <div class="stats-row">
@@ -573,6 +574,9 @@ function setupAllEvents() {
   document.getElementById('btnLFPToggle').addEventListener('click', function() { if (typeof executeLFP === 'function') executeLFP(); });
   document.getElementById('btnLFPPause').addEventListener('click', function() { if (typeof lfpTogglePause === 'function') lfpTogglePause(); });
   document.getElementById('btnLFPMessages').addEventListener('click', function() { if (typeof executeLFPMessages === 'function') executeLFPMessages(); });
+  document.getElementById('btnLFPMsgStop').addEventListener('click', function() {
+    if (typeof window._stopLFPMessages === 'function') window._stopLFPMessages();
+  });
   
   // Eater
   document.getElementById('btnEaterToggle').addEventListener('click', function() { if (typeof toggleEater === 'function') toggleEater(); });

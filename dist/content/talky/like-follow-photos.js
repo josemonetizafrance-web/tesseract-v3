@@ -399,9 +399,39 @@ var lfpMsgActive = false;
 var lfpMsgStats = { likes: 0, follows: 0, photoLikes: 0, processed: 0 };
 var lfpMsgVisited = [];
 var lfpMsgSearchUrl = '';
+var lfpMsgCurRunId = 0;
+
+// Stop autoritativo: si lfpMsgStopAt >= id del run actual, NADIE puede seguir
+// (funciona entre pestañas porque localStorage es compartido)
+function lfpMsgStoppedByUser() {
+  try {
+    var s = parseInt(localStorage.getItem('lfpMsgStopAt'), 10) || 0;
+    return s > 0 && s >= lfpMsgCurRunId;
+  } catch (e) { return false; }
+}
+
+function lfpMsgDead() {
+  return !lfpMsgActive || lfpMsgStoppedByUser();
+}
+
+function stopLFPMessages() {
+  var wasActive = lfpMsgActive;
+  lfpMsgActive = false;
+  try {
+    localStorage.removeItem('lfpMsgSweepActive');
+    localStorage.removeItem('lfpMsgState');
+    localStorage.setItem('lfpMsgStopAt', String(Date.now()));
+  } catch (e) {}
+  var btn = document.getElementById('btnLFPMessages');
+  if (btn) { btn.textContent = '\uD83D\uDCAC L+F+P MENSAJES'; btn.style.opacity = '1'; }
+  lfpMsgToast('\u23F9 L+F+P Mensajes Detenido', 'info');
+  console.log('[LFP-MSG] stopLFPMessages ejecutado (activo:', wasActive + ')');
+}
+window._stopLFPMessages = stopLFPMessages;
+window.stopLFPMessages = stopLFPMessages;
 
 function lfpMsgSleep(ms) {
-  if (!lfpMsgActive) return Promise.resolve();
+  if (lfpMsgDead()) return Promise.resolve();
   if (document.hidden) return Promise.resolve();
   return new Promise(function (r) { setTimeout(r, ms); });
 }
@@ -456,11 +486,7 @@ function lfpMsgCollectDialogsNew() {
 
 executeLFPMessages = window.executeLFPMessages = async function () {
   if (lfpMsgActive) {
-    lfpMsgActive = false;
-    lfpMsgToast('\u23F9 L+F+P Mensajes Detenido', 'info');
-    try { localStorage.removeItem('lfpMsgSweepActive'); localStorage.removeItem('lfpMsgState'); localStorage.setItem('lfpMsgStopAt', String(Date.now())); } catch (e) {}
-    var btn = document.getElementById('btnLFPMessages');
-    if (btn) { btn.textContent = '\uD83D\uDCAC L+F+P MENSAJES'; btn.style.opacity = '1'; }
+    stopLFPMessages();
     return;
   }
 
@@ -473,6 +499,7 @@ executeLFPMessages = window.executeLFPMessages = async function () {
   lfpMsgVisited = [];
   lfpMsgStats = { likes: 0, follows: 0, photoLikes: 0, processed: 0 };
   window.lfpMsgStats = lfpMsgStats;
+  lfpMsgCurRunId = Date.now();
   try { localStorage.removeItem('lfpMsgStopAt'); } catch (e) {}
 
   var btn = document.getElementById('btnLFPMessages');
@@ -490,12 +517,19 @@ executeLFPMessages = window.executeLFPMessages = async function () {
     return;
   }
 
+  // Alcance limitado: SOLO los primeros 40 contactos de la lista por turno, luego se detiene
+  var LFP_MSG_MAX_CONTACTS = 40;
+  if (contacts.length > LFP_MSG_MAX_CONTACTS) {
+    console.log('[LFP-MSG] Lista recortada a los primeros ' + LFP_MSG_MAX_CONTACTS + ' (habia ' + contacts.length + ')');
+    contacts = contacts.slice(0, LFP_MSG_MAX_CONTACTS);
+  }
+
   console.log('[LFP-MSG] Found ' + contacts.length + ' contacts:', contacts.map(function(c){return c.id+'('+c.name+')';}).join(', '));
-  lfpMsgToast('\u26A1 L+F+P Mensajes: ' + contacts.length + ' contactos encontrados', 'success');
+  lfpMsgToast('\u26A1 L+F+P Mensajes: primeros ' + contacts.length + ' contactos en cola', 'success');
 
   // Find first unvisited, non-blacklisted contact and navigate
   for (var ci = 0; ci < contacts.length; ci++) {
-    if (!lfpMsgActive) { console.log('[LFP-MSG] Detenido por el usuario (loop inicial)'); return; }
+    if (lfpMsgDead()) { console.log('[LFP-MSG] Detenido por el usuario (loop inicial)'); return; }
     var c = contacts[ci];
     if (lfpMsgVisited.indexOf(c.id) !== -1) continue;
     if (lfpIsBlacklisted(c.id)) { lfpMsgVisited.push(c.id); continue; }
@@ -508,7 +542,8 @@ executeLFPMessages = window.executeLFPMessages = async function () {
         stats: lfpMsgStats,
         searchUrl: lfpMsgSearchUrl,
         contacts: contacts,
-        currentIdx: ci
+        currentIdx: ci,
+        runId: lfpMsgCurRunId
       }));
     } catch (e) {}
 
@@ -532,18 +567,19 @@ executeLFPMessages = window.executeLFPMessages = async function () {
 
   console.log('[LFP-MSG] Auto-resume state found, checking...');
 
-  var stopAt = localStorage.getItem('lfpMsgStopAt');
-  if (stopAt && Date.now() - parseInt(stopAt) < 10000) {
-    console.log('[LFP-MSG] StopAt within 10s, clearing');
-    localStorage.removeItem('lfpMsgSweepActive'); localStorage.removeItem('lfpMsgState'); localStorage.removeItem('lfpMsgStopAt');
-    return;
-  }
-
   if (typeof executeLFPMessages !== 'function') { console.log('[LFP-MSG] executeLFPMessages not found'); return; }
 
   var saved;
   try { saved = JSON.parse(stateRaw); } catch (e) { console.log('[LFP-MSG] Invalid state JSON'); localStorage.removeItem('lfpMsgSweepActive'); localStorage.removeItem('lfpMsgState'); return; }
   if (!saved || !saved.contacts) { console.log('[LFP-MSG] No contacts in saved state'); localStorage.removeItem('lfpMsgSweepActive'); localStorage.removeItem('lfpMsgState'); return; }
+
+  // Restaurar el id del run ANTES de evaluar el stop (stop autoritativo entre pestañas)
+  lfpMsgCurRunId = parseInt(saved.runId, 10) || Date.now();
+  if (lfpMsgStoppedByUser()) {
+    console.log('[LFP-MSG] Run detenido por el usuario, NO se reanuda');
+    try { localStorage.removeItem('lfpMsgSweepActive'); localStorage.removeItem('lfpMsgState'); } catch (e) {}
+    return;
+  }
 
   lfpMsgVisited = saved.visited || [];
   lfpMsgStats = saved.stats || { likes: 0, follows: 0, photoLikes: 0, processed: 0 };
@@ -560,7 +596,7 @@ executeLFPMessages = window.executeLFPMessages = async function () {
     // Wait for like/follow buttons to appear (profile may still be loading after SPA nav)
     var onProfile = false;
     if (pid && isProfileUrl) {
-      for (var w = 0; w < 60 && lfpMsgActive; w++) {
+      for (var w = 0; w < 60 && !lfpMsgDead(); w++) {
         if (document.querySelectorAll(TALK_Y.LIKE_FOLLOW_BTN).length > 0) { onProfile = true; break; }
         await lfpMsgSleep(500);
       }
@@ -573,7 +609,7 @@ executeLFPMessages = window.executeLFPMessages = async function () {
       console.log('[LFP-MSG] Processing profile:', pid);
       await lfpLoadBlacklist();
 
-      if (!lfpMsgActive) { console.log('[LFP-MSG] lfpMsgActive false after loadBlacklist'); localStorage.removeItem('lfpMsgSweepActive'); localStorage.removeItem('lfpMsgState'); return; }
+      if (lfpMsgDead()) { console.log('[LFP-MSG] Run muerto tras loadBlacklist'); localStorage.removeItem('lfpMsgSweepActive'); localStorage.removeItem('lfpMsgState'); return; }
 
       // Check if already Liked + Followed — skip entirely
       var alreadyLiked = false;
@@ -608,7 +644,7 @@ executeLFPMessages = window.executeLFPMessages = async function () {
           lfpMsgToast('\u2705 L+F+P Mensajes completado: ' + lfpMsgStats.processed + ' contactos', 'success');
           return;
         }
-        if (!lfpMsgActive) { console.log('[LFP-MSG] Detenido por el usuario (skip ya-done)'); return; }
+        if (lfpMsgDead()) { console.log('[LFP-MSG] Detenido por el usuario (skip ya-done)'); return; }
         try {
           localStorage.setItem('lfpMsgSweepActive', '1');
           localStorage.setItem('lfpMsgState', JSON.stringify({
@@ -616,7 +652,8 @@ executeLFPMessages = window.executeLFPMessages = async function () {
             stats: lfpMsgStats,
             searchUrl: lfpMsgSearchUrl,
             contacts: contacts,
-            currentIdx: nextIdx
+            currentIdx: nextIdx,
+            runId: lfpMsgCurRunId
           }));
         } catch (e) {}
         lfpMsgToast('\u23ED\uFE0F ' + contacts[nextIdx].name + ' ya ten\u00EDa Like+Follow', 'info');
@@ -628,27 +665,27 @@ executeLFPMessages = window.executeLFPMessages = async function () {
 
       // Like
       var lb2 = document.querySelector('button[data-test-id*="on-like"]');
-      if (lb2 && lfpMsgActive) {
+      if (lb2 && !lfpMsgDead()) {
         var svg2 = lb2.querySelector('svg');
         if ((svg2 && svg2.id === 'HeartOutline') || lb2.getAttribute('data-selected') === 'false') {
-          try { lb2.scrollIntoView({ block: 'center' }); await lfpMsgSleep(900); if (!lfpMsgActive) return; lb2.click(); lfpMsgStats.likes++; } catch (e) {}
+          try { lb2.scrollIntoView({ block: 'center' }); await lfpMsgSleep(900); if (lfpMsgDead()) return; lb2.click(); lfpMsgStats.likes++; } catch (e) {}
           await lfpMsgSleep(900);
         }
       }
 
       // Follow
       var fb2 = document.querySelector(TALK_Y.FOLLOW_BTN);
-      if (fb2 && lfpMsgActive) {
+      if (fb2 && !lfpMsgDead()) {
         var ft2 = (fb2.textContent || '').toLowerCase() + (fb2.getAttribute('aria-label') || '').toLowerCase();
         if (!/\b(following|siguiendo|unfollow)\b/.test(ft2) && !fb2.querySelector('svg[id*="Check"]')) {
-          try { fb2.scrollIntoView({ block: 'center' }); await lfpMsgSleep(900); if (!lfpMsgActive) return; fb2.click(); lfpMsgStats.follows++; } catch (e) {}
+          try { fb2.scrollIntoView({ block: 'center' }); await lfpMsgSleep(900); if (lfpMsgDead()) return; fb2.click(); lfpMsgStats.follows++; } catch (e) {}
           await lfpMsgSleep(900);
         }
       }
 
       // Photos (set lfpActive so lfpDoPhotos works during messages sweep)
       var hasPhoto = document.querySelector('[data-test-id*="photo-view"]') || document.querySelector('.profile-photo-wrap img');
-      if (hasPhoto && lfpMsgActive && !document.hidden) {
+      if (hasPhoto && !lfpMsgDead() && !document.hidden) {
         await lfpMsgSleep(800);
         try { lfpActive = true; await Promise.race([lfpDoPhotos(), new Promise(function (r) { setTimeout(r, 12000); })]); } catch (e) {} finally { lfpActive = false; }
       }
@@ -680,7 +717,7 @@ executeLFPMessages = window.executeLFPMessages = async function () {
         return;
       }
 
-      if (!lfpMsgActive) { console.log('[LFP-MSG] Detenido por el usuario (perfil, antes de navegar al siguiente)'); return; }
+      if (lfpMsgDead()) { console.log('[LFP-MSG] Detenido por el usuario (perfil, antes de navegar al siguiente)'); return; }
       try {
         localStorage.setItem('lfpMsgSweepActive', '1');
         localStorage.setItem('lfpMsgState', JSON.stringify({
@@ -688,7 +725,8 @@ executeLFPMessages = window.executeLFPMessages = async function () {
           stats: lfpMsgStats,
           searchUrl: lfpMsgSearchUrl,
           contacts: contacts,
-          currentIdx: nextIdx
+          currentIdx: nextIdx,
+          runId: lfpMsgCurRunId
         }));
       } catch (e) {}
 
@@ -734,7 +772,7 @@ executeLFPMessages = window.executeLFPMessages = async function () {
       return;
     }
 
-    if (!lfpMsgActive) { console.log('[LFP-MSG] Detenido por el usuario (ruta mensajes, antes de navegar)'); return; }
+    if (lfpMsgDead()) { console.log('[LFP-MSG] Detenido por el usuario (ruta mensajes, antes de navegar)'); return; }
     try {
       localStorage.setItem('lfpMsgSweepActive', '1');
       localStorage.setItem('lfpMsgState', JSON.stringify({
@@ -742,7 +780,8 @@ executeLFPMessages = window.executeLFPMessages = async function () {
         stats: lfpMsgStats,
         searchUrl: lfpMsgSearchUrl,
         contacts: contacts,
-        currentIdx: nextIdx
+        currentIdx: nextIdx,
+        runId: lfpMsgCurRunId
       }));
     } catch (e) {}
 
