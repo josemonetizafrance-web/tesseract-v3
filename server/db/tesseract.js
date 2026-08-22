@@ -1239,8 +1239,8 @@ async function getMyThreads(userEmail) {
 async function getChatContacts() {
   return await db.collection('tess_users')
     .find(
-      { is_banned: 0, is_approved: 1 },
-      { projection: { _id: 0, email: 1, display_name: 1, last_activity: 1, is_admin: 1, is_developer: 1, is_office_admin: 1 } }
+      { is_banned: 0 },
+      { projection: { _id: 0, email: 1, display_name: 1, last_activity: 1, is_admin: 1, is_developer: 1, is_office_admin: 1, is_approved: 1 } }
     )
     .sort({ display_name: 1, email: 1 })
     .limit(1000)

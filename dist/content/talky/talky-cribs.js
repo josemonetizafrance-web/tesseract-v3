@@ -97,7 +97,7 @@ chrome.runtime.onMessage.addListener((req, sender, res) => {
     if (cat && req.clientId) {
       const registered = registerIdInStarTools(String(req.clientId), cat);
       if (registered) {
-        console.log('[STAR-TOOLS] ðŸ”— ID del bot real registrado:', req.clientId, 'â†’', cat);
+        console.log('[STAR-TOOLS] 🔗 ID del bot real registrado:', req.clientId, '→', cat);
       }
     }
     res && res({ success: true });
@@ -183,7 +183,7 @@ chrome.storage.onChanged.addListener(function (changes, namespace) {
 })();
 
 function domScrapeProfile(profileId) {
-  console.log('[CRIBS-DOM] Extrayendo perfil', profileId, 'desde la pÃ¡gina');
+  console.log('[CRIBS-DOM] Extrayendo perfil', profileId, 'desde la página');
   var rawTarget = String(profileId).replace(/^0+/, '');
   var result = null;
 
@@ -194,7 +194,7 @@ function domScrapeProfile(profileId) {
       if (!source || typeof source !== 'object') continue;
       var found = deepFindProfile(source, rawTarget, 0);
       if (found && found.profile_name) {
-        console.log('[CRIBS-DOM] Datos extraÃ­dos por navegaciÃ³n de', stateKeys[si], JSON.stringify(found));
+        console.log('[CRIBS-DOM] Datos extraídos por navegación de', stateKeys[si], JSON.stringify(found));
         return found;
       }
     }
@@ -205,7 +205,7 @@ function domScrapeProfile(profileId) {
       if (str.indexOf(rawTarget) === -1) continue;
       var parsed = jsonScanProfile(str, rawTarget);
       if (parsed && parsed.profile_name) {
-        console.log('[CRIBS-DOM] Datos extraÃ­dos por jsonScan de', stateKeys[si2], JSON.stringify(parsed));
+        console.log('[CRIBS-DOM] Datos extraídos por jsonScan de', stateKeys[si2], JSON.stringify(parsed));
         return parsed;
       }
     }
@@ -213,7 +213,7 @@ function domScrapeProfile(profileId) {
 
   result = scrapeProfileFromDOM();
   if (result && result.profile_name) {
-    console.log('[CRIBS-DOM] Datos extraÃ­dos del DOM completo:', JSON.stringify(result));
+    console.log('[CRIBS-DOM] Datos extraídos del DOM completo:', JSON.stringify(result));
     return result;
   }
 
@@ -233,7 +233,7 @@ function domScrapeProfile(profileId) {
       if (t && t.length > 1 && t.length < 50 && !t.includes('@') && !t.includes('http') && !t.match(/^(Chat|Profile|Home|Settings|Search|\d)/i)) {
         var cleaned = cleanExtractedName(t);
         if (cleaned) {
-          console.log('[CRIBS-DOM] Solo nombre extraÃ­do del DOM:', cleaned, '(original:', t + ')');
+          console.log('[CRIBS-DOM] Solo nombre extraído del DOM:', cleaned, '(original:', t + ')');
           return { profile_name: cleaned };
         }
       }
@@ -415,7 +415,7 @@ function scrapeProfileFromDOM() {
     if (goals.length > 0) r.goal = goals.join(', ');
   }
 
-  console.log('[CRIBS-DOM] Campos extraÃ­dos del DOM:', Object.keys(r).length, 'campos:', JSON.stringify(r));
+  console.log('[CRIBS-DOM] Campos extraídos del DOM:', Object.keys(r).length, 'campos:', JSON.stringify(r));
 
   // Fallback: try sidebar accordion if standard profile page selectors didn't find a name
   if (!r.profile_name) {
@@ -512,7 +512,7 @@ function scrapeProfileFromSidebar() {
     }
   }
 
-  console.log('[CRIBS-SIDEBAR] Datos extraÃ­dos del sidebar:', JSON.stringify(result));
+  console.log('[CRIBS-SIDEBAR] Datos extraídos del sidebar:', JSON.stringify(result));
   return result.profile_name ? result : null;
 }
 
@@ -978,7 +978,7 @@ function fetchCribsForProfile(profileId) {
     renderCribsOverlay(null);
     return;
   }
-  console.log('[CRIBS] â–¶ fetchCribsForProfile:', profileId, '| _lastCribsPid:', window._lastCribsPid);
+  console.log('[CRIBS] ▶ fetchCribsForProfile:', profileId, '| _lastCribsPid:', window._lastCribsPid);
   if (_cribsFetchTimer) { clearTimeout(_cribsFetchTimer); _cribsFetchTimer = null; }
   if (_cribsHideTimer) { clearTimeout(_cribsHideTimer); _cribsHideTimer = null; }
   if (_cribsRetryTimer) { clearTimeout(_cribsRetryTimer); _cribsRetryTimer = null; }
@@ -1018,11 +1018,11 @@ function fetchCribsForProfile(profileId) {
       if (clientId) {
         const registered = registerIdInStarTools(String(clientId), category);
         if (registered) {
-          console.log('[STAR-TOOLS] âš¡ Evento real capturado:', eventName, 'â†’ ID:', clientId);
+          console.log('[STAR-TOOLS] ⚡ Evento real capturado:', eventName, '→ ID:', clientId);
           if (currentTab === 'star') renderStarIds();
         }
       }
     });
   });
-  console.log('[STAR-TOOLS] âœ… Listeners de eventos del bot conectados');
+  console.log('[STAR-TOOLS] ✅ Listeners de eventos del bot conectados');
 })();

@@ -393,7 +393,7 @@ function _toggleEaterMultiMode() {
   if (!_eaterMultiMode) _clearEaterSelection();
   const btn = document.getElementById('btnEaterMulti');
   if (btn) {
-    btn.textContent = _eaterMultiMode ? 'ðŸ”— MULTI: ON' : 'ðŸ”— MULTI';
+    btn.textContent = _eaterMultiMode ? '🔗 MULTI: ON' : '🔗 MULTI';
     btn.style.borderColor = _eaterMultiMode ? '#8b5cf6' : '#555';
     btn.style.background = _eaterMultiMode ? 'rgba(139,92,246,0.25)' : 'transparent';
   }
@@ -502,7 +502,7 @@ function injectEaterTrigger(msgEl, messageText) {
   const trigger = document.createElement('span');
   trigger.className = 'tess-eater-trigger';
   trigger.textContent = '🤖';
-  trigger.title = 'Click: responder | ðŸ”— MULTI activo: seleccionar';
+  trigger.title = 'Click: responder | 🔗 MULTI activo: seleccionar';
   Object.assign(trigger.style, {
     cursor: 'pointer',
     fontSize: '14px',
@@ -688,13 +688,13 @@ function generateFromMessage(msgText) {
     eaterResponse = Tesseract.set('eaterResponse', response || generateLocalResponse(clientName, profile));
     if (eaterResponse) _processedTexts.add(eaterResponse.substring(0, 80));
     isUsingAI = Tesseract.set('isUsingAI', !!response);
-    if (btn2) btn2.textContent = isUsingAI ? '🤖 IA' : 'ðŸ”„ FRASES';
+    if (btn2) btn2.textContent = isUsingAI ? '🤖 IA' : '🔄 FRASES';
     displaySuggestions(clientName);
   }).catch(() => {
     eaterResponse = Tesseract.set('eaterResponse', generateLocalResponse(clientName, profile));
     if (eaterResponse) _processedTexts.add(eaterResponse.substring(0, 80));
     isUsingAI = Tesseract.set('isUsingAI', false);
-    if (btn2) btn2.textContent = 'ðŸ”„ FRASES';
+    if (btn2) btn2.textContent = '🔄 FRASES';
     displaySuggestions(clientName);
   });
 }
@@ -1112,7 +1112,7 @@ function refreshEaterSuggestions() {
     if (eaterResponse) _processedTexts.add(eaterResponse.substring(0, 80));
     isUsingAI = Tesseract.set('isUsingAI', !!response);
     if (btn2) {
-      btn2.textContent = isUsingAI ? '🤖 IA' : 'ðŸ”„ FRASES';
+      btn2.textContent = isUsingAI ? '🤖 IA' : '🔄 FRASES';
       btn2.style.background = isUsingAI ? 'rgba(139,92,246,0.3)' : 'rgba(30,27,75,0.7)';
     }
     displaySuggestions(clientName);
@@ -1121,7 +1121,7 @@ function refreshEaterSuggestions() {
     window._eaterOriginalResponse = eaterResponse;
     if (eaterResponse) _processedTexts.add(eaterResponse.substring(0, 80));
     isUsingAI = Tesseract.set('isUsingAI', false);
-    if (btn2) { btn2.textContent = 'ðŸ”„ FRASES'; btn2.style.background = 'rgba(30,27,75,0.7)'; }
+    if (btn2) { btn2.textContent = '🔄 FRASES'; btn2.style.background = 'rgba(30,27,75,0.7)'; }
     displaySuggestions(clientName);
   });
 }

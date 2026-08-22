@@ -1371,7 +1371,7 @@ if (document.readyState === 'loading') {
 (function initSupportChat() {
   const TAPI = 'https://tesseract-v3-production.up.railway.app';
   const ADMIN_PEER = 'ADMIN';
-  const EMOJIS = ['ðŸ˜€','ðŸ˜','ðŸ˜‚','ðŸ¤£','ðŸ˜Š','ðŸ˜','ðŸ˜˜','ðŸ˜œ','ðŸ˜Ž','ðŸ¤©','ðŸ˜','ðŸ™‚','ðŸ™ƒ','ðŸ˜‰','ðŸ˜‡','ðŸ¥°','ðŸ˜­','ðŸ˜…','ðŸ¥º','ðŸ˜¢','ðŸ˜¡','ðŸ¤”','ðŸ¤—','ðŸ¤«','ðŸ™Œ','ðŸ‘','ðŸ‘','ðŸ‘Ž','ðŸ’ª','ðŸ™','ðŸ’¯','ðŸ”¥','âœ¨','â­','â¤ï¸','ðŸ’”','ðŸŒ¹','ðŸŒ¸','ðŸ€','ðŸŽ‰','â˜•','ðŸ•','âš½','ðŸš€','ðŸ’¤','ðŸ¤‘','ðŸ‘€'];
+  const EMOJIS = ['😀','😁','😂','🤣','😊','😍','😘','😜','😎','🤩','😏','🙂','🙃','😉','😇','🥰','😭','😅','🥺','😢','😡','🤔','🤗','🤫','🙌','👏','👍','👎','💪','🙏','💯','🔥','✨','⭐','❤️','💔','🌹','🌸','🍀','🎉','☕','🍕','⚽','🚀','💤','🤑','👀'];
   let myEmail = '';
   let activePeer = ADMIN_PEER;
   let lastTsBy = {};
@@ -1407,7 +1407,7 @@ if (document.readyState === 'loading') {
   function updateBadge() {
     const t = els().tabBtn;
     if (!t) return;
-    t.textContent = unreadTotal > 0 ? 'ðŸ’¬ MENSAJES (' + unreadTotal + ')' : 'ðŸ’¬ MENSAJES';
+    t.textContent = unreadTotal > 0 ? '💬 MENSAJES (' + unreadTotal + ')' : '💬 MENSAJES';
   }
   function qs(peer, after) {
     const p = [];
@@ -1426,7 +1426,7 @@ if (document.readyState === 'loading') {
     return res.json();
   }
   function labelFor(email, name, online, unread) {
-    let l = email === ADMIN_PEER ? 'ðŸ›¡ SOPORTE' : ((name || email.split('@')[0]) + (online ? ' â—' : ''));
+    let l = email === ADMIN_PEER ? '🛡 SOPORTE' : ((name || email.split('@')[0]) + (online ? ' ●' : ''));
     if (unread > 0) l += ' (' + unread + ')';
     return l;
   }
@@ -1434,7 +1434,7 @@ if (document.readyState === 'loading') {
   function clearEmpty(box) { const e = box.querySelector('.wa-empty'); if (e) e.remove(); }
   function ticks(m, mine) {
     if (!mine) return '';
-    return m.read ? '<span style="color:#53bdeb;">âœ“âœ“</span>' : '<span style="color:#8696a0;">âœ“</span>';
+    return m.read ? '<span style="color:#53bdeb;">✓✓</span>' : '<span style="color:#8696a0;">✓</span>';
   }
 
 
@@ -1469,7 +1469,7 @@ if (document.readyState === 'loading') {
       appendMediaImg(div, m);
       if (m.text) { const c = document.createElement('div'); c.textContent = m.text; div.appendChild(c); }
     } else {
-      div.textContent = (activePeer === ADMIN_PEER && !mine ? 'ðŸ›¡ ' : '') + (m.text || '');
+      div.textContent = (activePeer === ADMIN_PEER && !mine ? '🛡 ' : '') + (m.text || '');
     }
     const meta = document.createElement('span');
     meta.className = 'wa-t';
@@ -1482,11 +1482,11 @@ if (document.readyState === 'loading') {
   function sessionNotice() {
     const box = els().msgs;
     if (!box) return;
-    box.innerHTML = '<div class="wa-empty" style="margin:auto;color:#f59e0b;font-size:11px;text-align:center;padding:10px;">Tu sesiÃ³n expirÃ³.<br>Vuelve a iniciar sesiÃ³n.<br><button id="opChatRelog" style="margin-top:8px;background:#f59e0b;border:none;color:#000;font-weight:700;font-size:11px;padding:6px 14px;border-radius:6px;cursor:pointer;">INICIAR SESIÃ“N</button></div>';
+    box.innerHTML = '<div class="wa-empty" style="margin:auto;color:#f59e0b;font-size:11px;text-align:center;padding:10px;">Tu sesión expiró.<br>Vuelve a iniciar sesión.<br><button id="opChatRelog" style="margin-top:8px;background:#f59e0b;border:none;color:#000;font-weight:700;font-size:11px;padding:6px 14px;border-radius:6px;cursor:pointer;">INICIAR SESIÓN</button></div>';
     const b = document.getElementById('opChatRelog');
     if (b) b.addEventListener('click', () => {
       window.open(chrome.runtime.getURL('dist/pages/login/login.html'), '_blank');
-      showTessToast('Inicia sesiÃ³n y recarga la pÃ¡gina de Talkytimes', 'info');
+      showTessToast('Inicia sesión y recarga la página de Talkytimes', 'info');
     });
   }
 
@@ -1495,7 +1495,7 @@ if (document.readyState === 'loading') {
     lastTsBy[activePeer] = 0;
     fails = 0;
     const box = els().msgs;
-    if (box) box.innerHTML = '<div class="wa-empty" style="margin:auto;color:#555;font-size:10px;">Cargandoâ€¦</div>';
+    if (box) box.innerHTML = '<div class="wa-empty" style="margin:auto;color:#555;font-size:10px;">Cargando…</div>';
     updateWho();
     await pollActive(true);
   }
@@ -1515,7 +1515,7 @@ if (document.readyState === 'loading') {
     const box = els().msgs;
     if (full && box) box.innerHTML = '';
     if (!msgs.length && full && box) {
-      box.innerHTML = '<div class="wa-empty" style="margin:auto;color:#666;font-size:10px;text-align:center;">AÃºn no hay mensajes. Escribe el primero ðŸ‘‹</div>';
+      box.innerHTML = '<div class="wa-empty" style="margin:auto;color:#666;font-size:10px;text-align:center;">Aún no hay mensajes. Escribe el primero 👋</div>';
       return;
     }
     for (const m of msgs) { renderMsg(m); lastTsBy[activePeer] = Math.max(lastTsBy[activePeer] || 0, m.ts); }
@@ -1524,7 +1524,7 @@ if (document.readyState === 'loading') {
 
   async function post(payload, image) {
     const token = await ensureToken();
-    if (!token) { sessionNotice(); showTessToast('SesiÃ³n expirada â€” inicia sesiÃ³n de nuevo', 'error'); return null; }
+    if (!token) { sessionNotice(); showTessToast('Sesión expirada — inicia sesión de nuevo', 'error'); return null; }
     try {
       const res = await fetch(TAPI + '/api/tess/chat/' + (image ? 'send-image' : 'send'), {
         method: 'POST',
@@ -1532,9 +1532,9 @@ if (document.readyState === 'loading') {
         body: JSON.stringify(payload)
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) { showTessToast('âš  Mensajes: ' + (data.error || ('Error ' + res.status)), 'error'); return null; }
+      if (!res.ok) { showTessToast('⚠ Mensajes: ' + (data.error || ('Error ' + res.status)), 'error'); return null; }
       return data.message;
-    } catch (e) { showTessToast('âš  Sin conexiÃ³n con el servidor', 'error'); return null; }
+    } catch (e) { showTessToast('⚠ Sin conexión con el servidor', 'error'); return null; }
   }
 
   async function sendText() {
@@ -1579,8 +1579,8 @@ if (document.readyState === 'loading') {
 
   async function sendImage(file) {
     if (!file) return;
-    if (!/^image\//.test(file.type)) { showTessToast('Solo se permiten imÃ¡genes', 'error'); return; }
-    showTessToast('Enviando imagenâ€¦', 'info');
+    if (!/^image\//.test(file.type)) { showTessToast('Solo se permiten imágenes', 'error'); return; }
+    showTessToast('Enviando imagen…', 'info');
     let dataUrl;
     try { dataUrl = await compressImage(file); } catch (e) { showTessToast('No se pudo procesar la imagen', 'error'); return; }
     const payload = activePeer === ADMIN_PEER ? { dataUrl } : { to: activePeer, dataUrl };
@@ -1602,6 +1602,47 @@ if (document.readyState === 'loading') {
     bar.dataset.built = '1';
   }
 
+  let unreadBy = {};
+
+  function updateWho() {
+    const w = els().who;
+    if (!w) return;
+    const c = contactsCache.find(x => x.email === activePeer);
+    const name = activePeer === ADMIN_PEER ? '🛡 SOPORTE' : (c ? (c.name || c.email.split('@')[0]) : activePeer.split('@')[0]);
+    w.textContent = name + (c && c.online ? ' ●' : '');
+  }
+
+  function renderPeerSelect() {
+    const sel = els().peerSel;
+    if (!sel) return;
+    const prev = sel.value;
+    const opts = [{ v: ADMIN_PEER, l: labelFor(ADMIN_PEER, null, true, unreadBy[ADMIN_PEER] || 0) }]
+      .concat(contactsCache.map(c => ({
+        v: c.email,
+        l: labelFor(c.email, (c.name || c.email.split('@')[0]) + (c.pending ? ' (pendiente)' : ''), c.online, unreadBy[c.email] || 0)
+      })));
+    sel.innerHTML = opts.map(o => '<option value="' + escAttr(o.v) + '">' + escAttr(o.l) + '</option>').join('');
+    for (const o of sel.options) { if (o.value === prev) { sel.value = prev; break; } }
+    updateWho();
+  }
+
+  async function loadContacts() {
+    const d = await api('/api/tess/chat/contacts');
+    contactsCache = d.contacts || [];
+    renderPeerSelect();
+  }
+
+  async function loadMyThreads() {
+    const d = await api('/api/tess/chat/my-threads');
+    const list = d.threads || [];
+    unreadBy = {};
+    let total = 0;
+    for (const t of list) { unreadBy[t.email] = t.unread || 0; total += t.unread || 0; }
+    unreadTotal = total;
+    updateBadge();
+    renderPeerSelect();
+  }
+
   window._startSupportChat = function () {
     loadContacts();
     loadMyThreads();
@@ -1615,9 +1656,9 @@ if (document.readyState === 'loading') {
     e.input.addEventListener('keypress', ev => { if (ev.key === 'Enter') sendText(); });
     e.peerSel.addEventListener('change', () => openPeer(e.peerSel.value));
     e.refreshBtn.addEventListener('click', async () => {
-      e.refreshBtn.textContent = 'â‹¯';
+      e.refreshBtn.textContent = '⋯';
       try { await loadContacts(); await loadMyThreads(); await openPeer(activePeer); }
-      finally { e.refreshBtn.textContent = 'âŸ³'; }
+      finally { e.refreshBtn.textContent = '⟳'; }
     });
     e.attachBtn.addEventListener('click', () => e.fileInput.click());
     e.fileInput.addEventListener('change', () => { if (e.fileInput.files[0]) sendImage(e.fileInput.files[0]); e.fileInput.value = ''; });

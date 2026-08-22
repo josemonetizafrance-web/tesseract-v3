@@ -97,7 +97,8 @@ router.get('/api/tess/chat/contacts', validateToken, async (req, res) => {
           email: u.email,
           name: u.display_name || u.email.split('@')[0],
           online: !!(u.last_activity && (Date.now() - u.last_activity) < ONLINE_MS),
-          staff: !!(u.is_admin || u.is_developer || u.is_office_admin)
+          staff: !!(u.is_admin || u.is_developer || u.is_office_admin),
+          pending: u.is_approved === 0
         }))
     });
   } catch (err) {

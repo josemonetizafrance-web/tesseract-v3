@@ -107,7 +107,7 @@ function processMessageText(msgText) {
   } else {
     console.log('[MAIL-CRIBS] Incoming mail from', senderName);
     injectResponseButton(observer, msgText, header, senderName);
-    if (typeof showTessToast === 'function') showTessToast('ðŸ“¬ Carta de ' + senderName + ' detectada', 'info');
+    if (typeof showTessToast === 'function') showTessToast('📬 Carta de ' + senderName + ' detectada', 'info');
   }
   // Show CRIBS overlay for the CLIENT (sender for incoming, recipient for outgoing)
   showCribsForMailContact(isMe, msgText, header, senderName);
@@ -200,7 +200,7 @@ function findPrecedingMailHeader(msgText) {
       if (inner2) { console.log('[MAIL-CRIBS] found inside parent sibling'); return inner2; }
     }
   }
-  // 4. Grandparent's children â€” only if gp contains a mail-header
+  // 4. Grandparent's children — only if gp contains a mail-header
   const gp = parent ? parent.parentElement : null;
   if (gp && gp.querySelector(TALK_Y.MAIL_HEADER)) {
     const gpKids = Array.from(gp.children);
@@ -240,7 +240,7 @@ function injectCaptureButton(observer, msgText, header) {
   trigger.onclick = function (e) {
     e.stopPropagation();
     if (this._processing) return;
-    if (alreadyCaptured) { showTessToast('ðŸ“¬ Estilo ya capturado anteriormente', 'info'); return; }
+    if (alreadyCaptured) { showTessToast('📬 Estilo ya capturado anteriormente', 'info'); return; }
     if (!capturedText) { showTessToast('⚠ No se encontró texto de la carta', 'warning'); return; }
     this._processing = true;
     this.style.opacity = '0.3';
@@ -249,7 +249,7 @@ function injectCaptureButton(observer, msgText, header) {
     var profileName = '';
     var senderName = (header.querySelector(TALK_Y.MAIL_HEADER_NAME) || {}).textContent || '';
     if (senderName.trim() === TALK_Y.MAIL_OPERATOR_NAME) {
-      // Outgoing mail â†’ capture to RECIPIENT's CRIBS entry
+      // Outgoing mail → capture to RECIPIENT's CRIBS entry
       var recipientEl = document.querySelector('.send-title .name.text, [data-test-id*="send-title"] .name, .send-wrap .name');
       if (recipientEl) profileName = (recipientEl.textContent || '').trim();
       if (profileName && typeof _cribsLocalCache !== 'undefined' && _cribsLocalCache) {
@@ -313,7 +313,7 @@ function injectResponseButton(observer, msgText, header, senderName) {
     this.textContent = '⏳';
     trigger.style.opacity = '1';
     generateMailResponse(msgText, observer, profileId, senderName).then(function () {
-      trigger.textContent = 'âœ“';
+      trigger.textContent = '✓';
       setTimeout(function () { trigger.textContent = '🤖'; }, 2000);
     });
   };
@@ -441,7 +441,7 @@ async function sendLetterStyleToCribs(profileId, text, profileName) {
   }
   if (alreadyExists) {
     console.log('[MAIL-CRIBS] Text already exists in letter_style, skipping');
-    showTessToast('ðŸ“¬ Texto ya capturado anteriormente', 'info');
+    showTessToast('📬 Texto ya capturado anteriormente', 'info');
     return;
   }
 
@@ -471,7 +471,7 @@ async function sendLetterStyleToCribs(profileId, text, profileName) {
       if (typeof renderCribsOverlay === 'function') renderCribsOverlay(cribsOverlayData);
     }
     console.log('[MAIL-CRIBS] Letter style saved for', profileId, '(' + lines.length + '/50)');
-    showTessToast('ðŸ“¬ Estilo de carta capturado', 'success');
+    showTessToast('📬 Estilo de carta capturado', 'success');
   } catch (e) {
     console.log('[MAIL-CRIBS] Error saving letter style:', e.message);
     showTessToast('⚠ Error al guardar estilo', 'error');
