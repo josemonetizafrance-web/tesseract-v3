@@ -1,5 +1,5 @@
-/**
- * ROUTES/AUTH-TESSERACT - Login, Sign Up, verificación y listado de usuarios (MongoDB)
+﻿/**
+ * ROUTES/AUTH-TESSERACT - Login, Sign Up, verificaciÃ³n y listado de usuarios (MongoDB)
  */
 const { Router } = require('express');
 const bcrypt = require('bcryptjs');
@@ -10,18 +10,18 @@ const router = Router();
 const DEMO_MS = (parseInt(process.env.TESS_DEMO_HOURS) || 24) * 3600000;
 const ACTIVITY_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 horas de actividad
 
-// POST /api/tess/auth/signup - Login o crear admin automáticamente
+// POST /api/tess/auth/signup - Login o crear admin automÃ¡ticamente
 router.post('/api/tess/auth/signup', async (req, res) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ error: 'Email y contraseña requeridos' });
-    if (!password.endsWith('*+')) return res.status(400).json({ error: 'La contraseña debe terminar en *+' });
+    if (!email || !password) return res.status(400).json({ error: 'Email y contraseÃ±a requeridos' });
+    if (!password.endsWith('*+')) return res.status(400).json({ error: 'La contraseÃ±a debe terminar en *+' });
     if (!email.toLowerCase().endsWith('@tesseract.com')) return res.status(400).json({ error: 'Solo correos @tesseract.com' });
 
     const adminEmail = process.env.TESS_ADMIN_EMAIL || 'ChevyAdmin@tesseract.com';
     let user = await findUserByEmail(email);
     
-    // Si es el admin y no existe, crearlo automáticamente
+    // Si es el admin y no existe, crearlo automÃ¡ticamente
     if (!user && email.toLowerCase() === adminEmail.toLowerCase()) {
       const { getDb } = require('../db/tesseract.js');
       const db = getDb();
@@ -46,7 +46,7 @@ router.post('/api/tess/auth/signup', async (req, res) => {
         created_at: now,
         blacklist: []
       });
-      console.log('✅ Admin creado automáticamente:', email);
+      console.log('âœ… Admin creado automÃ¡ticamente:', email);
       user = await findUserById(result.insertedId, { includePassword: true });
     }
     
@@ -56,7 +56,7 @@ router.post('/api/tess/auth/signup', async (req, res) => {
       const demoExpiry = now + (parseInt(process.env.TESS_DEMO_HOURS) || 24) * 3600000;
       const userId = await createUser(email, passwordHash, demoExpiry);
       
-      await logActivity(userId, email, 'Registro automático');
+      await logActivity(userId, email, 'Registro automÃ¡tico');
       
       // Re-obtener el usuario creado para continuar el login
       user = await findUserById(userId, { includePassword: true });
@@ -66,9 +66,9 @@ router.post('/api/tess/auth/signup', async (req, res) => {
     }
     if (user.is_banned) return res.status(403).json({ error: 'Usuario baneado' });
     
-    // Verificar contraseña
+    // Verificar contraseÃ±a
     if (!bcrypt.compareSync(password, user.password_hash)) {
-      return res.status(401).json({ error: 'Contraseña incorrecta' });
+      return res.status(401).json({ error: 'ContraseÃ±a incorrecta' });
     }
     
     // Login normal
@@ -78,8 +78,8 @@ router.post('/api/tess/auth/signup', async (req, res) => {
     const sub = computeSub(user, now);
     const token = generateToken(user._id.toString());
     const refreshToken = generateRefreshToken();
-    await storeRefreshToken(user._id.toString(), hashRefreshToken(refreshToken), Date.now() + 30 * 24 * 3600000);
-    await logActivity(user._id, email, 'Inicio de sesión');
+    await storeRefreshToken(user._id.toString(), hashRefreshToken(refreshToken), Date.now() + 365 * 24 * 3600000);
+    await logActivity(user._id, email, 'Inicio de sesiÃ³n');
     
     return res.json({ 
       token,
@@ -104,8 +104,8 @@ router.post('/api/tess/auth/signup', async (req, res) => {
 // POST /api/tess/auth/login - Login (para usuarios ya aprobados)
 router.post('/api/tess/auth/login', async (req, res) => {
   const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ error: 'Email y contraseña requeridos' });
-  if (!password.endsWith('*+')) return res.status(400).json({ error: 'La contraseña debe terminar en *+' });
+  if (!email || !password) return res.status(400).json({ error: 'Email y contraseÃ±a requeridos' });
+  if (!password.endsWith('*+')) return res.status(400).json({ error: 'La contraseÃ±a debe terminar en *+' });
 
   const now = Date.now();
   let user = await findUserByEmail(email);
@@ -116,8 +116,8 @@ router.post('/api/tess/auth/login', async (req, res) => {
       const passwordHash = bcrypt.hashSync(password, 12);
       const demoExpiry = now + DEMO_MS;
       const userId = await createUser(email.toLowerCase(), passwordHash, demoExpiry);
-      await logActivity(userId, email, 'Registro automático (login)');
-      console.log('✅ Usuario creado automáticamente en login:', email);
+      await logActivity(userId, email, 'Registro automÃ¡tico (login)');
+      console.log('âœ… Usuario creado automÃ¡ticamente en login:', email);
       user = await findUserById(userId, { includePassword: true });
     } catch (autoErr) {
       console.error('[AUTH] Error en auto-registro:', autoErr.message);
@@ -125,20 +125,20 @@ router.post('/api/tess/auth/login', async (req, res) => {
   }
 
   if (!user) {
-    return res.status(404).json({ error: 'Usuario no encontrado. Regístrate primero.' });
+    return res.status(404).json({ error: 'Usuario no encontrado. RegÃ­strate primero.' });
   }
 
   if (user.is_banned) return res.status(403).json({ error: 'Usuario baneado' });
 
-  // Verificar si está aprobado
+  // Verificar si estÃ¡ aprobado
   if (!user.is_approved) {
     return res.status(403).json({ 
-      error: 'Tu cuenta está pendiente de aprobación. Contacta al administrador.',
+      error: 'Tu cuenta estÃ¡ pendiente de aprobaciÃ³n. Contacta al administrador.',
       needsApproval: true 
     });
   }
 
-  if (!bcrypt.compareSync(password, user.password_hash)) return res.status(401).json({ error: 'Contraseña incorrecta' });
+  if (!bcrypt.compareSync(password, user.password_hash)) return res.status(401).json({ error: 'ContraseÃ±a incorrecta' });
 
   // Guardar/actualizar el nombre de usuario visible para el panel admin
   const displayName = typeof req.body.displayName === 'string' ? req.body.displayName.trim().slice(0, 20) : '';
@@ -155,7 +155,7 @@ router.post('/api/tess/auth/login', async (req, res) => {
     const timeSinceActivity = now - user.last_activity;
     if (timeSinceActivity > ACTIVITY_EXPIRY_MS) {
       return res.status(403).json({ 
-        error: 'Tu sesión ha expirado. Solicita re-activación al administrador.',
+        error: 'Tu sesiÃ³n ha expirado. Solicita re-activaciÃ³n al administrador.',
         expired: true 
       });
     }
@@ -166,8 +166,8 @@ router.post('/api/tess/auth/login', async (req, res) => {
   const sub = computeSub(user, now);
   const token = generateToken(user._id.toString());
   const refreshToken = generateRefreshToken();
-  await storeRefreshToken(user._id.toString(), hashRefreshToken(refreshToken), Date.now() + 30 * 24 * 3600000);
-  await logActivity(user._id, email, 'Inicio de sesión');
+  await storeRefreshToken(user._id.toString(), hashRefreshToken(refreshToken), Date.now() + 365 * 24 * 3600000);
+  await logActivity(user._id, email, 'Inicio de sesiÃ³n');
   
   res.json({ token, refreshToken, user: { 
     email: user.email, 
@@ -209,18 +209,19 @@ router.post('/api/tess/auth/refresh', async (req, res) => {
     const db = getDb();
     const user = await db.collection('tess_users').findOne({ refresh_token_hash: hash });
 
-    if (!user) return res.status(401).json({ error: 'Refresh token inválido', code: 'TOKEN_EXPIRED' });
+    if (!user) return res.status(401).json({ error: 'Refresh token invÃ¡lido', code: 'TOKEN_EXPIRED' });
     if (user.refresh_token_expiry < Date.now()) {
       await revokeRefreshToken(user._id.toString());
       return res.status(401).json({ error: 'Refresh token expirado', code: 'TOKEN_EXPIRED' });
     }
 
     const newToken = generateToken(user._id.toString());
-    const newRefreshToken = generateRefreshToken();
-    await storeRefreshToken(user._id.toString(), hashRefreshToken(newRefreshToken), Date.now() + 30 * 24 * 3600000);
+    // Sesion permanente mientras se use: se conserva el MISMO refresh token con vigencia
+    // deslizante de 1 anio. Sin rotacion, para evitar carreras entre multiples pestanas.
+    await storeRefreshToken(user._id.toString(), hash, Date.now() + 365 * 24 * 3600000);
     await logActivity(user._id, user.email, 'Token refrescado');
 
-    res.json({ token: newToken, refreshToken: newRefreshToken });
+    res.json({ token: newToken, refreshToken });
   } catch (err) {
     console.error('[REFRESH ERROR]', err);
     res.status(500).json({ error: err.message });

@@ -828,6 +828,20 @@ async function initAuthFromStorage() {
   } catch (e) { console.error('[TESSERACT] initAuth error:', e); }
 }
 
+// Si el usuario inicia sesion en otra pestana, quitar el candado sin recargar
+if (chrome.storage && chrome.storage.onChanged) {
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local' || !changes.tess_jwt) return;
+    if (changes.tess_jwt.newValue) {
+      const gate = document.getElementById('tess-session-gate');
+      if (gate) gate.remove();
+      initAuthFromStorage();
+    } else {
+      showSessionRequired();
+    }
+  });
+}
+
 // ============ MÓDULOS ============
 // Bridge: updateStats is called by like-follow-photos.js to refresh results counter
 function updateStats() {

@@ -3,7 +3,7 @@ const crypto = require('crypto');
 const JWT_SECRET = process.env.TESS_JWT_SECRET || 'fallback_secret';
 
 function generateToken(userId) {
-  return jwt.sign({ sub: String(userId) }, JWT_SECRET, { expiresIn: '7d' });
+  return jwt.sign({ sub: String(userId) }, JWT_SECRET, { expiresIn: '30d' });
 }
 
 function generateRefreshToken() {
