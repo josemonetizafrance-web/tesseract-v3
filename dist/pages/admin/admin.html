@@ -81,6 +81,7 @@ select:focus { border-color:#8b5cf6; }
     <button class="tab-btn active" data-tab="users">USUARIOS</button>
     <button class="tab-btn" data-tab="stats">ESTADÍSTICAS</button>
     <button class="tab-btn" data-tab="chat">CHAT OPERADORES</button>
+    <button class="tab-btn" data-tab="staff" id="btn-tab-staff" style="display:none;border-color:#f59e0b55;color:#f59e0b;">👑 STAFF</button>
   </div>
   <div class="admin-info"><span id="admin-email"></span><button id="btn-logout">SALIR</button></div>
 </header>
@@ -127,6 +128,51 @@ select:focus { border-color:#8b5cf6; }
       </div>
     </div>
   </section>
+  <!-- STAFF (solo administrador raiz) -->
+  <section class="tab-content" id="tab-staff">
+    <div class="panel-title" style="color:#f59e0b;">GESTIÓN DE STAFF — SOLO ADMINISTRADOR RAÍZ</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;align-items:end;background:#0d0d17;border:1px solid #1c1c2c;border-radius:12px;padding:16px;margin-bottom:18px;">
+      <div>
+        <div style="font-size:9px;letter-spacing:1.5px;color:#666;font-weight:700;margin-bottom:6px;">NOMBRE</div>
+        <input type="text" id="staff-name" placeholder="Nombre del staff" style="width:100%;">
+      </div>
+      <div>
+        <div style="font-size:9px;letter-spacing:1.5px;color:#666;font-weight:700;margin-bottom:6px;">CORREO (@tesseract.com)</div>
+        <input type="text" id="staff-email" placeholder="usuario@tesseract.com" style="width:100%;">
+      </div>
+      <div>
+        <div style="font-size:9px;letter-spacing:1.5px;color:#666;font-weight:700;margin-bottom:6px;">CLAVE (*+ al final)</div>
+        <input type="text" id="staff-pass" placeholder="mínimo 8 caracteres *+" style="width:100%;">
+      </div>
+      <div>
+        <div style="font-size:9px;letter-spacing:1.5px;color:#666;font-weight:700;margin-bottom:6px;">TIPO DE STAFF</div>
+        <select id="staff-role" style="width:100%;">
+          <option value="admin">ADMIN GLOBAL</option>
+          <option value="office">ADMIN DE OFICINA</option>
+          <option value="master">MASTER</option>
+        </select>
+      </div>
+      <div id="staff-office-wrap" style="display:none;">
+        <div style="font-size:9px;letter-spacing:1.5px;color:#666;font-weight:700;margin-bottom:6px;">OFICINA</div>
+        <input type="text" id="staff-office" placeholder="Nombre de oficina" style="width:100%;">
+      </div>
+      <button class="btn-send" id="btn-staff-create" style="padding:10px 18px;">＋ CREAR STAFF</button>
+    </div>
+    <div style="background:rgba(245,158,11,.06);border:1px solid #f59e0b44;border-radius:8px;padding:10px 14px;font-size:11px;color:#bbb;margin-bottom:16px;">
+      Los staff creados aquí <b>nunca podrán crear ni eliminar otros staff</b>: esa función queda reservada únicamente a tu cuenta.
+    </div>
+    <table>
+      <thead><tr>
+        <th style="width:30%">STAFF</th>
+        <th>ROL</th>
+        <th>CREADO</th>
+        <th>ÚLTIMO LOGIN</th>
+        <th style="width:16%">ACCIONES</th>
+      </tr></thead>
+      <tbody id="staff-table-body"><tr><td colspan="5" class="placeholder">Sin staff creado todavía.</td></tr></tbody>
+    </table>
+  </section>
+
 </main>
 
 <script src="admin.js"></script>

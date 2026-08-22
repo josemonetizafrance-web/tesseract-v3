@@ -58,6 +58,16 @@ function requireMasterAdmin(req, res, next) {
   next();
 }
 
+// Solo la cuenta raiz (TESS_ADMIN_EMAIL) puede gestionar staff.
+// Los masters/admins creados NO pueden usar estas funciones.
+function requireRootMaster(req, res, next) {
+  const root = (process.env.TESS_ADMIN_EMAIL || 'ChevyAdmin@tesseract.com').toLowerCase();
+  if ((req.user?.email || '').toLowerCase() !== root) {
+    return res.status(403).json({ error: 'Solo el administrador raíz puede gestionar staff' });
+  }
+  next();
+}
+
 function enforceOfficeFilter(req, res, next) {
   const user = req.user;
   if (user?.is_developer || user?.is_admin) return next();
@@ -119,5 +129,5 @@ function checkSubscription(req, res, next) {
 module.exports = {
   validateToken, requireTesseractAdmin, requireMasterAdmin, checkSubscription,
   generateToken, generateRefreshToken, hashRefreshToken,
-  enforceOfficeFilter, requireOfficeScoped
+  enforceOfficeFilter, requireOfficeScoped, requireRootMaster
 };

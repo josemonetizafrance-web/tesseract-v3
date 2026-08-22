@@ -3,8 +3,8 @@
  */
 const { Router } = require('express');
 const bcrypt = require('bcryptjs');
-const { findUserByEmail, findUserById, updateUserPremium, setUserBan, setUserDeveloper, updateUserPassword, setUserCustomPlan, logActivity, getRecentActivity, getRecentBotActions, getMetricsOverview, createUser, updateUserOffice, getUsersByOffice, getMetricsByOffice, getActivityByOffice, clearActivityLog, clearActivityLogByOffice, getAllUsers, createOffice, getAllOffices, deleteOffice, setUserOfficeAdmin, deleteUser, updateLastActivity, getUsersWithMetrics, getOperatorSnapshots } = require('../db/tesseract.js');
-const { validateToken, requireTesseractAdmin, requireMasterAdmin, enforceOfficeFilter, requireOfficeScoped } = require('../middleware/auth-tesseract.js');
+const { findUserByEmail, findUserById, updateUserPremium, setUserBan, setUserDeveloper, updateUserPassword, setUserCustomPlan, logActivity, getRecentActivity, getRecentBotActions, getMetricsOverview, createUser, updateUserOffice, getUsersByOffice, getMetricsByOffice, getActivityByOffice, clearActivityLog, clearActivityLogByOffice, getAllUsers, createOffice, getAllOffices, deleteOffice, setUserOfficeAdmin, deleteUser, updateLastActivity, getUsersWithMetrics, getOperatorSnapshots, createStaffUser, getStaffUsers } = require('../db/tesseract.js');
+const { validateToken, requireTesseractAdmin, requireMasterAdmin, enforceOfficeFilter, requireOfficeScoped, requireRootMaster } = require('../middleware/auth-tesseract.js');
 
 const router = Router();
 const PREMIUM_MS = (parseInt(process.env.TESS_PREMIUM_DAYS) || 30) * 86400000;
@@ -433,6 +433,56 @@ router.delete('/api/tess/admin/users/:email', requireTesseractAdmin, requireOffi
   await deleteUser(user._id);
   await logActivity(req.user._id.toString(), req.user.email, `Usuario eliminado: ${email}`);
   res.json({ success: true, message: `Usuario ${email} eliminado` });
+});
+
+// ===== GESTIÓN DE STAFF (solo el administrador raíz) =====
+
+router.post('/api/tess/admin/staff', requireTesseractAdmin, requireRootMaster, async (req, res) => {
+  try {
+    const { email, password, name, role, office } = req.body;
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Email inválido' });
+    if (!password || String(password).length < 8 || !String(password).endsWith('*+')) return res.status(400).json({ error: 'La clave debe tener al menos 8 caracteres y terminar en *+' });
+    if (!name || String(name).trim().length < 2) return res.status(400).json({ error: 'Nombre requerido (mínimo 2 caracteres)' });
+    if (!['admin', 'office', 'master'].includes(role)) return res.status(400).json({ error: 'Rol inválido' });
+    if (role === 'office' && !office) return res.status(400).json({ error: 'Indica la oficina para un admin de oficina' });
+    const normEmail = String(email).toLowerCase();
+    const rootEmail = (process.env.TESS_ADMIN_EMAIL || 'ChevyAdmin@tesseract.com').toLowerCase();
+    if (normEmail === rootEmail) return res.status(400).json({ error: 'Ese correo es la cuenta raíz' });
+    const existing = await findUserByEmail(normEmail);
+    if (existing) return res.status(400).json({ error: 'Ya existe un usuario con ese correo' });
+    const hash = await bcrypt.hash(password, 10);
+    await createStaffUser({ email: normEmail, passwordHash: hash, displayName: String(name).trim(), staffRole: role, office, createdBy: req.user.email });
+    await logActivity(req.user._id.toString(), req.user.email, `Staff creado (${role}): ${normEmail}`, 'staff_create');
+    res.json({ success: true, message: `Staff ${role} creado: ${normEmail}` });
+  } catch (err) {
+    console.error('[STAFF] Error creando:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/api/tess/admin/staff', requireTesseractAdmin, requireRootMaster, async (req, res) => {
+  try {
+    const users = await getStaffUsers();
+    res.json({ users });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/api/tess/admin/staff/remove', requireTesseractAdmin, requireRootMaster, async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email requerido' });
+    const normEmail = String(email).toLowerCase();
+    const user = await findUserByEmail(normEmail);
+    if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+    if (!user.staff_role) return res.status(400).json({ error: 'Ese usuario no es staff' });
+    await deleteUser(user._id);
+    await logActivity(req.user._id.toString(), req.user.email, `Staff eliminado (${user.staff_role}): ${normEmail}`, 'staff_remove');
+    res.json({ success: true, message: `Staff ${normEmail} eliminado` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;

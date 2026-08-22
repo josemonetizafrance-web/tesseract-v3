@@ -39,6 +39,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const me = await apiFetch('/api/tess/auth/verify');
     if (!(me.isAdmin || me.isDeveloper)) { renderDenied('No tienes permisos de administrador.'); return; }
     document.getElementById('admin-email').textContent = me.email;
+    const isRoot = (me.email || '').toLowerCase() === 'chevyadmin@tesseract.com';
+    if (isRoot) {
+      document.getElementById('btn-tab-staff').style.display = '';
+      initStaffUI();
+      loadStaff();
+      timers.push(setInterval(() => { if (activeTab === 'staff') loadStaff(true); }, 30000));
+    }
     initTabs();
     initChatUI();
     await loadUsers();
@@ -162,7 +169,7 @@ document.getElementById('user-table-body').addEventListener('click', async e => 
 function fillStatsSelect() {
   const sel = document.getElementById('stats-user');
   const prev = sel.value;
-  const ops = cachedUsers.filter(u => !(u.is_developer || u.is_admin));
+  const ops = cachedUsers.filter(u => !(u.is_developer || u.is_admin || u.is_office_admin || u.staff_role));
   sel.innerHTML = '<option value="">Selecciona operador…</option>' +
     ops.map(u => `<option value="${esc(u.email)}">${esc(u.display_name || u.email)} — ${esc(u.email)}</option>`).join('');
   if (prev && ops.some(u => u.email === prev)) sel.value = prev;
@@ -288,3 +295,68 @@ async function sendChatMsg() {
 
 // Poll del hilo abierto
 timers.push(setInterval(() => { if (activeTab === 'chat' && chatWith) pollThread(false).catch(() => {}); }, 4000));
+
+// ============ STAFF (solo admin raiz) ============
+const STAFF_ROLE_LABEL = { admin: ['ADMIN GLOBAL', 'dev'], office: ['ADMIN OFICINA', 'premium'], master: ['MASTER', 'dev'] };
+
+function initStaffUI() {
+  document.getElementById('staff-role').addEventListener('change', e => {
+    document.getElementById('staff-office-wrap').style.display = e.target.value === 'master' ? 'none' : '';
+  });
+  document.getElementById('btn-staff-create').addEventListener('click', createStaff);
+  document.getElementById('staff-table-body').addEventListener('click', async e => {
+    const btn = e.target.closest('button[data-staff]');
+    if (!btn) return;
+    const email = btn.dataset.staff;
+    if (!confirm('¿ELIMINAR al staff ' + email + '? Perderá el acceso de inmediato.')) return;
+    try {
+      await apiFetch('/api/tess/admin/staff/remove', { method: 'POST', body: { email } });
+      loadStaff();
+      loadUsers();
+    } catch (err) { alert('Error: ' + err.message); }
+  });
+}
+
+async function createStaff() {
+  const name = document.getElementById('staff-name').value.trim();
+  const email = document.getElementById('staff-email').value.trim().toLowerCase();
+  const pass = document.getElementById('staff-pass').value;
+  const role = document.getElementById('staff-role').value;
+  const office = document.getElementById('staff-office').value.trim();
+  if (!name || !email || !pass) return alert('Completa nombre, correo y clave.');
+  if (!pass.endsWith('*+') || pass.length < 8) return alert('La clave debe tener mínimo 8 caracteres y terminar en *+');
+  if (role === 'office' && !office) return alert('Indica la oficina para un admin de oficina.');
+  try {
+    const d = await apiFetch('/api/tess/admin/staff', { method: 'POST', body: { email, password: pass, name, role, office: office || null } });
+    alert(d.message || 'Staff creado.');
+    document.getElementById('staff-name').value = '';
+    document.getElementById('staff-email').value = '';
+    document.getElementById('staff-pass').value = '';
+    loadStaff();
+    loadUsers();
+  } catch (err) { alert('Error: ' + err.message); }
+}
+
+async function loadStaff(silent) {
+  const tbody = document.getElementById('staff-table-body');
+  try {
+    const d = await apiFetch('/api/tess/admin/staff');
+    const users = d.users || [];
+    if (!users.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="placeholder">Sin staff creado todavía.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = users.map(u => {
+      const rl = STAFF_ROLE_LABEL[u.staff_role] || [u.staff_role, 'demo'];
+      return `<tr>
+        <td><span class="uname">${esc(u.display_name || '(sin nombre)')}</span><br><span class="uemail">${esc(u.email)}</span></td>
+        <td><span class="badge ${rl[1]}">${rl[0]}</span>${u.office ? `<br><small style="color:#888;">oficina: ${esc(u.office)}</small>` : ''}</td>
+        <td style="color:#888;font-size:11px;">${new Date(u.created_at).toLocaleDateString('es')}</td>
+        <td style="color:#888;font-size:11px;">${timeAgo(u.last_login)}<br><small style="color:#555;">${u.login_count || 0} inicios</small></td>
+        <td><button class="act-btn danger" data-staff="${esc(u.email)}">QUITAR</button></td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    if (!silent) tbody.innerHTML = `<tr><td colspan="5" class="placeholder">Error cargando staff: ${esc(e.message)}</td></tr>`;
+  }
+}

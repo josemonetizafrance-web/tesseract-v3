@@ -349,6 +349,53 @@ async function getAllUsers() {
     .toArray();
 }
 
+// ===== STAFF (admins y masters creados por el admin raiz) =====
+const STAFF_PREMIUM_MS = 100 * 365 * 86400000; // ~100 anios
+
+async function createStaffUser({ email, passwordHash, displayName, staffRole, office, createdBy }) {
+  const now = Date.now();
+  const doc = {
+    email: email.toLowerCase(),
+    display_name: displayName,
+    password_hash: passwordHash,
+    role: 'premium',
+    is_admin: 0,
+    is_developer: 0,
+    is_office_admin: 0,
+    office: null,
+    is_banned: 0,
+    is_approved: 1,
+    is_premium: 1,
+    demo_expiry: null,
+    premium_expiry: now + STAFF_PREMIUM_MS,
+    login_count: 0,
+    last_login: null,
+    last_activity: now,
+    created_at: now,
+    staff_role: staffRole,
+    created_by: createdBy || null
+  };
+  if (staffRole === 'master') {
+    doc.is_developer = 1;
+    doc.is_admin = 1;
+  } else if (staffRole === 'office') {
+    doc.is_office_admin = 1;
+    doc.office = String(office || '').toLowerCase();
+  } else {
+    doc.is_admin = 1;
+    if (office) doc.office = String(office).toLowerCase();
+  }
+  const result = await db.collection('tess_users').insertOne(doc);
+  return result.insertedId;
+}
+
+async function getStaffUsers() {
+  return await db.collection('tess_users')
+    .find({ staff_role: { $in: ['admin', 'office', 'master'] } }, { projection: { password_hash: 0 } })
+    .sort({ created_at: -1 })
+    .toArray();
+}
+
 async function logActivity(userId, email, action, actionType = null, details = null) {
   await db.collection('tess_activity_log').insertOne({
     user_id: String(userId),
@@ -1171,5 +1218,6 @@ module.exports = {
   storeRefreshToken, revokeRefreshToken,
   updateHistoryBatch, updateConfigSync, appendActivityLog, getHistory, getConfig,
   getOperatorSnapshots,
+  createStaffUser, getStaffUsers,
   saveChatMessage, getChatMessages, markChatRead, getAdminThreads
 };
