@@ -786,6 +786,24 @@ function setupAllEvents() {
 }
 
 // ============ AUTENTICACIÓN (auto desde storage) ============
+function showSessionRequired() {
+  const panel = document.getElementById('tesseract-main-panel');
+  if (!panel || document.getElementById('tess-session-gate')) return;
+  if (getComputedStyle(panel).position === 'static') panel.style.position = 'relative';
+  const gate = document.createElement('div');
+  gate.id = 'tess-session-gate';
+  gate.style.cssText = 'position:absolute;inset:0;z-index:50;background:rgba(5,5,12,.94);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;border-radius:16px;text-align:center;padding:20px;';
+  gate.innerHTML =
+    '<div style="font-size:30px;">🔒</div>' +
+    '<div style="color:#f59e0b;font-weight:700;letter-spacing:1px;font-size:12px;">SESIÓN NO INICIADA O EXPIRADA</div>' +
+    '<div style="color:#888;font-size:10px;max-width:260px;">Inicia sesión para usar el panel de TESSERACT.</div>' +
+    '<button id="tessGateLogin" style="background:#8b5cf6;border:none;color:#fff;font-family:inherit;font-weight:700;font-size:11px;letter-spacing:1px;padding:9px 22px;border-radius:8px;cursor:pointer;">INICIAR SESIÓN</button>';
+  panel.appendChild(gate);
+  document.getElementById('tessGateLogin').addEventListener('click', () => {
+    window.open(chrome.runtime.getURL('dist/pages/login/login.html'), '_blank');
+  });
+}
+
 async function initAuthFromStorage() {
   try {
     const data = await chrome.storage.local.get(['tess_jwt', 'tess_user', 'user_email']);
@@ -800,6 +818,12 @@ async function initAuthFromStorage() {
       if (typeof detectCurrentProfile === 'function') detectCurrentProfile();
       startPeriodicSync();
       Tesseract.broadcast('STATE_SYNC', { isAuthenticated: true, currentUser: Tesseract.get('currentUser'), eaterActive: Tesseract.get('eaterActive'), clonacionActiva: Tesseract.get('clonacionActiva'), collectedIds: Tesseract.get('collectedIds'), botStats: Tesseract.get('botStats') });
+    } else {
+      // Sin JWT en storage: intentar renovar con refresh token antes de bloquear el panel
+      let recovered = false;
+      try { if (typeof tryRefreshToken === 'function') recovered = await tryRefreshToken(); } catch (e) {}
+      if (recovered) { initAuthFromStorage(); return; }
+      showSessionRequired();
     }
   } catch (e) { console.error('[TESSERACT] initAuth error:', e); }
 }
@@ -967,6 +991,7 @@ async function tryRefreshToken() {
         });
         if (!res.ok) {
           chrome.storage.local.remove(['tess_jwt', 'tess_refresh']);
+          if (typeof showSessionRequired === 'function') showSessionRequired();
           return resolve(false);
         }
         var json = await res.json();
@@ -1329,6 +1354,17 @@ if (document.readyState === 'loading') {
     catch (e) { return ''; }
   }
 
+  // Resuelve sesion: usa el token actual o intenta renovarlo con el refresh token
+  async function ensureToken() {
+    let token = await jwt();
+    if (token) return token;
+    if (typeof tryRefreshToken === 'function') {
+      const ok = await tryRefreshToken();
+      if (ok) token = await jwt();
+    }
+    return token;
+  }
+
   function updateBadge() {
     const t = els().tabBtn;
     if (!t) return;
@@ -1353,13 +1389,25 @@ if (document.readyState === 'loading') {
     box.scrollTop = box.scrollHeight;
   }
 
+  function sessionNotice() {
+    const box = els().msgs;
+    if (!box) return;
+    box.innerHTML = '<div style="margin:auto;color:#f59e0b;font-size:11px;text-align:center;padding:10px;">Tu sesión expiró.<br>Vuelve a iniciar sesión para usar el soporte.<br><button id="opChatRelog" style="margin-top:8px;background:#f59e0b;border:none;color:#000;font-weight:700;font-size:11px;padding:6px 14px;border-radius:6px;cursor:pointer;">INICIAR SESIÓN</button></div>';
+    const b = document.getElementById('opChatRelog');
+    if (b) b.addEventListener('click', () => {
+      window.open(chrome.runtime.getURL('dist/pages/login/login.html'), '_blank');
+      showTessToast('Inicia sesión y recarga la página de Talkytimes', 'info');
+    });
+  }
+
   async function poll(full) {
-    const token = await jwt();
+    const token = await ensureToken();
     if (!token) return;
     try {
       const res = await fetch(TAPI + '/api/tess/chat/messages?after=' + (full ? 0 : lastTs), { headers: { 'Authorization': 'Bearer ' + token } });
       if (res.status === 401) {
-        if (typeof tryRefreshToken === 'function') { const ok = await tryRefreshToken(); if (ok) { poll(full); return; } }
+        const ok = typeof tryRefreshToken === 'function' ? await tryRefreshToken() : false;
+        if (ok) { poll(full); return; }
         return;
       }
       if (!res.ok) return;
@@ -1383,8 +1431,13 @@ if (document.readyState === 'loading') {
     const input = els().input;
     const text = (input.value || '').trim();
     if (!text) return;
-    const token = await jwt();
-    if (!token) { showTessToast('⚠ Inicia sesión para usar el soporte', 'error'); return; }
+    const token = await ensureToken();
+    if (!token) {
+      input.value = text;
+      sessionNotice();
+      showTessToast('Sesión expirada — inicia sesión de nuevo', 'error');
+      return;
+    }
     input.value = '';
     try {
       const res = await fetch(TAPI + '/api/tess/chat/send', {
@@ -1392,6 +1445,14 @@ if (document.readyState === 'loading') {
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
         body: JSON.stringify({ text })
       });
+      if (res.status === 401) {
+        const ok = typeof tryRefreshToken === 'function' ? await tryRefreshToken() : false;
+        if (ok) { input.value = text; sendMsg(); return; }
+        input.value = text;
+        sessionNotice();
+        showTessToast('Sesión expirada — inicia sesión de nuevo', 'error');
+        return;
+      }
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         showTessToast('⚠ Soporte: ' + (data.error || ('Error ' + res.status)), 'error');
