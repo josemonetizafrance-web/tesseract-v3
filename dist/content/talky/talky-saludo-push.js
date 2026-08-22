@@ -49,6 +49,7 @@ function spParseSequence(raw) {
 
 async function spGenerateSequence() {
   var system = [
+    (typeof TESS_MASTER_PROMPT!=='undefined'?TESS_MASTER_PROMPT+'\n\n':'') + '\n\nTAREA:\n',
     'Eres un hombre escribiendo por chat a una mujer que ya conversó con él pero dejó de responder.',
     'Debes escribir UNA secuencia de 5 mensajes cortos en español natural latinoamericano, tono cálido pero con dignidad, para reactivar la conversación:',
     '1. SALUDO INICIAL - saluda y pregunta cómo ha estado. Tono de referencia: "Hola, como has estado?"',
@@ -82,7 +83,7 @@ async function spGenerateSequence() {
 async function spTranslate(text) {
   try {
     var groqData = await Tesseract.callGroq(
-      [{ role: 'system', content: 'Traduce el siguiente texto del español al inglés. Responde SOLO con la traducción, sin explicaciones ni notas.' }, { role: 'user', content: text }],
+      [{ role: 'system', content: (typeof TESS_TRANSLATOR_POLICY!=='undefined'?TESS_TRANSLATOR_POLICY+' ':'') + 'Traduce el siguiente texto del español al inglés. Responde SOLO con la traducción, sin explicaciones ni notas.' }, { role: 'user', content: text }],
       'openai/gpt-oss-120b',
       300
     );
@@ -101,7 +102,7 @@ async function spTranslateBatch(msgs) {
   try {
     var joined = msgs.join(' ||| ');
     var data = await Tesseract.callGroq(
-      [{ role: 'system', content: 'Traduce al inglés cada mensaje separado por |||. Mantén EXACTAMENTE los separadores ||| entre mensajes. Responde solo con la traducción.' }, { role: 'user', content: joined }],
+      [{ role: 'system', content: (typeof TESS_TRANSLATOR_POLICY!=='undefined'?TESS_TRANSLATOR_POLICY+' ':'') + 'Traduce al inglés cada mensaje separado por |||. Mantén EXACTAMENTE los separadores ||| entre mensajes. Responde solo con la traducción.' }, { role: 'user', content: joined }],
       'openai/gpt-oss-120b',
       900
     );

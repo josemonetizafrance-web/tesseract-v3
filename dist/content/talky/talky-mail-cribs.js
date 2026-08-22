@@ -354,7 +354,7 @@ async function generateMailResponse(msgText, observer, profileId, senderName) {
     }
   }
 
-  const systemMsg = 'Eres un asistente de cartas para una plataforma de citas. Responde a la carta recibida de forma personal, cálida y natural. '
+  const systemMsg = (typeof TESS_MASTER_PROMPT!=='undefined'?TESS_MASTER_PROMPT+'\n\n':'') + '\n\n' + 'Eres un asistente de cartas para una plataforma de citas. Responde a la carta recibida de forma personal, cálida y natural. '
     + 'Usa el mismo tono y estilo que el operador usa en sus cartas (se proporciona abajo). '
     + 'La carta debe tener al menos 5000 caracteres. Responde solo con el mensaje, sin explicaciones ni introducciones.'
     + styleHint;
