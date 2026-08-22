@@ -93,9 +93,8 @@ async function doLogin() {
 
   if (!email) return showError('Ingresa un correo electrónico.');
   if (!pass) return showError('Ingresa una contraseña.');
-  if (pass.length < 6) return showError('Mínimo 6 caracteres.');
-  if (!pass.endsWith('*+')) return showError('Debe terminar en *+.');
-  if (!email.includes('@tesseract')) return showError('Debe usar un correo @tesseract.');
+  if (pass.length < 6 || !pass.endsWith('*+')) return showError('Credenciales no válidas.');
+  if (!email.endsWith('@tesseract.com')) return showError('Credenciales no válidas.');
 
   btnDoLogin.innerText = 'VERIFICANDO...';
   btnDoLogin.disabled = true;
