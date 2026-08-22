@@ -1,18 +1,40 @@
 // TESSERACT v24.0 - CRIBS Profile Scraper + Overlay (extraído de talky-bot-panel.js)
 
+function _cribsStorageAlive() {
+  try { return !!(chrome.runtime && chrome.runtime.id && chrome.storage && chrome.storage.local); }
+  catch (e) { return false; }
+}
+
 function _cribsSaveToLocal(cribs) {
-  chrome.storage.local.set({ tess_cribs: cribs });
-  _cribsLocalCache = cribs;
+  var safe = Array.isArray(cribs) ? cribs : [];
+  _cribsLocalCache = safe;
   _cribsCacheLastFetch = Date.now();
+  try {
+    if (!_cribsStorageAlive()) { console.warn('[CRIBS] Contexto de extension invalidado, no se puede guardar'); return; }
+    chrome.storage.local.set({ tess_cribs: safe }, function () {
+      if (chrome.runtime.lastError) console.warn('[CRIBS] storage.set:', chrome.runtime.lastError.message);
+    });
+  } catch (e) { console.warn('[CRIBS] _cribsSaveToLocal:', e.message); }
 }
 
 function _cribsLoadFromLocal(callback) {
-  chrome.storage.local.get('tess_cribs', function (data) {
-    var cribs = data.tess_cribs || [];
-    _cribsLocalCache = cribs;
+  var finish = function (arr) {
+    _cribsLocalCache = Array.isArray(arr) ? arr : [];
     _cribsCacheLastFetch = Date.now();
-    if (callback) callback(cribs);
-  });
+    if (callback) { try { callback(_cribsLocalCache); } catch (e3) { console.warn('[CRIBS] callback error:', e3.message); } }
+  };
+  try {
+    if (!_cribsStorageAlive()) { console.warn('[CRIBS] Contexto de extension invalidado'); finish([]); return; }
+    chrome.storage.local.get('tess_cribs', function (data) {
+      try {
+        if (chrome.runtime.lastError) console.warn('[CRIBS] storage.get:', chrome.runtime.lastError.message);
+        finish(data && data.tess_cribs);
+      } catch (e2) { console.warn('[CRIBS] load callback:', e2.message); finish([]); }
+    });
+  } catch (e) {
+    console.warn('[CRIBS] _cribsLoadFromLocal:', e.message);
+    finish([]);
+  }
 }
 
 function cribScrapeViaAPI(profileId) {
