@@ -385,26 +385,19 @@ function createMainPanel() {
 <div style="display:flex;gap:6px;margin-bottom:6px;">
 <button id="btnIBGenerate" style="flex:1;padding:8px 4px;border:1px solid #8b5cf6;border-radius:6px;background:rgba(139,92,246,0.2);color:#fff;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:9px;font-weight:700;letter-spacing:1px;">🎲 GENERAR</button>
 <button id="btnIBSend" style="flex:1;padding:8px 4px;border:1px solid #10b981;border-radius:6px;background:rgba(16,185,129,0.2);color:#fff;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:9px;font-weight:700;letter-spacing:1px;opacity:0.5;">▶ ENVIAR 5</button>
-<button id="btnIBVision" style="flex:1;padding:8px 4px;border:1px solid #f59e0b;border-radius:6px;background:rgba(245,158,11,0.2);color:#fff;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:9px;font-weight:700;letter-spacing:1px;">👁 IB VISION</button>
 <button id="btnIBTranslate" style="flex:1;padding:8px 4px;border:1px solid #2196F3;border-radius:6px;background:rgba(33,150,243,0.2);color:#fff;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:9px;font-weight:700;letter-spacing:1px;" title="Traduce los icebreakers generados al inglés">🌐 TRADUCIR EN</button>
 </div>
 <div style="font-size:9px;color:#888;margin-bottom:4px;text-align:center;" id="ibStatus">Listo</div>
 <div style="font-size:9px;color:#f59e0b;margin-bottom:4px;text-align:center;font-family:'Orbitron',monospace;letter-spacing:2px;display:none;" id="ibVisionTimer">⏱ 03:00:00</div>
-<div style="display:flex;gap:6px;margin-bottom:4px;">
-<button id="btnIBFreeze" style="flex:1;padding:7px 4px;border:1px solid #555;border-radius:6px;background:transparent;color:#888;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:9px;font-weight:700;letter-spacing:1px;transition:all 0.3s;" title="Congela el auto-relanzamiento de IB Vision al cumplirse las 3h">❄ FREEZE: OFF</button>
-</div>
 <div style="margin-bottom:4px;font-size:9px;color:#8b5cf6;letter-spacing:1px;">PREVIEW</div>
 <div id="ibPreview" style="display:flex;flex-direction:column;gap:2px;padding:2px;max-height:340px;overflow-y:auto;">
 <div style="color:#666;font-size:10px;text-align:center;padding:8px;">Genera mensajes con el botón 🎲 GENERAR</div>
 </div>
 </div>
-<div id="ibVisionModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:99999;justify-content:center;align-items:center;flex-direction:column;">
-  <div style="background:#1a1a2e;border:2px solid #f59e0b;border-radius:12px;padding:24px;max-width:360px;text-align:center;box-shadow:0 0 40px rgba(245,158,11,0.3);">
-    <div style="font-size:14px;color:#fff;margin-bottom:16px;line-height:1.5;">🔥 Hora de actualizar IB bro. ¿Quieres que active IB Vision?</div>
-    <div style="display:flex;gap:12px;justify-content:center;">
-      <button id="ibVisionModalSi" style="flex:1;padding:10px 20px;border:2px solid #10b981;border-radius:8px;background:rgba(16,185,129,0.2);color:#10b981;cursor:pointer;font-size:12px;font-weight:700;font-family:'Orbitron',sans-serif;">SI</button>
-      <button id="ibVisionModalNo" style="flex:1;padding:10px 20px;border:2px solid #ef4444;border-radius:8px;background:rgba(239,68,68,0.2);color:#ef4444;cursor:pointer;font-size:12px;font-weight:700;font-family:'Orbitron',sans-serif;">NO</button>
-    </div>
+<div id="ibVisionModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:99999;justify-content:center;align-items:center;flex-direction:column;">
+  <div style="background:#1a1a2e;border:2px solid #ef4444;border-radius:12px;padding:24px;max-width:360px;text-align:center;box-shadow:0 0 40px rgba(239,68,68,0.4);">
+    <div style="font-size:16px;color:#ef4444;margin-bottom:18px;font-weight:700;line-height:1.5;font-family:'Orbitron',sans-serif;letter-spacing:1px;">⚠ ACTUALIZA IB MALPARID@</div>
+    <button id="ibVisionModalOk" style="width:100%;padding:10px 20px;border:2px solid #f59e0b;border-radius:8px;background:rgba(245,158,11,0.2);color:#f59e0b;cursor:pointer;font-size:12px;font-weight:700;font-family:'Orbitron',sans-serif;">OK</button>
   </div>
 </div>
 </div>
@@ -617,15 +610,6 @@ function setupAllEvents() {
   var btnIBSend = document.getElementById('btnIBSend');
   if (btnIBSend) btnIBSend.addEventListener('click', function() {
     if (typeof window._executeIcebreakerSweep === 'function') window._executeIcebreakerSweep();
-  });
-  var btnIBVision = document.getElementById('btnIBVision');
-  if (btnIBVision) btnIBVision.addEventListener('click', function() {
-    if (typeof window._executeIBVision === 'function') window._executeIBVision();
-  });
-  var btnIBFreeze = document.getElementById('btnIBFreeze');
-  if (btnIBFreeze) btnIBFreeze.addEventListener('click', function() {
-    if (typeof window._toggleIBFreeze === 'function') window._toggleIBFreeze();
-    else if (typeof _ibUpdateFreezeUI === 'function') { /* core no cargado */ }
   });
   var btnIBTranslate = document.getElementById('btnIBTranslate');
   if (btnIBTranslate) btnIBTranslate.addEventListener('click', function() {
