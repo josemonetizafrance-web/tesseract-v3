@@ -311,7 +311,7 @@ function createMainPanel() {
   <button class="tab-btn" data-tab="star">⭐ STAR TOOLS</button>
   <button class="tab-btn" data-tab="mailing">📬 MAILING</button>
   <button class="tab-btn" data-tab="blacklist">🚫 BLACKLIST</button>
-  <button class="tab-btn" data-tab="soporte">💬 SOPORTE</button>
+  <button class="tab-btn" data-tab="soporte">💬 MENSAJES</button>
 </div>
 
 <!-- PESTAÑA BOT -->
@@ -489,15 +489,21 @@ function createMainPanel() {
 </div>
 </div>
 
-<!-- PESTAÑA SOPORTE (CHAT CON EL ADMIN) -->
+<!-- PESTAÑA MENSAJES (SOPORTE + CHAT PRIVADO ENTRE USUARIOS) -->
 <div id="tabSoporte" class="tab-content">
-<div class="user-bar">💬 SOPORTE — <span id="opChatAdminState" style="color:#888;">administrador</span></div>
-<div style="display:flex;flex-direction:column;height:300px;padding:8px;gap:6px;">
+<div class="user-bar">💬 MENSAJES — <span id="opChatWho">🛡 SOPORTE</span></div>
+<div style="display:flex;flex-direction:column;height:320px;padding:8px;gap:6px;">
+  <div style="display:flex;gap:6px;">
+    <select id="opChatPeer" style="flex:1;background:#12121f;border:1px solid #26263a;color:#e0e0e0;border-radius:6px;padding:6px 8px;font-size:11px;outline:none;">
+      <option value="ADMIN">🛡 SOPORTE (administrador)</option>
+    </select>
+    <button id="btnOpChatRefresh" title="Actualizar contactos" style="background:#16162a;border:1px solid #2a2a44;color:#bbb;border-radius:6px;width:32px;cursor:pointer;font-size:12px;">⟳</button>
+  </div>
   <div id="opChatMsgs" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:6px;background:#0a0a0a;border:1px solid #2a2a44;border-radius:8px;padding:8px;">
-    <div style="margin:auto;color:#666;font-size:10px;text-align:center;">Escríbele al administrador.<br>Los mensajes nuevos llegan solos.</div>
+    <div style="margin:auto;color:#666;font-size:10px;text-align:center;">Selecciona un contacto arriba.<br>🛡 SOPORTE te conecta con el administrador.<br>Tus conversaciones son privadas.</div>
   </div>
   <div style="display:flex;gap:6px;">
-    <input type="text" id="opChatInput" maxlength="2000" placeholder="Mensaje al admin…" style="flex:1;background:#12121f;border:1px solid #26263a;color:#e0e0e0;border-radius:6px;padding:7px 10px;font-size:11px;outline:none;">
+    <input type="text" id="opChatInput" maxlength="2000" placeholder="Mensaje…" style="flex:1;background:#12121f;border:1px solid #26263a;color:#e0e0e0;border-radius:6px;padding:7px 10px;font-size:11px;outline:none;">
     <button id="btnOpChatSend" style="background:#22c55e;border:none;color:#fff;border-radius:6px;padding:0 14px;font-size:11px;font-weight:700;cursor:pointer;">➤</button>
   </div>
 </div>
@@ -1347,28 +1353,37 @@ if (document.readyState === 'loading') {
   safeInit();
 }
 
-// ============ SOPORTE: CHAT CON EL ADMINISTRADOR (pestaña del panel) ============
+// ============ MENSAJES: SOPORTE + CHAT PRIVADO ENTRE USUARIOS ============
 (function initSupportChat() {
   const TAPI = 'https://tesseract-v3-production.up.railway.app';
-  let lastTs = 0;
-  let pollTimer = null;
-  let unread = 0;
+  const ADMIN_PEER = 'ADMIN';
+  let myEmail = '';
+  let activePeer = ADMIN_PEER;
+  let lastTsBy = {};
+  let unreadTotal = 0;
+  let contactsCache = [];
 
   function els() {
     return {
       msgs: document.getElementById('opChatMsgs'),
       input: document.getElementById('opChatInput'),
       sendBtn: document.getElementById('btnOpChatSend'),
+      peerSel: document.getElementById('opChatPeer'),
+      refreshBtn: document.getElementById('btnOpChatRefresh'),
+      who: document.getElementById('opChatWho'),
       tabBtn: document.querySelector('.tab-btn[data-tab="soporte"]')
     };
   }
 
+  async function stGet(keys) {
+    return new Promise(r => chrome.storage.local.get(keys, d => r(d)));
+  }
+
   async function jwt() {
-    try { return (await new Promise(r => chrome.storage.local.get('tess_jwt', d => r(d.tess_jwt)))).tess_jwt || ''; }
+    try { return (await stGet(['tess_jwt'])).tess_jwt || ''; }
     catch (e) { return ''; }
   }
 
-  // Resuelve sesion: usa el token actual o intenta renovarlo con el refresh token
   async function ensureToken() {
     let token = await jwt();
     if (token) return token;
@@ -1382,7 +1397,66 @@ if (document.readyState === 'loading') {
   function updateBadge() {
     const t = els().tabBtn;
     if (!t) return;
-    t.textContent = unread > 0 ? '💬 SOPORTE (' + unread + ')' : '💬 SOPORTE';
+    t.textContent = unreadTotal > 0 ? 'ðŸ’¬ MENSAJES (' + unreadTotal + ')' : 'ðŸ’¬ MENSAJES';
+  }
+
+  function labelFor(email, name, online, unread) {
+    let l = email === ADMIN_PEER ? 'ðŸ›¡ SOPORTE' : ((name || email.split('@')[0]) + (online ? ' â—' : ''));
+    if (unread > 0) l += ' (' + unread + ')';
+    return l;
+  }
+
+  async function api(path) {
+    const token = await ensureToken();
+    if (!token) throw new Error('sin-sesion');
+    const res = await fetch(TAPI + path, { headers: { 'Authorization': 'Bearer ' + token } });
+    if (res.status === 401 && typeof tryRefreshToken === 'function') {
+      if (await tryRefreshToken()) return api(path);
+    }
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return res.json();
+  }
+
+  async function loadContacts() {
+    try {
+      const d = await api('/api/tess/chat/contacts');
+      contactsCache = d.contacts || [];
+      renderPeerSelect();
+    } catch (e) {}
+  }
+
+  async function loadMyThreads() {
+    let map = {};
+    unreadTotal = 0;
+    try {
+      const d = await api('/api/tess/chat/my-threads');
+      (d.threads || []).forEach(t => { map[t.email] = t.unread; unreadTotal += t.unread; });
+    } catch (e) {}
+    renderPeerSelect(map);
+    updateBadge();
+  }
+
+  function renderPeerSelect(unreadMap) {
+    const sel = els().peerSel;
+    if (!sel) return;
+    const prev = sel.value || ADMIN_PEER;
+    let html = '<option value="' + ADMIN_PEER + '"' + (prev === ADMIN_PEER ? ' selected' : '') + '>' +
+      labelFor(ADMIN_PEER, null, false, unreadMap ? (unreadMap[ADMIN_PEER] || 0) : 0) + '</option>';
+    for (const c of contactsCache) {
+      const u = unreadMap ? (unreadMap[c.email] || 0) : 0;
+      html += '<option value="' + escAttr(c.email) + '"' + (prev === c.email ? ' selected' : '') + '>' +
+        escAttr(labelFor(c.email, c.name, c.online, u)) + '</option>';
+    }
+    sel.innerHTML = html;
+    updateWho();
+  }
+
+  function escAttr(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+  function updateWho() {
+    const w = els().who;
+    if (!w) return;
+    w.textContent = activePeer === ADMIN_PEER ? 'ðŸ›¡ SOPORTE' : activePeer.split('@')[0];
   }
 
   function bubble(m) {
@@ -1390,11 +1464,11 @@ if (document.readyState === 'loading') {
     if (!box) return;
     const empty = box.querySelector('div[style*="margin:auto"]');
     if (empty) empty.remove();
-    const mine = m.from === 'ADMIN';
+    const mineMsg = m.from === myEmail;
     const div = document.createElement('div');
     div.style.cssText = 'max-width:80%;padding:7px 10px;border-radius:9px;font-size:11px;line-height:1.4;white-space:pre-wrap;word-break:break-word;' +
-      (mine ? 'align-self:flex-end;background:#22c55e;color:#06220f;' : 'align-self:flex-start;background:#1b1b2c;color:#ddd;');
-    div.textContent = m.text;
+      (mineMsg ? 'align-self:flex-end;background:#22c55e;color:#06220f;' : 'align-self:flex-start;background:#1b1b2c;color:#ddd;');
+    div.textContent = (activePeer === ADMIN_PEER && !mineMsg ? 'ðŸ›¡ ' : '') + m.text;
     const t = document.createElement('span');
     t.style.cssText = 'display:block;font-size:8px;opacity:.55;margin-top:3px;';
     t.textContent = new Date(m.ts).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
@@ -1406,91 +1480,101 @@ if (document.readyState === 'loading') {
   function sessionNotice() {
     const box = els().msgs;
     if (!box) return;
-    box.innerHTML = '<div style="margin:auto;color:#f59e0b;font-size:11px;text-align:center;padding:10px;">Tu sesión expiró.<br>Vuelve a iniciar sesión para usar el soporte.<br><button id="opChatRelog" style="margin-top:8px;background:#f59e0b;border:none;color:#000;font-weight:700;font-size:11px;padding:6px 14px;border-radius:6px;cursor:pointer;">INICIAR SESIÓN</button></div>';
+    box.innerHTML = '<div style="margin:auto;color:#f59e0b;font-size:11px;text-align:center;padding:10px;">Tu sesiÃ³n expirÃ³.<br>Vuelve a iniciar sesiÃ³n para usar los mensajes.<br><button id="opChatRelog" style="margin-top:8px;background:#f59e0b;border:none;color:#000;font-weight:700;font-size:11px;padding:6px 14px;border-radius:6px;cursor:pointer;">INICIAR SESIÃ“N</button></div>';
     const b = document.getElementById('opChatRelog');
     if (b) b.addEventListener('click', () => {
       window.open(chrome.runtime.getURL('dist/pages/login/login.html'), '_blank');
-      showTessToast('Inicia sesión y recarga la página de Talkytimes', 'info');
+      showTessToast('Inicia sesiÃ³n y recarga la pÃ¡gina de Talkytimes', 'info');
     });
   }
 
-  async function poll(full) {
-    const token = await ensureToken();
-    if (!token) return;
-    try {
-      const res = await fetch(TAPI + '/api/tess/chat/messages?after=' + (full ? 0 : lastTs), { headers: { 'Authorization': 'Bearer ' + token } });
-      if (res.status === 401) {
-        const ok = typeof tryRefreshToken === 'function' ? await tryRefreshToken() : false;
-        if (ok) { poll(full); return; }
-        return;
-      }
-      if (!res.ok) return;
-      const data = await res.json();
-      for (const m of (data.messages || [])) {
-        bubble(m);
-        lastTs = Math.max(lastTs, m.ts);
-        if (!mine(m)) { unread++; updateBadge(); }
-      }
-    } catch (e) {}
-  }
-  function mine(m) { return m.from === 'ADMIN'; }
+  function qs(peer, after) { return '/api/tess/chat/messages' + (peer === ADMIN_PEER ? '' : '?with=' + encodeURIComponent(peer)) + (after ? '&after=' + after : ''); }
 
-  window._startSupportChat = function () {
-    unread = 0; updateBadge();
-    poll(true);
-    if (!pollTimer) pollTimer = setInterval(() => poll(false), 5000);
-  };
+  async function openPeer(peer) {
+    activePeer = peer || ADMIN_PEER;
+    lastTsBy[activePeer] = 0;
+    const box = els().msgs;
+    if (box) box.innerHTML = '<div style="margin:auto;color:#555;font-size:10px;">Cargandoâ€¦</div>';
+    updateWho();
+    await pollActive(true);
+  }
+
+  async function pollActive(full) {
+    let data;
+    try { data = await api(qs(activePeer, full ? 0 : (lastTsBy[activePeer] || 0))); }
+    catch (e) { if (e.message === 'sin-sesion' && full) sessionNotice(); return; }
+    const msgs = data.messages || [];
+    const box = els().msgs;
+    if (full && box) box.innerHTML = '';
+    if (!msgs.length && full && box) {
+      box.innerHTML = '<div style="margin:auto;color:#666;font-size:10px;text-align:center;">AÃºn no hay mensajes en esta conversaciÃ³n.</div>';
+      return;
+    }
+    for (const m of msgs) {
+      bubble(m);
+      lastTsBy[activePeer] = Math.max(lastTsBy[activePeer] || 0, m.ts);
+    }
+    if (msgs.length && !full) loadMyThreads();
+  }
 
   async function sendMsg() {
     const input = els().input;
     const text = (input.value || '').trim();
     if (!text) return;
     const token = await ensureToken();
-    if (!token) {
-      input.value = text;
-      sessionNotice();
-      showTessToast('Sesión expirada — inicia sesión de nuevo', 'error');
-      return;
-    }
+    if (!token) { input.value = text; sessionNotice(); showTessToast('SesiÃ³n expirada â€” inicia sesiÃ³n de nuevo', 'error'); return; }
     input.value = '';
     try {
+      const body = activePeer === ADMIN_PEER ? { text } : { to: activePeer, text };
       const res = await fetch(TAPI + '/api/tess/chat/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-        body: JSON.stringify({ text })
+        body: JSON.stringify(body)
       });
-      if (res.status === 401) {
-        const ok = typeof tryRefreshToken === 'function' ? await tryRefreshToken() : false;
-        if (ok) { input.value = text; sendMsg(); return; }
-        input.value = text;
-        sessionNotice();
-        showTessToast('Sesión expirada — inicia sesión de nuevo', 'error');
-        return;
-      }
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        showTessToast('⚠ Soporte: ' + (data.error || ('Error ' + res.status)), 'error');
+        showTessToast('âš  Mensajes: ' + (data.error || ('Error ' + res.status)), 'error');
         input.value = text;
         return;
       }
       if (data.message) bubble(data.message);
-      lastTs = Math.max(lastTs, data.message ? data.message.ts : 0);
+      lastTsBy[activePeer] = Math.max(lastTsBy[activePeer] || 0, data.message ? data.message.ts : 0);
     } catch (e) {
-      showTessToast('⚠ Sin conexión con el servidor', 'error');
+      showTessToast('âš  Sin conexiÃ³n con el servidor', 'error');
       input.value = text;
     }
   }
 
+  window._startSupportChat = function () {
+    loadContacts();
+    loadMyThreads();
+    pollActive(true);
+  };
+
   // Enlazar eventos cuando el panel exista
-  const bootTimer = setInterval(() => {
+  const bootTimer = setInterval(async () => {
     const e = els();
-    if (e.input && e.sendBtn) {
+    if (e.input && e.sendBtn && e.peerSel) {
       e.sendBtn.addEventListener('click', sendMsg);
       e.input.addEventListener('keypress', ev => { if (ev.key === 'Enter') sendMsg(); });
+      e.peerSel.addEventListener('change', () => openPeer(e.peerSel.value));
+      e.refreshBtn.addEventListener('click', loadContacts);
       clearInterval(bootTimer);
     }
   }, 1500);
 
-  // Sondeo ligero permanente para el badge de no leidos
-  setInterval(() => { if (document.getElementById('tesseract-main-panel')) poll(false); }, 20000);
+  // Ciclos de fondo: hilo activo 5s; contactos+no-leidos 15s
+  setInterval(() => {
+    if (!document.getElementById('tesseract-main-panel')) return;
+    pollActive(false).catch(() => {});
+  }, 5000);
+  setInterval(() => {
+    if (!document.getElementById('tesseract-main-panel')) return;
+    loadMyThreads().catch(() => {});
+    if (Math.floor(Date.now() / 60000) % 3 === 0) loadContacts().catch(() => {});
+  }, 15000);
+
+  // Identidad propia (para alinear mis burbujas a la derecha)
+  stGet(['user_email', 'tess_user']).then(d => { myEmail = (d.user_email && String(d.user_email).includes('@')) ? d.user_email : (d.tess_user && String(d.tess_user).includes('@') ? d.tess_user : ''); });
 })();
+

@@ -1187,16 +1187,47 @@ async function markChatRead(userA, userB) {
 
 async function getAdminThreads() {
   const docs = await db.collection('tess_chat').find({}).sort({ ts: -1 }).limit(1000).toArray();
+  const rootEmail = (process.env.TESS_ADMIN_EMAIL || 'ChevyAdmin@tesseract.com').toLowerCase();
   const map = new Map();
   for (const m of docs) {
     if (m.from === m.to) continue;
     const other = m.from === CHAT_ADMIN_ID ? m.to : m.from;
     if (!other || other === CHAT_ADMIN_ID) continue;
+    if (String(other).toLowerCase() === rootEmail) continue;
     let t = map.get(other);
     if (!t) { t = { email: other, lastText: m.text, lastTs: m.ts, unread: 0 }; map.set(other, t); }
     if (m.to === CHAT_ADMIN_ID && !m.read) t.unread++;
   }
   return Array.from(map.values()).sort((a, b) => b.lastTs - a.lastTs);
+}
+
+async function getMyThreads(userEmail) {
+  const me = String(userEmail);
+  const docs = await db.collection('tess_chat')
+    .find({ $or: [{ from: me }, { to: me }] })
+    .sort({ ts: -1 })
+    .limit(500)
+    .toArray();
+  const map = new Map();
+  for (const m of docs) {
+    const other = m.from === me ? m.to : m.from;
+    if (!other || other === me) continue;
+    let t = map.get(other);
+    if (!t) { t = { email: other, lastText: m.text, lastTs: m.ts, unread: 0 }; map.set(other, t); }
+    if (m.to === me && !m.read) t.unread++;
+  }
+  return Array.from(map.values()).sort((a, b) => b.lastTs - a.lastTs);
+}
+
+async function getChatContacts() {
+  return await db.collection('tess_users')
+    .find(
+      { is_banned: 0, is_approved: 1 },
+      { projection: { _id: 0, email: 1, display_name: 1, last_activity: 1, is_admin: 1, is_developer: 1, is_office_admin: 1 } }
+    )
+    .sort({ display_name: 1, email: 1 })
+    .limit(1000)
+    .toArray();
 }
 
 module.exports = {
@@ -1219,5 +1250,6 @@ module.exports = {
   updateHistoryBatch, updateConfigSync, appendActivityLog, getHistory, getConfig,
   getOperatorSnapshots,
   createStaffUser, getStaffUsers,
+  getMyThreads, getChatContacts,
   saveChatMessage, getChatMessages, markChatRead, getAdminThreads
 };

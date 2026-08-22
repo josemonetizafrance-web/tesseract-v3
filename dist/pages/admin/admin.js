@@ -173,6 +173,14 @@ function fillStatsSelect() {
   sel.innerHTML = '<option value="">Selecciona operador…</option>' +
     ops.map(u => `<option value="${esc(u.email)}">${esc(u.display_name || u.email)} — ${esc(u.email)}</option>`).join('');
   if (prev && ops.some(u => u.email === prev)) sel.value = prev;
+
+  const ncSel = document.getElementById('new-chat-user');
+  const me = (document.getElementById('admin-email').textContent || '').toLowerCase();
+  const prevChat = ncSel.value;
+  const people = cachedUsers.filter(u => (u.email || '').toLowerCase() !== me);
+  ncSel.innerHTML = '<option value="">Selecciona usuario…</option>' +
+    people.map(u => `<option value="${esc(u.email)}">${esc(u.display_name || u.email)} — ${esc(u.email)}</option>`).join('');
+  if (prevChat && people.some(u => u.email === prevChat)) ncSel.value = prevChat;
 }
 
 document.querySelectorAll('.range-btn').forEach(b => b.addEventListener('click', () => {
@@ -217,6 +225,10 @@ function initChatUI() {
   document.getElementById('chat-threads').addEventListener('click', e => {
     const t = e.target.closest('.thread');
     if (t) openThread(t.dataset.email);
+  });
+  document.getElementById('btn-new-chat').addEventListener('click', () => {
+    const sel = document.getElementById('new-chat-user');
+    if (sel.value) openThread(sel.value);
   });
 }
 
@@ -293,7 +305,8 @@ async function sendChatMsg() {
   } catch (e) { alert('Error al enviar: ' + e.message); }
 }
 
-// Poll del hilo abierto
+// Refresco continuo de hilos: un operador nuevo aparece sin importar la pestana activa
+timers.push(setInterval(() => { refreshThreads(); }, 5000));
 timers.push(setInterval(() => { if (activeTab === 'chat' && chatWith) pollThread(false).catch(() => {}); }, 4000));
 
 // ============ STAFF (solo admin raiz) ============

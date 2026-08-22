@@ -116,6 +116,11 @@ select:focus { border-color:#8b5cf6; }
   <!-- CHAT -->
   <section class="tab-content" id="tab-chat">
     <div class="panel-title">COMUNICACIÓN CON OPERADORES</div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
+      <span style="font-size:9px;letter-spacing:1.5px;color:#666;font-weight:700;">NUEVO CHAT:</span>
+      <select id="new-chat-user"><option value="">Selecciona usuario…</option></select>
+      <button class="btn-send" id="btn-new-chat" style="padding:8px 16px;">ABRIR</button>
+    </div>
     <div class="chat-wrap">
       <div class="chat-side" id="chat-threads"><div class="placeholder">Sin conversaciones todavía.</div></div>
       <div class="chat-main">
