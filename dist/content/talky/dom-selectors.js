@@ -169,6 +169,17 @@ var TALK_Y = {
   ICEBREAKER_SEND_MODERATION: 'button[data-test-id*="send-to-moderation"], button[data-test-id*="send-moderation"]',
 
   // ─── RESOLVE HELPER: tries each selector in order ───
+  // Fallbacks genericos (auditoria: claves referenciadas sin definir)
+  ANY_TEXTAREA: 'textarea',
+  TAG_LABEL: 'span[class*="tag"], div[class*="tag-label"], label[class*="tag"], .tag',
+  CONTACT_LIST_ALT2: '[class*="contacts-list"], ul[class*="contact"], div[class*="friend-list"], [data-test-id*="friends-list"]',
+  ACTION_BTN_WILDCARD: 'button, [role="button"]',
+  ACTIVE_SECTION: 'div[class*="limits"], section[class*="active"], div[class*="active-section"]',
+  EMAIL_CONTENTEDITABLE: '[contenteditable="true"][class*="mail"], [contenteditable="true"][class*="letter"]',
+  EMAIL_COMPOSE: '[class*="compose"] textarea, [data-test-id*="compose"] textarea, [class*="mail-compose"] [contenteditable="true"]',
+  EMAIL_BODY: '[class*="mail-body"] textarea, [class*="email-body"] textarea, [name*="body"]',
+  EMAIL_LETTER_CONTENT: '[class*="letter-content"], [data-test-id*="letter-content"], textarea[name*="letter"]',
+
   // Usage: TALK_Y.resolve('PAGE_MESSAGES', [TALK_Y.PAGE_MESSAGES, '.fallback-class'])
   resolve: function (name, fallbacks) {
     var el = document.querySelector(this[name]);
