@@ -458,7 +458,7 @@ executeLFPMessages = window.executeLFPMessages = async function () {
   if (lfpMsgActive) {
     lfpMsgActive = false;
     lfpMsgToast('\u23F9 L+F+P Mensajes Detenido', 'info');
-    try { localStorage.removeItem('lfpMsgSweepActive'); localStorage.removeItem('lfpMsgState'); } catch (e) {}
+    try { localStorage.removeItem('lfpMsgSweepActive'); localStorage.removeItem('lfpMsgState'); localStorage.setItem('lfpMsgStopAt', String(Date.now())); } catch (e) {}
     var btn = document.getElementById('btnLFPMessages');
     if (btn) { btn.textContent = '\uD83D\uDCAC L+F+P MENSAJES'; btn.style.opacity = '1'; }
     return;
@@ -473,6 +473,7 @@ executeLFPMessages = window.executeLFPMessages = async function () {
   lfpMsgVisited = [];
   lfpMsgStats = { likes: 0, follows: 0, photoLikes: 0, processed: 0 };
   window.lfpMsgStats = lfpMsgStats;
+  try { localStorage.removeItem('lfpMsgStopAt'); } catch (e) {}
 
   var btn = document.getElementById('btnLFPMessages');
   if (btn) { btn.textContent = '\u23F8 L+F+P MENSAJES'; btn.style.opacity = '0.6'; }
@@ -494,6 +495,7 @@ executeLFPMessages = window.executeLFPMessages = async function () {
 
   // Find first unvisited, non-blacklisted contact and navigate
   for (var ci = 0; ci < contacts.length; ci++) {
+    if (!lfpMsgActive) { console.log('[LFP-MSG] Detenido por el usuario (loop inicial)'); return; }
     var c = contacts[ci];
     if (lfpMsgVisited.indexOf(c.id) !== -1) continue;
     if (lfpIsBlacklisted(c.id)) { lfpMsgVisited.push(c.id); continue; }
@@ -606,6 +608,7 @@ executeLFPMessages = window.executeLFPMessages = async function () {
           lfpMsgToast('\u2705 L+F+P Mensajes completado: ' + lfpMsgStats.processed + ' contactos', 'success');
           return;
         }
+        if (!lfpMsgActive) { console.log('[LFP-MSG] Detenido por el usuario (skip ya-done)'); return; }
         try {
           localStorage.setItem('lfpMsgSweepActive', '1');
           localStorage.setItem('lfpMsgState', JSON.stringify({
@@ -625,20 +628,20 @@ executeLFPMessages = window.executeLFPMessages = async function () {
 
       // Like
       var lb2 = document.querySelector('button[data-test-id*="on-like"]');
-      if (lb2) {
+      if (lb2 && lfpMsgActive) {
         var svg2 = lb2.querySelector('svg');
         if ((svg2 && svg2.id === 'HeartOutline') || lb2.getAttribute('data-selected') === 'false') {
-          try { lb2.scrollIntoView({ block: 'center' }); await lfpMsgSleep(900); lb2.click(); lfpMsgStats.likes++; } catch (e) {}
+          try { lb2.scrollIntoView({ block: 'center' }); await lfpMsgSleep(900); if (!lfpMsgActive) return; lb2.click(); lfpMsgStats.likes++; } catch (e) {}
           await lfpMsgSleep(900);
         }
       }
 
       // Follow
       var fb2 = document.querySelector(TALK_Y.FOLLOW_BTN);
-      if (fb2) {
+      if (fb2 && lfpMsgActive) {
         var ft2 = (fb2.textContent || '').toLowerCase() + (fb2.getAttribute('aria-label') || '').toLowerCase();
         if (!/\b(following|siguiendo|unfollow)\b/.test(ft2) && !fb2.querySelector('svg[id*="Check"]')) {
-          try { fb2.scrollIntoView({ block: 'center' }); await lfpMsgSleep(900); fb2.click(); lfpMsgStats.follows++; } catch (e) {}
+          try { fb2.scrollIntoView({ block: 'center' }); await lfpMsgSleep(900); if (!lfpMsgActive) return; fb2.click(); lfpMsgStats.follows++; } catch (e) {}
           await lfpMsgSleep(900);
         }
       }
@@ -677,6 +680,7 @@ executeLFPMessages = window.executeLFPMessages = async function () {
         return;
       }
 
+      if (!lfpMsgActive) { console.log('[LFP-MSG] Detenido por el usuario (perfil, antes de navegar al siguiente)'); return; }
       try {
         localStorage.setItem('lfpMsgSweepActive', '1');
         localStorage.setItem('lfpMsgState', JSON.stringify({
@@ -730,6 +734,7 @@ executeLFPMessages = window.executeLFPMessages = async function () {
       return;
     }
 
+    if (!lfpMsgActive) { console.log('[LFP-MSG] Detenido por el usuario (ruta mensajes, antes de navegar)'); return; }
     try {
       localStorage.setItem('lfpMsgSweepActive', '1');
       localStorage.setItem('lfpMsgState', JSON.stringify({
