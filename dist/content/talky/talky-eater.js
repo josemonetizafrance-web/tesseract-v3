@@ -35,13 +35,13 @@ function toggleClonacion() {
   var btn = document.getElementById('btnStopClone');
   if (!btn) return;
   if (clonacionActiva) {
-    btn.innerHTML = '⏹ CLONACIÃ“N: ACTIVA';
+    btn.innerHTML = '⏹ CLONACIÓN: ACTIVA';
     btn.style.borderColor = '#ef4444';
     btn.style.background = 'rgba(239,68,68,0.15)';
     btn.style.color = '#ef4444';
     showTessToast('🎭 Captura de estilo ACTIVADA', 'success');
   } else {
-    btn.innerHTML = '▶ CLONACIÃ“N: DETENIDA';
+    btn.innerHTML = '▶ CLONACIÓN: DETENIDA';
     btn.style.borderColor = '#22c55e';
     btn.style.background = 'rgba(34,197,94,0.15)';
     btn.style.color = '#22c55e';
@@ -664,7 +664,7 @@ function ensurePanelVisible() {
   }
 }
 
-// ============ GENERACIÃ“N DE RESPUESTAS ============
+// ============ GENERACIÓN DE RESPUESTAS ============
 var _eaterLastGenTime = 0;
 var _eaterGenCount = 0;
 var _eaterGenDate = '';
@@ -723,7 +723,7 @@ function generateFromMessage(msgText) {
   });
 }
 
-// ============ EXTRACCIÃ“N DE PERFIL ============
+// ============ EXTRACCIÓN DE PERFIL ============
 function checkPhoto(el) {
   const imgs = el.querySelectorAll('img[class*="photo"], img[class*="avatar"], img[src]');
   for (const img of imgs) {
@@ -778,10 +778,10 @@ function extractHobbies(el) {
 // ============ IA GENERATION ============
 // PROMPT MAESTRO - CONVERSACIONES MAGNETICAS, HUMANAS Y CON PROPOSITO (VERSION FINAL)
 // System prompt permanente para la generacion de respuestas IA (icono de robot en mensajes).
-const TESS_MASTER_PROMPT = `PROMPT MAESTRO â€“ CONVERSACIONES MAGNÉTICAS, HUMANAS Y CON PROPÃ“SITO (VERSIÃ“N FINAL AJUSTADA Y COMPLETA)
+const TESS_MASTER_PROMPT = `PROMPT MAESTRO – CONVERSACIONES MAGNÉTICAS, HUMANAS Y CON PROPÓSITO (VERSIÓN FINAL AJUSTADA Y COMPLETA)
 
 ROL Y OBJETIVO
-Actúa como un hombre real, entre 30 y 45 años, emocionalmente maduro, seguro de sí mismo, con calma interior y capacidad para generar atracción natural a través de la autenticidad. No eres un poeta, ni un robot, ni un "seductor" de manual. Eres un hombre que conecta de verdad, pero que también sabe sostener el marco, generar tensión positiva y despertar deseoâ€”sin necesidad, sin urgencia, sin falsedad. Busca técnicas conversacionales aplicables al entorno de citas online, manteniendo el realismo, la naturalidad y un tono humano, sin ser exageradamente romántico ni usar frases trilladas.
+Actúa como un hombre real, entre 30 y 45 años, emocionalmente maduro, seguro de sí mismo, con calma interior y capacidad para generar atracción natural a través de la autenticidad. No eres un poeta, ni un robot, ni un "seductor" de manual. Eres un hombre que conecta de verdad, pero que también sabe sostener el marco, generar tensión positiva y despertar deseo—sin necesidad, sin urgencia, sin falsedad. Busca técnicas conversacionales aplicables al entorno de citas online, manteniendo el realismo, la naturalidad y un tono humano, sin ser exageradamente romántico ni usar frases trilladas.
 
 PRINCIPIOS FUNDAMENTALES
 
@@ -824,7 +824,9 @@ function collectRecentConversation(maxTurns) {
     var seen = {};
     for (var i = 0; i < best.length; i++) {
       var el = best[i];
-      var text = (el.textContent || '').replace(/\s+/g, ' ').trim();
+      // Extraer SOLO el texto del mensaje (p.content), no la hora ni metadatos
+      var textEl = el.querySelector('p.content') || el.querySelector('[class*="content"] p') || null;
+      var text = ((textEl ? textEl.textContent : el.textContent) || '').replace(/\s+/g, ' ').trim();
       if (!text || text.length < 2 || seen[text]) continue;
       seen[text] = 1;
       var mine = false;
@@ -852,7 +854,7 @@ async function generateWithAI(name, profile, accumulatedMsg) {
     var confianza = 'nueva';
     if (/\b(amor|cariño|bebé|mi vida|corazón|querido)\b/i.test(accumulatedMsg)) confianza = 'alta';
     else if (/\b(gracias|encanta|gusta|divertido|interesante|bonito|lindo)\b/i.test(accumulatedMsg)) confianza = 'media';
-    var confianzaHint = confianza === 'alta' ? 'RELACIÃ“N DE PAREJA: responde como su pareja real. Usa "mi vida", "mi reina", "corazón" de forma natural. Habla con posesión suave ("te tengo", "estoy contigo"), protección ("descansá, que yo sigo aquí") y deseo real ("me encantaría tenerte cerca"). Sé cálido, cercano, con confianza en la intimidad.' :
+    var confianzaHint = confianza === 'alta' ? 'RELACIÓN DE PAREJA: responde como su pareja real. Usa "mi vida", "mi reina", "corazón" de forma natural. Habla con posesión suave ("te tengo", "estoy contigo"), protección ("descansá, que yo sigo aquí") y deseo real ("me encantaría tenerte cerca"). Sé cálido, cercano, con confianza en la intimidad.' :
       confianza === 'media' ? 'BUENA VIBRA: sé cálido pero sin exagerar la confianza. Coqueteo sutil, juguetón y seguro. Genera atracción con tensión positiva sin apodos ni posesión. Sigue el tono positivo.' :
       'RECIÉN CONOCIENDO: sé serio, seguro, respetuoso y juguetón. Nada de apodos ni palabras de cariño. Construye rapport natural con coqueteo sutil que genere tensión atractiva sin presión.';
 
@@ -889,7 +891,7 @@ async function generateWithAI(name, profile, accumulatedMsg) {
       '- TRATO HUMANO REAL: habla como un amigo con ventaja, no como chat bot. Usa humor callejero, referencias cotidianas, silencios narrados. Si ella cuenta algo personal, reacciona con empatia masculina, no con analisis frio. Se genuino.\n' +
       '- PUSH-PULL INTELIGENTE: alterna calidez con distancia calculada. Un cumplido seguido de un quite. Interes genuino seguido de indiferencia juguetona. Nunca valides sin quitar algo primero. La tension se construye con contrastes, no con rectas.\n' +
       '- PSICOLOGIA OSCURA DOSIFICADA: misterio controlado, validacion con giro, tension implicita. Provoca curiosidad, no la resuelvas. Insinua sin mostrar.\n' +
-      '- TERMOMETRO EMOCIONAL: refleja EXACTAMENTE el tono del cliente. Si es romántico â†’ romántico. Si es serio â†’ serio. Si es jugueton â†’ jugueton. Si discute â†’ misma intensidad. Si usa cariño â†’ mismo nivel de afecto.\n' +
+      '- TERMOMETRO EMOCIONAL: refleja EXACTAMENTE el tono del cliente. Si es romántico → romántico. Si es serio → serio. Si es jugueton → jugueton. Si discute → misma intensidad. Si usa cariño → mismo nivel de afecto.\n' +
       '- MARCO Y DOMINIO: tu guias. Si ella se queja: entiendo pero... + redirige. Si ella se distancia: cuando quieras retomamos + silencio. Nunca ruegues, nunca insistas, nunca te disculpes de mas.\n' +
       '- TRATO SEGUN VINCULO: si usa palabras de carino, responde como pareja real con posesion suave y deseo. Si es nueva, nada de apodos, se serio, seguro y jugueton.\n' +
       '- NO uses metaforas, lenguaje poetico ni florido. Se directo, conciso y natural.\n' +
@@ -898,6 +900,7 @@ async function generateWithAI(name, profile, accumulatedMsg) {
       '- NO saludes a menos que el cliente haya saludado.\n' +
       '- NO preguntes hora, fecha, ni en que piensas?.\n' +
       '- NO uses frases hechas ni halagos vacios.\n' +
+      '- IDIOMA: responde en el MISMO idioma en que escribe el cliente. Si escribe en ingles, responde en ingles natural; si en espanol, en espanol. NUNCA mezcles idiomas ni respondas en otro idioma.\n' +
       '- NO termines cada respuesta con pregunta. Solo pregunta si es necesario.\n' +
       '- NO lleves todo al terreno romantico. Puede ser divertida, intelectual, cotidiana.\n' +
       '- Si el cliente usa carino, responde con el mismo nivel de afecto reflejando su tono.\n' +
@@ -919,7 +922,12 @@ async function generateWithAI(name, profile, accumulatedMsg) {
     ];
 
     const history = collectRecentConversation(10);
+    // Evitar duplicar el ultimo mensaje: si el historial ya lo trae, quitarlo del final
     if (history.length) {
+      var lastH = history[history.length - 1];
+      if (!lastH.mine && accumulatedMsg.trim().toLowerCase().indexOf(lastH.content.toLowerCase().substring(0, 40)) === 0) {
+        history.pop();
+      }
       console.log('[EATER AI] Historial incluido:', history.length, 'turnos');
       for (var hi = 0; hi < history.length; hi++) {
         aiMessages.push(history[hi].mine ? { role: 'assistant', content: history[hi].content } : { role: 'user', content: history[hi].content });
@@ -1005,7 +1013,7 @@ function displaySuggestions(name) {
   }
 }
 
-// ============ TRADUCCIÃ“N ============
+// ============ TRADUCCIÓN ============
 async function translateEaterText(text) {
   var code = selectedLangCode;
   if (code === 'es') { copyToChatInput(text); return; }
@@ -1024,7 +1032,7 @@ async function translateEaterText(text) {
       var ml = ta ? parseInt(ta.getAttribute('maxlength')) : 300;
       if (ml && trimmed.length > ml) trimmed = trimmed.substring(0, ml);
       copyToChatInput(trimmed);
-      console.log('[TRANSLATE] ES â†’ ' + targetLang.name + ':', trimmed.substring(0, 50));
+      console.log('[TRANSLATE] ES → ' + targetLang.name + ':', trimmed.substring(0, 50));
     }
   } catch(e) {
     console.warn('[TRANSLATE] Error:', e.message);
@@ -1051,7 +1059,7 @@ async function translateEaterResponse() {
     );
     var translated = groqData?.choices?.[0]?.message?.content;
 
-    console.log('[TRANSLATE] Solicitando traducción â†’ ' + targetLang.name + ':', sourceText.substring(0, 50));
+    console.log('[TRANSLATE] Solicitando traducción → ' + targetLang.name + ':', sourceText.substring(0, 50));
     
     if (translated && translated.trim()) {
       area.value = translated.trim();
@@ -1171,7 +1179,7 @@ function refreshEaterSuggestions() {
   });
 }
 
-// ============ TRADUCCIÃ“N (ES â†’ EN / FR / PT) ============
+// ============ TRADUCCIÓN (ES → EN / FR / PT) ============
 async function translateText(text, targetCode, targetName) {
   var defaultLang = translateLanguages.find(function (l) { return l.code === selectedLangCode; }) || translateLanguages[0];
   const code = targetCode || defaultLang.code;
@@ -1389,8 +1397,8 @@ function detectCurrentProfile() {
   console.log('[TESSERACT] Profile detection:', profileId, '| name:', profileName, '| url:', location.href);
 
   if (profileName || profileId) {
-    nameEl.textContent = profileName || 'â€”';
-    idEl.textContent = 'ID: ' + (profileId || 'â€”');
+    nameEl.textContent = profileName || '—';
+    idEl.textContent = 'ID: ' + (profileId || '—');
     badge.style.display = 'flex';
     var rawId = profileId ? profileId.replace(/^0+/, '') : '';
     if (rawId) {
