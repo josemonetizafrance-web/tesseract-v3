@@ -265,6 +265,10 @@
       const vjson = await vres.json();
       if (adminBtn && vres.ok && (vjson.isAdmin || vjson.isDeveloper)) {
         adminBtn.style.display = '';
+      } else if (adminBtn && !vres.ok) {
+        // Respaldo: flag guardado en el login si /verify no responde
+        const flags = await chrome.storage.local.get(['isAdmin', 'isDeveloper']);
+        if (flags.isAdmin || flags.isDeveloper) adminBtn.style.display = '';
       }
     } catch (e) { /* sin permisos: queda oculto */ }
 
