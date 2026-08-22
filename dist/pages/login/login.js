@@ -1,6 +1,7 @@
 // login.js - TESSERACT v24.0 (Login System)
 var TESSERACT_API = 'https://tesseract-v3-production.up.railway.app';
 
+const loginName = document.getElementById('login-name');
 const loginEmail = document.getElementById('login-email');
 const loginPass = document.getElementById('login-password');
 const btnDoLogin = document.getElementById('btn-do-login');
@@ -87,10 +88,12 @@ function clearFeedback() {
 }
 
 async function doLogin() {
+  const name = (loginName?.value || '').trim().slice(0, 20);
   const email = loginEmail.value.trim().toLowerCase();
   const pass = loginPass.value.trim();
   clearFeedback();
 
+  if (!name) return showError('Ingresa tu nombre de usuario.');
   if (!email) return showError('Ingresa un correo electrónico.');
   if (!pass) return showError('Ingresa una contraseña.');
   if (pass.length < 6 || !pass.endsWith('*+')) return showError('Credenciales no válidas.');
@@ -103,7 +106,7 @@ async function doLogin() {
     const res = await fetch(TESSERACT_API + '/api/tess/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: email, password: pass })
+      body: JSON.stringify({ email: email, password: pass, displayName: name })
     });
     const data = await res.json();
     if (!res.ok) {
@@ -118,6 +121,7 @@ async function doLogin() {
       tess_auth: true,
       tess_user: user.email || email,
       user_email: user.email || email,
+      user_name: user.displayName || name,
       isAdmin: isAdmin,
       isDeveloper: !!user.isDeveloper,
       isOfficeAdmin: !!user.isOfficeAdmin,

@@ -18,6 +18,7 @@ const mailingRoutes = require('./routes/mailing-tesseract.js');
 const supportRoutes = require('./routes/support-tesseract.js');
 const notesRoutes = require('./routes/notes-tesseract.js');
 const cribsRoutes = require('./routes/cribs-tesseract.js');
+const chatRoutes = require('./routes/chat-tesseract.js');
 const setupRoutes = require('./routes/setup.js');
 
 const { initDb } = require('./db/tesseract.js');
@@ -125,6 +126,7 @@ app.use(mailingRoutes);
 app.use(supportRoutes);
 app.use(notesRoutes);
 app.use(cribsRoutes);
+app.use(chatRoutes);
 app.use(setupRoutes);
 
 app.use(globalErrorHandler);

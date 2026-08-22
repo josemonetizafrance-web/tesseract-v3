@@ -120,6 +120,34 @@ function startResponseTimer(convEl, clientName, afterEl) {
   tick();
 
   _responseTimers.set(clientName, { timerId, startTime });
+  bumpRespStat('repliesReceived');
+}
+
+function bumpRespStat(field) {
+  try {
+    const s = Tesseract.get('botStats') || {};
+    s[field] = (s[field] || 0) + 1;
+    Tesseract.set('botStats', s);
+  } catch (e) {}
+}
+
+// Al enviar el operador un mensaje: resuelve los temporizadores pendientes como respondidas
+function resolvePendingResponses() {
+  if (_responseTimers.size === 0) return;
+  const RESPONSE_WINDOW_MS = 120000; // dos minutos
+  let changed = false;
+  for (const [name, entry] of _responseTimers) {
+    clearInterval(entry.timerId);
+    const delta = Date.now() - entry.startTime;
+    bumpRespStat('repliesResponded');
+    bumpRespStat(delta <= RESPONSE_WINDOW_MS ? 'respOnTime' : 'respLate');
+    _responseTimers.delete(name);
+    changed = true;
+  }
+  document.querySelectorAll(TALK_Y.TIMER_ELEMENT).forEach(el => el.remove());
+  if (changed && typeof syncMetricsToStorage === 'function') {
+    try { syncMetricsToStorage('RESPONSE_TRACKED'); } catch (e) {}
+  }
 }
 
 function stopResponseTimer(clientName) {
@@ -156,7 +184,7 @@ function checkForSentMessages() {
       for (const el of sent) {
         el.classList.add('tess-checked-sent');
       }
-      stopResponseTimer();
+      resolvePendingResponses();
       return;
     }
   }

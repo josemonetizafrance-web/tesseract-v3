@@ -410,6 +410,11 @@ async function executeSaludoPush() {
 
       spConfig.sentToday++;
       sent++;
+      try {
+        var spStats = Tesseract.get('botStats') || {};
+        spStats.saludosSent = (spStats.saludosSent || 0) + 1;
+        Tesseract.set('botStats', spStats);
+      } catch (e) {}
       await spMarkProfileContacted(profileId, mi);
       await saveSPConfig();
       updateSPUI();
@@ -421,6 +426,7 @@ async function executeSaludoPush() {
 
   console.log('[SP] Barrido completado. Enviados:', sent);
   if (sent > 0) {
+    try { if (typeof syncMetricsToStorage === 'function') syncMetricsToStorage('SAYHI_BATCH', sent); } catch (e) {}
     showTessToast('Say Hi! completado: ' + sent + ' mensajes enviados', 'success');
   } else {
     showTessToast('No se enviaron saludos. Verifica blacklist y limites.', 'warning');

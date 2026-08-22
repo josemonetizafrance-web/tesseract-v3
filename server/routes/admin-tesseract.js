@@ -3,7 +3,7 @@
  */
 const { Router } = require('express');
 const bcrypt = require('bcryptjs');
-const { findUserByEmail, findUserById, updateUserPremium, setUserBan, setUserDeveloper, updateUserPassword, setUserCustomPlan, logActivity, getRecentActivity, getRecentBotActions, getMetricsOverview, createUser, updateUserOffice, getUsersByOffice, getMetricsByOffice, getActivityByOffice, clearActivityLog, clearActivityLogByOffice, getAllUsers, createOffice, getAllOffices, deleteOffice, setUserOfficeAdmin, deleteUser, updateLastActivity, getUsersWithMetrics } = require('../db/tesseract.js');
+const { findUserByEmail, findUserById, updateUserPremium, setUserBan, setUserDeveloper, updateUserPassword, setUserCustomPlan, logActivity, getRecentActivity, getRecentBotActions, getMetricsOverview, createUser, updateUserOffice, getUsersByOffice, getMetricsByOffice, getActivityByOffice, clearActivityLog, clearActivityLogByOffice, getAllUsers, createOffice, getAllOffices, deleteOffice, setUserOfficeAdmin, deleteUser, updateLastActivity, getUsersWithMetrics, getOperatorSnapshots } = require('../db/tesseract.js');
 const { validateToken, requireTesseractAdmin, requireMasterAdmin, enforceOfficeFilter, requireOfficeScoped } = require('../middleware/auth-tesseract.js');
 
 const router = Router();
@@ -333,6 +333,94 @@ router.post('/api/tess/admin/set-plan', requireTesseractAdmin, requireOfficeScop
   await setUserCustomPlan(user._id, plan);
   await logActivity(req.user._id.toString(), req.user.email, `Plan "${plan}" asignado a ${email}`);
   res.json({ success: true });
+});
+
+// Cambiar el correo de un operador
+router.post('/api/tess/admin/set-email', requireTesseractAdmin, requireOfficeScoped, async (req, res) => {
+  try {
+    const { email, newEmail } = req.body;
+    if (!email || !newEmail) return res.status(400).json({ error: 'Email y nuevo email requeridos' });
+    const ne = String(newEmail).trim().toLowerCase();
+    if (!ne.endsWith('@tesseract.com')) return res.status(400).json({ error: 'Solo correos @tesseract.com' });
+    const masterEmail = (process.env.TESS_ADMIN_EMAIL || 'ChevyAdmin@tesseract.com').toLowerCase();
+    const oe = String(email).trim().toLowerCase();
+    if (oe === masterEmail) return res.status(403).json({ error: 'No puedes cambiar el correo del admin maestro' });
+    const user = await findUserByEmail(oe);
+    if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+    if (ne !== oe) {
+      const dup = await findUserByEmail(ne);
+      if (dup) return res.status(409).json({ error: 'Ese correo ya está en uso' });
+      const { getDb } = require('../db/tesseract.js');
+      await getDb().collection('tess_users').updateOne({ _id: user._id }, { $set: { email: ne, updated_at: Date.now() } });
+      await logActivity(req.user._id.toString(), req.user.email, `Correo cambiado: ${oe} -> ${ne}`);
+    }
+    res.json({ success: true, email: ne });
+  } catch (err) {
+    console.error('[ADMIN] set-email error:', err);
+    res.status(500).json({ error: 'Error: ' + err.message });
+  }
+});
+
+// Estadisticas de un operador por rango: day | week | month
+router.get('/api/tess/admin/operator-stats', requireTesseractAdmin, enforceOfficeFilter, async (req, res) => {
+  try {
+    const email = String(req.query.email || '').toLowerCase();
+    const range = ['day', 'week', 'month'].includes(req.query.range) ? req.query.range : 'day';
+    const user = await findUserByEmail(email);
+    if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    const snaps = await getOperatorSnapshots(user._id.toString(), 60); // asc por fecha
+    const todayStr = new Date().toISOString().slice(0, 10);
+    let startStr = todayStr;
+    if (range !== 'day') {
+      const d = new Date();
+      d.setDate(d.getDate() - (range === 'week' ? 7 : 30));
+      startStr = d.toISOString().slice(0, 10);
+    }
+
+    // snapshots acumulativos: rango = ultimo total - ultimo total antes del inicio
+    const latest = snaps.length ? snaps[snaps.length - 1] : null;
+    let baseline = null;
+    for (const s of snaps) { if (s.date < startStr) baseline = s; else break; }
+
+    const g = (s, f) => Number(s && s[f]) || 0;
+    const diff = {};
+    for (const f of ['likes', 'follows', 'cartas', 'sweeps', 'saludos', 'icebreakers', 'messagesSent', 'mailing', 'resp_on_time', 'resp_late']) {
+      diff[f] = Math.max(0, g(latest, f) - g(baseline, f));
+    }
+    const respTotal = diff.resp_on_time + diff.resp_late;
+    const onTimePct = respTotal > 0 ? Math.round((100 * diff.resp_on_time) / respTotal) : null;
+
+    const ONLINE_WINDOW_MS = 5 * 60 * 1000;
+    const online = !!(user.last_activity && (Date.now() - user.last_activity) < ONLINE_WINDOW_MS);
+
+    res.json({
+      email: user.email,
+      displayName: user.display_name || null,
+      range,
+      start: startStr,
+      online,
+      lastActivity: user.last_activity || null,
+      loginCount: user.login_count || 0,
+      stats: {
+        barridosCartas: diff.sweeps,
+        cartasEnviadas: diff.cartas,
+        lfp: diff.likes + diff.follows,
+        likes: diff.likes,
+        follows: diff.follows,
+        saludos: diff.saludos,
+        icebreakers: diff.icebreakers,
+        mensajes: diff.messagesSent,
+        respOnTime: diff.resp_on_time,
+        respLate: diff.resp_late,
+        respTotal,
+        onTimePct
+      }
+    });
+  } catch (err) {
+    console.error('[OPERATOR-STATS] Error:', err);
+    res.status(500).json({ error: 'Error: ' + err.message });
+  }
 });
 
 router.delete('/api/tess/admin/users/:email', requireTesseractAdmin, requireOfficeScoped, async (req, res) => {

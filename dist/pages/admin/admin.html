@@ -1,22 +1,134 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TESSERACT</title>
-    <style>
-        body { background: #0a0a0f; color: #e0e0e0; font-family: monospace; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
-        .msg { text-align: center; padding: 40px; }
-        .msg h1 { color: #8b5cf6; font-size: 20px; }
-        .msg p { color: #888; margin: 20px 0; }
-        .msg button { background: #8b5cf6; color: #fff; border: none; padding: 10px 24px; border-radius: 4px; cursor: pointer; font-size: 14px; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TESSERACT — Admin</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background:#0a0a0f; color:#e0e0e0; font-family:'Segoe UI',monospace; min-height:100vh; }
+header { display:flex; align-items:center; gap:18px; padding:14px 24px; border-bottom:1px solid #1d1d2b; background:#0d0d15; position:sticky; top:0; z-index:10; }
+.logo { font-family:'Orbitron','Segoe UI',sans-serif; font-weight:800; letter-spacing:3px; color:#8b5cf6; font-size:16px; }
+.tabs { display:flex; gap:8px; flex:1; }
+.tab-btn { background:transparent; border:1px solid #26263a; color:#888; padding:7px 16px; border-radius:8px; cursor:pointer; font-size:11px; letter-spacing:1.5px; font-weight:700; }
+.tab-btn.active { border-color:#8b5cf6; color:#a78bfa; background:rgba(139,92,246,.08); }
+.admin-info { display:flex; align-items:center; gap:12px; font-size:11px; color:#666; }
+#btn-logout { background:transparent; border:1px solid #ef4444aa; color:#ef4444; border-radius:6px; padding:5px 12px; cursor:pointer; font-size:10px; font-weight:700; letter-spacing:1px; }
+main { max-width:1200px; margin:0 auto; padding:22px; }
+.tab-content { display:none; }
+.tab-content.active { display:block; }
+.panel-title { font-size:11px; letter-spacing:2px; color:#8b5cf6; font-weight:700; margin-bottom:14px; }
+
+/* USUARIOS */
+table { width:100%; border-collapse:collapse; background:#0d0d17; border:1px solid #1c1c2c; border-radius:10px; overflow:hidden; }
+th { text-align:left; font-size:9px; letter-spacing:1.5px; color:#555; padding:10px 12px; border-bottom:1px solid #1c1c2c; background:#10101c; }
+td { padding:9px 12px; border-bottom:1px solid #15151f; font-size:12px; vertical-align:middle; }
+tr:hover td { background:#11111d; }
+.dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:7px; background:#ef4444; }
+.dot.online { background:#22c55e; box-shadow:0 0 6px #22c55e88; }
+.uname { font-weight:600; color:#fff; }
+.uemail { color:#777; font-size:11px; }
+.badge { font-size:9px; font-weight:800; letter-spacing:1px; padding:3px 8px; border-radius:20px; }
+.badge.premium { background:rgba(245,158,11,.12); color:#f59e0b; border:1px solid #f59e0b55; }
+.badge.demo { background:rgba(96,165,250,.1); color:#60a5fa; border:1px solid #60a5fa44; }
+.badge.banned { background:rgba(239,68,68,.12); color:#ef4444; border:1px solid #ef444455; }
+.badge.dev { background:rgba(139,92,246,.14); color:#a78bfa; border:1px solid #8b5cf655; }
+.act-btn { background:#16162a; border:1px solid #2a2a44; color:#bbb; font-size:9px; font-weight:700; letter-spacing:.5px; padding:4px 8px; border-radius:5px; cursor:pointer; margin-right:4px; }
+.act-btn:hover { border-color:#8b5cf6; color:#c4b5fd; }
+.act-btn.danger { border-color:#ef444455; color:#ef4444; }
+.act-btn.ok { border-color:#22c55e55; color:#22c55e; }
+
+/* ESTADISTICAS */
+.controls { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:18px; }
+select, input[type=text] { background:#12121f; border:1px solid #26263a; color:#ddd; border-radius:8px; padding:9px 12px; font-size:12px; outline:none; }
+select:focus { border-color:#8b5cf6; }
+.range-btn { background:#12121f; border:1px solid #26263a; color:#888; padding:9px 14px; border-radius:8px; cursor:pointer; font-size:10px; font-weight:700; letter-spacing:1px; }
+.range-btn.active { border-color:#f59e0b; color:#f59e0b; background:rgba(245,158,11,.07); }
+.cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:14px; }
+.card { background:#0d0d17; border:1px solid #1c1c2c; border-radius:12px; padding:18px; }
+.card .lbl { font-size:9px; letter-spacing:1.5px; color:#666; font-weight:700; margin-bottom:8px; }
+.card .val { font-size:30px; font-weight:800; color:#fff; font-family:'Orbitron','Segoe UI',sans-serif; }
+.card .sub { font-size:10px; color:#555; margin-top:6px; }
+.card.hl .val { color:#f59e0b; }
+.placeholder { text-align:center; color:#444; padding:50px 20px; font-size:12px; }
+
+/* CHAT */
+.chat-wrap { display:flex; height:calc(100vh - 170px); border:1px solid #1c1c2c; border-radius:12px; overflow:hidden; background:#0d0d17; }
+.chat-side { width:280px; border-right:1px solid #1c1c2c; overflow-y:auto; flex-shrink:0; }
+.thread { padding:12px 14px; border-bottom:1px solid #14141f; cursor:pointer; }
+.thread:hover { background:#10101c; }
+.thread.active { background:#131322; border-left:2px solid #8b5cf6; }
+.thread .t-name { font-size:12px; font-weight:600; color:#ccc; display:flex; justify-content:space-between; align-items:center; }
+.thread .t-last { font-size:10px; color:#555; margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:210px; }
+.unread { background:#8b5cf6; color:#fff; font-size:9px; font-weight:800; border-radius:10px; padding:1px 7px; }
+.chat-main { flex:1; display:flex; flex-direction:column; }
+.chat-head { padding:12px 18px; border-bottom:1px solid #1c1c2c; font-size:12px; color:#999; }
+.chat-msgs { flex:1; overflow-y:auto; padding:18px; display:flex; flex-direction:column; gap:10px; }
+.bubble { max-width:70%; padding:9px 13px; border-radius:12px; font-size:12px; line-height:1.45; white-space:pre-wrap; word-break:break-word; }
+.bubble.mine { align-self:flex-end; background:#8b5cf6; color:#fff; border-bottom-right-radius:3px; }
+.bubble.theirs { align-self:flex-start; background:#1b1b2c; color:#ddd; border-bottom-left-radius:3px; }
+.bubble .t { display:block; font-size:9px; opacity:.55; margin-top:4px; }
+.chat-input { display:flex; gap:10px; padding:12px; border-top:1px solid #1c1c2c; }
+.chat-input input { flex:1; }
+.btn-send { background:#8b5cf6; color:#fff; border:none; border-radius:8px; padding:0 22px; font-size:11px; font-weight:800; letter-spacing:1px; cursor:pointer; }
+.empty-chat { margin:auto; color:#444; font-size:12px; }
+</style>
 </head>
 <body>
-    <div class="msg">
-        <h1>TESSERACT</h1>
-        <p>Panel admin deshabilitado — requiere servidor.</p>
-        <button onclick="window.close()">CERRAR</button>
+<header>
+  <div class="logo">TESSERACT</div>
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="users">USUARIOS</button>
+    <button class="tab-btn" data-tab="stats">ESTADÍSTICAS</button>
+    <button class="tab-btn" data-tab="chat">CHAT OPERADORES</button>
+  </div>
+  <div class="admin-info"><span id="admin-email"></span><button id="btn-logout">SALIR</button></div>
+</header>
+
+<main>
+  <!-- USUARIOS -->
+  <section class="tab-content active" id="tab-users">
+    <div class="panel-title">CONTROL DE USUARIOS</div>
+    <table>
+      <thead><tr>
+        <th style="width:26%">OPERADOR</th>
+        <th>ESTADO</th>
+        <th>ÚLTIMA ACTIVIDAD</th>
+        <th style="width:38%">ACCIONES</th>
+      </tr></thead>
+      <tbody id="user-table-body"><tr><td colspan="4" class="placeholder">Cargando...</td></tr></tbody>
+    </table>
+  </section>
+
+  <!-- ESTADISTICAS -->
+  <section class="tab-content" id="tab-stats">
+    <div class="panel-title">ESTADÍSTICAS POR OPERADOR</div>
+    <div class="controls">
+      <select id="stats-user"><option value="">Selecciona operador…</option></select>
+      <button class="range-btn active" data-range="day" id="rb-day">HOY</button>
+      <button class="range-btn" data-range="week" id="rb-week">7 DÍAS</button>
+      <button class="range-btn" data-range="month" id="rb-month">30 DÍAS</button>
     </div>
+    <div id="stats-result"><div class="placeholder">Elige un operador y un rango para ver sus métricas.</div></div>
+  </section>
+
+  <!-- CHAT -->
+  <section class="tab-content" id="tab-chat">
+    <div class="panel-title">COMUNICACIÓN CON OPERADORES</div>
+    <div class="chat-wrap">
+      <div class="chat-side" id="chat-threads"><div class="placeholder">Sin conversaciones todavía.</div></div>
+      <div class="chat-main">
+        <div class="chat-head" id="chat-head">Selecciona una conversación</div>
+        <div class="chat-msgs" id="chat-msgs"><div class="empty-chat">Los mensajes de tus operadores aparecerán aquí.</div></div>
+        <div class="chat-input">
+          <input type="text" id="chat-text" placeholder="Escribe un mensaje…" maxlength="2000">
+          <button class="btn-send" id="btn-chat-send">ENVIAR</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script src="admin.js"></script>
 </body>
 </html>

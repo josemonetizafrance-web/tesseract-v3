@@ -140,6 +140,16 @@ router.post('/api/tess/auth/login', async (req, res) => {
 
   if (!bcrypt.compareSync(password, user.password_hash)) return res.status(401).json({ error: 'Contraseña incorrecta' });
 
+  // Guardar/actualizar el nombre de usuario visible para el panel admin
+  const displayName = typeof req.body.displayName === 'string' ? req.body.displayName.trim().slice(0, 20) : '';
+  if (displayName) {
+    try {
+      const { getDb } = require('../db/tesseract.js');
+      await getDb().collection('tess_users').updateOne({ _id: user._id }, { $set: { display_name: displayName, updated_at: Date.now() } });
+      user.display_name = displayName;
+    } catch (nameErr) { console.warn('[AUTH] No se pudo guardar el nombre:', nameErr.message); }
+  }
+
   // Verificar expiry de actividad para no premium
   if (!user.is_premium && user.last_activity) {
     const timeSinceActivity = now - user.last_activity;
@@ -161,6 +171,7 @@ router.post('/api/tess/auth/login', async (req, res) => {
   
   res.json({ token, refreshToken, user: { 
     email: user.email, 
+    displayName: user.display_name || null,
     role: sub.status, 
     isAdmin: !!user.is_admin, 
     isDeveloper: !!user.is_developer,

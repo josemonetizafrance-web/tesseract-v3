@@ -1290,3 +1290,122 @@ if (document.readyState === 'loading') {
 } else {
   safeInit();
 }
+
+// ============ CHAT CON EL ADMINISTRADOR (operadores) ============
+(function initOperatorChat() {
+  const TAPI = 'https://tesseract-v3-production.up.railway.app';
+  let lastTs = 0;
+  let pollTimer = null;
+  let unread = 0;
+
+  function ensureDom() {
+    if (document.getElementById('tess-opchat-btn')) return true;
+
+    const btn = document.createElement('div');
+    btn.id = 'tess-opchat-btn';
+    btn.innerHTML = '💬<span id="tess-opchat-badge" style="display:none;"></span>';
+    btn.style.cssText = 'position:fixed;bottom:18px;right:18px;z-index:999998;width:46px;height:46px;border-radius:50%;background:#8b5cf6;color:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.45);user-select:none;';
+
+    const win = document.createElement('div');
+    win.id = 'tess-opchat-win';
+    win.style.cssText = 'position:fixed;bottom:74px;right:18px;z-index:999999;width:320px;height:420px;background:#0d0d17;border:1px solid #2a2a44;border-radius:14px;display:none;flex-direction:column;overflow:hidden;font-family:Segoe UI,sans-serif;color:#ddd;';
+    win.innerHTML =
+      '<div style="padding:10px 14px;background:#131322;border-bottom:1px solid #22223a;font-size:12px;font-weight:700;letter-spacing:1px;color:#a78bfa;">SOPORTE TESSERACT<span id="tess-opchat-close" style="float:right;cursor:pointer;color:#666;">✕</span></div>' +
+      '<div id="tess-opchat-msgs" style="flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;"><div style="margin:auto;color:#444;font-size:11px;">Escribe al administrador…</div></div>' +
+      '<div style="display:flex;gap:8px;padding:10px;border-top:1px solid #1c1c2c;">' +
+      '<input id="tess-opchat-input" type="text" placeholder="Mensaje…" maxlength="2000" style="flex:1;background:#12121f;border:1px solid #26263a;color:#ddd;border-radius:8px;padding:8px 10px;font-size:12px;outline:none;">' +
+      '<button id="tess-opchat-send" style="background:#8b5cf6;color:#fff;border:none;border-radius:8px;padding:0 14px;font-size:11px;font-weight:700;cursor:pointer;">➤</button></div>';
+
+    document.body.appendChild(btn);
+    document.body.appendChild(win);
+
+    btn.addEventListener('click', toggleChat);
+    win.querySelector('#tess-opchat-close').addEventListener('click', toggleChat);
+    win.querySelector('#tess-opchat-send').addEventListener('click', sendMsg);
+    win.querySelector('#tess-opchat-input').addEventListener('keypress', e => { if (e.key === 'Enter') sendMsg(); });
+    return true;
+  }
+
+  function setBadge(n) {
+    const b = document.getElementById('tess-opchat-badge');
+    if (!b) return;
+    if (n > 0) { b.textContent = n > 9 ? '9+' : n; b.style.display = 'block'; }
+    else b.style.display = 'none';
+    b.style.cssText += ';position:absolute;top:-3px;right:-3px;background:#ef4444;color:#fff;font-size:10px;font-weight:800;border-radius:10px;padding:1px 6px;';
+  }
+
+  async function jwt() {
+    try { return (await new Promise(r => chrome.storage.local.get('tess_jwt', d => r(d.tess_jwt)))).tess_jwt || ''; }
+    catch (e) { return ''; }
+  }
+
+  function bubble(m) {
+    const box = document.getElementById('tess-opchat-msgs');
+    if (!box) return;
+    const empty = box.querySelector('div[style*="margin:auto"]');
+    if (empty) empty.remove();
+    const mine = m.from === 'ADMIN';
+    const div = document.createElement('div');
+    div.style.cssText = 'max-width:78%;padding:8px 11px;border-radius:11px;font-size:12px;line-height:1.4;white-space:pre-wrap;word-break:break-word;' +
+      (mine ? 'align-self:flex-end;background:#8b5cf6;color:#fff;' : 'align-self:flex-start;background:#1b1b2c;');
+    div.textContent = m.text;
+    const t = document.createElement('span');
+    t.style.cssText = 'display:block;font-size:9px;opacity:.55;margin-top:3px;';
+    t.textContent = new Date(m.ts).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
+    div.appendChild(t);
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  async function poll(full) {
+    const token = await jwt();
+    if (!token) return;
+    try {
+      const res = await fetch(TAPI + '/api/tess/chat/messages?after=' + (full ? 0 : lastTs), { headers: { 'Authorization': 'Bearer ' + token } });
+      if (!res.ok) return;
+      const data = await res.json();
+      for (const m of (data.messages || [])) {
+        bubble(m);
+        lastTs = Math.max(lastTs, m.ts);
+        const winEl = document.getElementById('tess-opchat-win');
+        if (!winEl || winEl.style.display === 'none') { unread++; setBadge(unread); }
+      }
+    } catch (e) {}
+  }
+
+  function toggleChat() {
+    ensureDom();
+    const win = document.getElementById('tess-opchat-win');
+    const open = win.style.display === 'none' || !win.style.display;
+    win.style.display = open ? 'flex' : 'none';
+    if (open) {
+      unread = 0; setBadge(0);
+      poll(true);
+      if (pollTimer) clearInterval(pollTimer);
+      pollTimer = setInterval(() => poll(false), 5000);
+      setTimeout(() => { const i = document.getElementById('tess-opchat-input'); if (i) i.focus(); }, 50);
+    } else if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  }
+
+  async function sendMsg() {
+    const input = document.getElementById('tess-opchat-input');
+    const text = (input.value || '').trim();
+    if (!text) return;
+    input.value = '';
+    const token = await jwt();
+    if (!token) return;
+    try {
+      await fetch(TAPI + '/api/tess/chat/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ text })
+      });
+      poll(false);
+    } catch (e) {}
+  }
+
+  // Inyeccion diferida hasta que exista <body>
+  const bootTimer = setInterval(() => {
+    if (document.body && ensureDom()) clearInterval(bootTimer);
+  }, 1500);
+})();

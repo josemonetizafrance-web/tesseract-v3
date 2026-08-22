@@ -416,6 +416,10 @@ async function upsertDailyMetric(userId, date, stats, now, office = null) {
         sweeps: stats?.contactsProcessed || 0,
         auto_response: stats?.autoResponse || 0,
         mailing: stats?.mailingSent || 0,
+        saludos: stats?.saludosSent || 0,
+        icebreakers: stats?.icebreakersSent || 0,
+        resp_on_time: stats?.respOnTime || 0,
+        resp_late: stats?.respLate || 0,
         office: office || null,
         updated_at: now
       }
@@ -1099,6 +1103,55 @@ function getDb() {
   return db;
 }
 
+// ============ ESTADISTICAS POR RANGO (snapshots acumulativos) ============
+async function getOperatorSnapshots(userId, days = 60) {
+  const objId = toObjectId(userId);
+  if (!objId) return [];
+  const since = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+  return await db.collection('tess_metrics_daily')
+    .find({ user_id: objId, date: { $gte: since } })
+    .sort({ date: 1 })
+    .toArray();
+}
+
+// ============ CHAT ADMIN <-> OPERADORES ============
+const CHAT_ADMIN_ID = 'ADMIN';
+
+async function saveChatMessage(from, to, text) {
+  const doc = { from: String(from), to: String(to), text: String(text).slice(0, 2000), ts: Date.now(), read: false };
+  await db.collection('tess_chat').insertOne(doc);
+  return doc;
+}
+
+async function getChatMessages(userA, userB, after = 0, limit = 300) {
+  return await db.collection('tess_chat').find({
+    $or: [ { from: userA, to: userB }, { from: userB, to: userA } ],
+    ts: { $gt: Number(after) || 0 }
+  }).sort({ ts: 1 }).limit(limit).toArray();
+}
+
+async function markChatRead(userA, userB) {
+  // marca como leidos los mensajes que userB envio a userA
+  await db.collection('tess_chat').updateMany(
+    { from: userB, to: userA, read: false },
+    { $set: { read: true } }
+  );
+}
+
+async function getAdminThreads() {
+  const docs = await db.collection('tess_chat').find({}).sort({ ts: -1 }).limit(1000).toArray();
+  const map = new Map();
+  for (const m of docs) {
+    if (m.from === m.to) continue;
+    const other = m.from === CHAT_ADMIN_ID ? m.to : m.from;
+    if (!other || other === CHAT_ADMIN_ID) continue;
+    let t = map.get(other);
+    if (!t) { t = { email: other, lastText: m.text, lastTs: m.ts, unread: 0 }; map.set(other, t); }
+    if (m.to === CHAT_ADMIN_ID && !m.read) t.unread++;
+  }
+  return Array.from(map.values()).sort((a, b) => b.lastTs - a.lastTs);
+}
+
 module.exports = {
   initDb, findUserByEmail, findUserById, createUser, createUserPending, updateLoginStats, updateLastActivity,
   updateUserPremium, setUserBan, setUserDeveloper, updateUserPassword, updateUserApproved, setUserCustomPlan, deleteUser,
@@ -1116,5 +1169,7 @@ module.exports = {
   getCribs, addCribEntry, updateCribField, deleteCribEntry, findCribByProfileId, bulkUpdateCrib,
   getDb,
   storeRefreshToken, revokeRefreshToken,
-  updateHistoryBatch, updateConfigSync, appendActivityLog, getHistory, getConfig
+  updateHistoryBatch, updateConfigSync, appendActivityLog, getHistory, getConfig,
+  getOperatorSnapshots,
+  saveChatMessage, getChatMessages, markChatRead, getAdminThreads
 };
