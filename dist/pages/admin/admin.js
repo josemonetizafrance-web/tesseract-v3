@@ -92,7 +92,7 @@ function userStatus(u) {
   if (u.is_banned) return ['BANEADO', 'banned'];
   if (!u.is_approved) return ['PENDIENTE', 'demo'];
   if (u.is_developer || u.is_admin) return ['MASTER', 'dev'];
-  if (u.is_premium) return ['PREMIUM', 'premium'];
+  if (u.is_premium || (u.premium_expiry && Number(u.premium_expiry) > Date.now())) return ['PREMIUM', 'premium'];
   return ['DEMO', 'demo'];
 }
 

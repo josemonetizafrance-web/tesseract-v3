@@ -289,7 +289,7 @@ async function updateUserPremium(userId, premiumExpiry) {
   if (!objId) return;
   await db.collection('tess_users').updateOne(
     { _id: objId },
-    { $set: { role: 'premium', premium_expiry: premiumExpiry } }
+    { $set: { role: 'premium', is_premium: 1, premium_expiry: premiumExpiry } }
   );
 }
 
