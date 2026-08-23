@@ -50,8 +50,16 @@ Tesseract.on('clonacionChanged', _tessSyncCloneUI);
 
 
 // ============ ICEBREAKERS IA ============
+console.log('[TESSERACT] core-state cargado');
 window._ibMessages = [];
 window._ibMode = 'idle';
+
+// Exportar globales PRIMERO: aunque algo falle mas abajo, los botones siempre responden
+window._generateIcebreakers = function () { return generateIcebreakersFromAI.apply(this, arguments); };
+window._executeIcebreakerSweep = function () { return executeIcebreakerSweep.apply(this, arguments); };
+window._abortIcebreakerSweep = abortIcebreakerSweep;
+window._translateIcebreakersToEnglish = translateIcebreakersToEnglish;
+window._updateIBUI = updateIBUI;
 
 function renderIBPreview() {
   var container = document.getElementById('ibPreview');
@@ -95,6 +103,7 @@ function ibEditHandler(e) {
 }
 
 async function generateIcebreakersFromAI() {
+  console.log('[IB] GENERAR click — iniciando');
   try {
     window._ibMessages = [];
     window._ibMode = 'generating';
@@ -115,7 +124,7 @@ async function generateIcebreakersFromAI() {
       if (fallback) jsonMatch = '[' + fallback.map(function(m){ return m.slice(1,-1); }).join(',') + ']';
       else jsonMatch = null;
     }
-    if (!jsonMatch) { showTessToast('Error: la IA no devolvió JSON válido. Revisa la consola (F12).', 'error'); window._ibMode = 'idle'; updateIBUI(); return; }
+    if (!jsonMatch) { console.error('[IB] Contenido IA sin JSON:', content.substring(0, 300)); showTessToast('Error: la IA no devolvió JSON válido. Revisa la consola (F12).', 'error'); window._ibMode = 'idle'; updateIBUI(); return; }
     jsonMatch = jsonMatch.replace(/[\x00-\x1F\x7F]/g, '');
     var parsed = JSON.parse(jsonMatch);
     if (!Array.isArray(parsed) || parsed.length < 5) { showTessToast('Error: la IA devolvió menos de 5 mensajes', 'error'); window._ibMode = 'idle'; updateIBUI(); return; }
@@ -188,6 +197,7 @@ async function translateIcebreakersToEnglish() {
 }
 
 async function executeIcebreakerSweep() {
+  console.log('[IB] ENVIAR click — mensajes:', window._ibMessages ? window._ibMessages.length : 0, '| modo:', window._ibMode);
   if (!window._ibMessages || window._ibMessages.length < 5) {
     showTessToast('Primero genera los mensajes con 🎲 GENERAR', 'warning');
     return;
@@ -363,9 +373,6 @@ window._translateIcebreakersToEnglish = translateIcebreakersToEnglish;
 window._updateIBUI = updateIBUI;
 
 // ============ IB REMINDER ============
-// Detector: cuando el operador lanza icebreakers manualmente (botones Launch de
-// mail/chat), arranca un contador de 3h persistente. Al terminar, recordatorio:
-// ACTUALIZA IB MALPARID@
 
 var IB_REMINDER_PERIOD_MS = 3 * 3600 * 1000;
 var _ibReminderInterval = null;
