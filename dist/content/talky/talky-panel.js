@@ -502,8 +502,7 @@ function createMainPanel() {
 #tabSoprite .x{}
 </style>
 <div class="user-bar">💬 MENSAJES — <span id="opChatWho">🛡 SOPORTE</span></div>
-<div style="display:flex;flex-direction:column;height:360px;padding:8px;gap:6px;">
-  <div style="display:flex;gap:6px;">
+<div style="display:flex;flex-direction:column;height:360px;padding:8px;gap:6px;">  <div style="display:flex;gap:6px;">
     <select id="opChatPeer" style="flex:1;background:#12121f;border:1px solid #26263a;color:#e0e0e0;border-radius:6px;padding:6px 8px;font-size:11px;outline:none;">
       <option value="ADMIN">🛡 SOPORTE (administrador)</option>
     </select>
@@ -521,6 +520,7 @@ function createMainPanel() {
     <button id="btnOpChatSend" style="background:#22c55e;border:none;color:#fff;border-radius:6px;width:34px;height:30px;font-size:12px;font-weight:700;cursor:pointer;">➤</button>
   </div>
 </div>
+  <div style="text-align:center;color:#3a3a55;font-size:8px;padding:1px 0;">Tesseract Chat v3.1</div>
 </div>
 
 </div></div>`;
@@ -1518,7 +1518,12 @@ if (document.readyState === 'loading') {
       box.innerHTML = '<div class="wa-empty" style="margin:auto;color:#666;font-size:10px;text-align:center;">Aún no hay mensajes. Escribe el primero 👋</div>';
       return;
     }
-    for (const m of msgs) { renderMsg(m); lastTsBy[activePeer] = Math.max(lastTsBy[activePeer] || 0, m.ts); }
+    for (const m of msgs) {
+      try { renderMsg(m); } catch (e) {
+        if (full && box) { const d = document.createElement('div'); d.style.cssText = 'color:#f87171;font-size:10px;text-align:center;'; d.textContent = '⚠ Error al pintar mensaje: ' + e.message; box.appendChild(d); }
+      }
+      lastTsBy[activePeer] = Math.max(lastTsBy[activePeer] || 0, m.ts);
+    }
     if (msgs.length && !full) loadMyThreads();
   }
 

@@ -402,7 +402,12 @@ async function pollThread(full) {
   const boxEl = document.getElementById('chat-msgs');
   if (full) boxEl.innerHTML = '';
   for (const m of msgs) {
-    renderChatMsg(m);
+    try { renderChatMsg(m); } catch (e) {
+      const err = document.createElement('div');
+      err.style.cssText = 'color:#f87171;font-size:11px;text-align:center;';
+      err.textContent = '⚠ Error al pintar mensaje: ' + e.message;
+      boxEl.appendChild(err);
+    }
     chatLastTs[chatWith] = Math.max(chatLastTs[chatWith] || 0, m.ts);
   }
   boxEl.scrollTop = boxEl.scrollHeight;
