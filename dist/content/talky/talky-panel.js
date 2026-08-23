@@ -1018,7 +1018,9 @@ let periodicSyncInterval = null;
 
 async function tryRefreshToken() {
   return new Promise(resolve => {
-    chrome.storage.local.get(['tess_refresh'], async data => {
+    let ctxDead = false;
+    try {
+      chrome.storage.local.get(['tess_refresh'], async data => {
       if (!data.tess_refresh) return resolve(false);
       try {
         var res = await fetch(`${TESSERACT_API}/api/tess/auth/refresh`, {
@@ -1036,6 +1038,13 @@ async function tryRefreshToken() {
         resolve(true);
       } catch (e) { resolve(false); }
     });
+  } catch (_ctx) {
+    ctxDead = true;
+  }
+  if (ctxDead) {
+    try { showTessToast('⚠️ La extensión se recargó. REFRESCA esta página (F5).', 'error'); } catch (_t) {}
+    resolve(false);
+  }
   });
 }
 
