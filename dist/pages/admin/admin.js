@@ -343,6 +343,16 @@ function initChatUI() {
       else document.getElementById('chat-msgs').innerHTML = '<div class="empty-chat">Selecciona una conversación.</div>';
     } finally { btnRefresh.textContent = '⟳'; }
   });
+  document.getElementById('btn-chat-clear').addEventListener('click', async () => {
+    if (!chatWith) { alert('Abre primero una conversación.'); return; }
+    if (!confirm('¿Eliminar TODO el historial de esta conversación (en ambos lados)? No se puede deshacer.')) return;
+    try {
+      await apiFetch('/api/tess/chat/clear', { method: 'POST', body: { with: chatWith } });
+      delete chatLastTs[chatWith];
+      await openThread(chatWith);
+      refreshThreads();
+    } catch (e) { alert('No se pudo eliminar: ' + e.message); }
+  });
   document.getElementById('btn-attach').addEventListener('click', () => document.getElementById('chat-file').click());
   document.getElementById('chat-file').addEventListener('change', e => {
     if (e.target.files[0]) sendChatImage(e.target.files[0]);

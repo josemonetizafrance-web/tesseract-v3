@@ -1194,6 +1194,26 @@ async function getChatMessages(userA, userB, after = 0, limit = 300) {
   }).sort({ ts: 1 }).limit(limit).toArray();
 }
 
+async function clearChatThread(userA, userB) {
+  // userB null => hilo de soporte con ADMIN
+  const filter = userB
+    ? { $or: [ { from: userA, to: userB }, { from: userB, to: userA } ] }
+    : { $or: [ { from: userA, to: 'ADMIN' }, { from: 'ADMIN', to: userA } ] };
+  const col = db.collection('tess_chat');
+  const docs = await col.find(filter, { projection: { mediaId: 1 } }).toArray();
+  let mediaDeleted = 0;
+  const objIds = [];
+  for (const d of docs) {
+    if (d.mediaId) { const o = toObjectId(d.mediaId); if (o) objIds.push(o); }
+  }
+  if (objIds.length) {
+    const mr = await db.collection('tess_chat_media').deleteMany({ _id: { $in: objIds } });
+    mediaDeleted = mr.deletedCount || 0;
+  }
+  const r = await col.deleteMany(filter);
+  return { deleted: r.deletedCount || 0, media: mediaDeleted };
+}
+
 async function markChatRead(userA, userB) {
   // marca como leidos los mensajes que userB envio a userA
   await db.collection('tess_chat').updateMany(
@@ -1267,7 +1287,7 @@ module.exports = {
   updateHistoryBatch, updateConfigSync, appendActivityLog, getHistory, getConfig,
   getOperatorSnapshots,
   createStaffUser, getStaffUsers,
-  getMyThreads, getChatContacts,
+  getMyThreads, getChatContacts, clearChatThread,
   saveChatMessage, getChatMessages, markChatRead, getAdminThreads,
   saveChatMedia, getChatMedia
 };

@@ -3,7 +3,7 @@
  * PRIVACIDAD: cada usuario solo ve los hilos donde participa. Nadie mas puede leerlos.
  */
 const { Router } = require('express');
-const { saveChatMessage, getChatMessages, markChatRead, getAdminThreads, getMyThreads, getChatContacts, findUserByEmail, saveChatMedia, getChatMedia } = require('../db/tesseract.js');
+const { saveChatMessage, getChatMessages, markChatRead, getAdminThreads, getMyThreads, getChatContacts, findUserByEmail, saveChatMedia, getChatMedia, clearChatThread } = require('../db/tesseract.js');
 const { validateToken, requireTesseractAdmin, requireRootMaster } = require('../middleware/auth-tesseract.js');
 
 const router = Router();
@@ -81,6 +81,21 @@ router.get('/api/tess/chat/my-threads', validateToken, async (req, res) => {
   try {
     res.json({ threads: await getMyThreads(req.user.email) });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Limpiar TODO el historial del hilo abierto (solo participantes; borra tambien las imagenes)
+router.post('/api/tess/chat/clear', validateToken, async (req, res) => {
+  try {
+    const me = String(req.user.email);
+    const otherRaw = req.body && req.body.with ? String(req.body.with).trim() : '';
+    const other = !otherRaw || otherRaw === ADMIN_ID ? null : otherRaw;
+    const r = await clearChatThread(me, other);
+    console.log('[CHAT] clear por', me, 'hilo con', other || 'ADMIN', JSON.stringify(r));
+    res.json({ success: true, ...r });
+  } catch (err) {
+    console.error('[CHAT] clear error:', err);
     res.status(500).json({ error: err.message });
   }
 });

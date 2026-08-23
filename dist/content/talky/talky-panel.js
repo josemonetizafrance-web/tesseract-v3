@@ -507,6 +507,7 @@ function createMainPanel() {
       <option value="ADMIN">🛡 SOPORTE (administrador)</option>
     </select>
     <button id="btnOpChatRefresh" title="Reiniciar vista del chat" style="background:#16162a;border:1px solid #2a2a44;color:#bbb;border-radius:6px;width:32px;cursor:pointer;font-size:12px;">⟳</button>
+    <button id="btnOpChatClear" title="Borrar TODO el historial de esta conversación" style="background:#16162a;border:1px solid #7f1d1d;color:#f87171;border-radius:6px;width:32px;cursor:pointer;font-size:12px;">🧹</button>
   </div>
   <div id="opChatMsgs" class="wa-msgs">
     <div style="margin:auto;color:#666;font-size:10px;text-align:center;">Selecciona un contacto arriba.<br>🛡 SOPORTE te conecta con el administrador.<br>Tus conversaciones son privadas.</div>
@@ -1387,6 +1388,7 @@ if (document.readyState === 'loading') {
       sendBtn: document.getElementById('btnOpChatSend'),
       peerSel: document.getElementById('opChatPeer'),
       refreshBtn: document.getElementById('btnOpChatRefresh'),
+      clearBtn: document.getElementById('btnOpChatClear'),
       attachBtn: document.getElementById('btnOpChatAttach'),
       fileInput: document.getElementById('opChatFile'),
       emojiBtn: document.getElementById('btnOpChatEmoji'),
@@ -1664,6 +1666,23 @@ if (document.readyState === 'loading') {
       e.refreshBtn.textContent = '⋯';
       try { await loadContacts(); await loadMyThreads(); await openPeer(activePeer); }
       finally { e.refreshBtn.textContent = '⟳'; }
+    });
+    e.clearBtn.addEventListener('click', async () => {
+      if (!confirm('¿Eliminar TODO el historial de esta conversación (en ambos lados)? No se puede deshacer.')) return;
+      const token = await ensureToken();
+      if (!token) { sessionNotice(); return; }
+      try {
+        await fetch(TAPI + '/api/tess/chat/clear', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify({ with: activePeer === ADMIN_PEER ? '' : activePeer })
+        });
+        lastTsBy[activePeer] = 0;
+        const box = els().msgs;
+        if (box) box.innerHTML = '<div class="wa-empty" style="margin:auto;color:#666;font-size:10px;text-align:center;">Historial eliminado 🧹</div>';
+        loadMyThreads().catch(() => {});
+        showTessToast('Conversación eliminada', 'info');
+      } catch (err) { showTessToast('No se pudo eliminar la conversación', 'error'); }
     });
     e.attachBtn.addEventListener('click', () => e.fileInput.click());
     e.fileInput.addEventListener('change', () => { if (e.fileInput.files[0]) sendImage(e.fileInput.files[0]); e.fileInput.value = ''; });
