@@ -262,7 +262,9 @@ function injectCaptureButton(observer, msgText, header) {
       }
     }
     if (!profileId) {
-      profileId = extractProfileIdFromMail(msgText, header, true);
+      // false => prioriza ID del CLIENTE (URL par op_cliente, ultima ficha vista);
+      // con true podria guardar el estilo en la ficha del propio operador (incorrecto)
+      profileId = extractProfileIdFromMail(msgText, header, false);
     }
     if (!profileId) { showTessToast('⚠ No se pudo identificar el perfil', 'warning'); this._processing = false; this.style.opacity = '0.5'; return; }
     if (!profileName) {
@@ -330,6 +332,10 @@ async function generateMailResponse(msgText, observer, profileId, senderName) {
     return;
   }
 
+  if (typeof cribLoadOrRefresh !== 'function' || typeof cribFindEntry !== 'function') {
+    showTessToast('⚠ Módulo CRIBS no disponible', 'warning');
+    return;
+  }
   await cribLoadOrRefresh(false);
   const entry = cribFindEntry(profileId);
   if (!entry || !entry._id) {
@@ -363,6 +369,10 @@ async function generateMailResponse(msgText, observer, profileId, senderName) {
     + '\n\nGenera una respuesta personal a esta carta usando el estilo del operador.';
 
   try {
+    if (typeof Tesseract === 'undefined' || typeof Tesseract.callGroq !== 'function') {
+      showTessToast('⚠ Motor IA no disponible', 'error');
+      return;
+    }
     const groqData = await Tesseract.callGroq(
       [{ role: 'system', content: systemMsg }, { role: 'user', content: userMsg }],
       'openai/gpt-oss-120b',
