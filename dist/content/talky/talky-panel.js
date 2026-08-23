@@ -1667,22 +1667,35 @@ if (document.readyState === 'loading') {
       try { await loadContacts(); await loadMyThreads(); await openPeer(activePeer); }
       finally { e.refreshBtn.textContent = '⟳'; }
     });
+    let clearArmed = 0;
     e.clearBtn.addEventListener('click', async () => {
-      if (!confirm('¿Eliminar TODO el historial de esta conversación (en ambos lados)? No se puede deshacer.')) return;
+      if (Date.now() - clearArmed > 3500) {
+        clearArmed = Date.now();
+        e.clearBtn.textContent = '⚠';
+        e.clearBtn.style.background = '#7f1d1d';
+        e.clearBtn.title = 'Haz clic de nuevo para CONFIRMAR el borrado total';
+        setTimeout(() => { if (Date.now() - clearArmed >= 3400) { clearArmed = 0; e.clearBtn.textContent = '🧹'; e.clearBtn.style.background = '#16162a'; e.clearBtn.title = 'Borrar TODO el historial de esta conversación'; } }, 3600);
+        return;
+      }
+      clearArmed = 0;
+      e.clearBtn.textContent = '🧹';
+      e.clearBtn.style.background = '#16162a';
       const token = await ensureToken();
       if (!token) { sessionNotice(); return; }
       try {
-        await fetch(TAPI + '/api/tess/chat/clear', {
+        const res = await fetch(TAPI + '/api/tess/chat/clear', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
           body: JSON.stringify({ with: activePeer === ADMIN_PEER ? '' : activePeer })
         });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) { showTessToast('No se pudo eliminar (' + res.status + ')', 'error'); return; }
         lastTsBy[activePeer] = 0;
         const box = els().msgs;
         if (box) box.innerHTML = '<div class="wa-empty" style="margin:auto;color:#666;font-size:10px;text-align:center;">Historial eliminado 🧹</div>';
         loadMyThreads().catch(() => {});
-        showTessToast('Conversación eliminada', 'info');
-      } catch (err) { showTessToast('No se pudo eliminar la conversación', 'error'); }
+        showTessToast('Conversación eliminada (' + (data.deleted || 0) + ' mensajes)', 'info');
+      } catch (err) { showTessToast('Sin conexión al eliminar', 'error'); }
     });
     e.attachBtn.addEventListener('click', () => e.fileInput.click());
     e.fileInput.addEventListener('change', () => { if (e.fileInput.files[0]) sendImage(e.fileInput.files[0]); e.fileInput.value = ''; });

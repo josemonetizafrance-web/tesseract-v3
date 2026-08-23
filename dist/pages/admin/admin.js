@@ -343,14 +343,27 @@ function initChatUI() {
       else document.getElementById('chat-msgs').innerHTML = '<div class="empty-chat">Selecciona una conversación.</div>';
     } finally { btnRefresh.textContent = '⟳'; }
   });
-  document.getElementById('btn-chat-clear').addEventListener('click', async () => {
-    if (!chatWith) { alert('Abre primero una conversación.'); return; }
-    if (!confirm('¿Eliminar TODO el historial de esta conversación (en ambos lados)? No se puede deshacer.')) return;
+  let clearArmed = 0;
+  const btnClear = document.getElementById('btn-chat-clear');
+  btnClear.addEventListener('click', async () => {
+    if (!chatWith) { btnClear.title = 'Abre primero una conversación'; return; }
+    if (Date.now() - clearArmed > 3500) {
+      clearArmed = Date.now();
+      btnClear.textContent = '⚠';
+      btnClear.style.background = '#7f1d1d';
+      btnClear.title = 'Haz clic de nuevo para CONFIRMAR el borrado total';
+      setTimeout(() => { if (Date.now() - clearArmed >= 3400) { clearArmed = 0; btnClear.textContent = '🧹'; btnClear.style.background = '#12121f'; btnClear.title = 'Borrar TODO el historial de la conversación abierta'; } }, 3600);
+      return;
+    }
+    clearArmed = 0;
+    btnClear.textContent = '🧹';
+    btnClear.style.background = '#12121f';
     try {
-      await apiFetch('/api/tess/chat/clear', { method: 'POST', body: { with: chatWith } });
+      const d = await apiFetch('/api/tess/chat/clear', { method: 'POST', body: { with: chatWith } });
       delete chatLastTs[chatWith];
       await openThread(chatWith);
       refreshThreads();
+      showTmpStatus('Historial eliminado (' + (d.deleted || 0) + ' mensajes)');
     } catch (e) { alert('No se pudo eliminar: ' + e.message); }
   });
   document.getElementById('btn-attach').addEventListener('click', () => document.getElementById('chat-file').click());
