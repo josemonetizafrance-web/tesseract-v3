@@ -122,8 +122,13 @@ async function generateIcebreakersFromAI() {
     window._ibMessages = parsed.map(function(m) {
       if (!m) return null;
       if (!m.text) m.text = m.mensaje || m.message || m.content || m.texto || '';
-      if (!m.category) m.category = m.categoria || m.type || m.tipo || 'friendship';
-      m.category = m.category.toLowerCase();
+      // Normalizacion robusta: la IA puede devolver "RH Amistad", "friendship", etc.
+      var rawCat = String(m.categoria || m.category || m.type || m.tipo || '').toLowerCase();
+      if (rawCat.indexOf('amistad') > -1 || rawCat === 'friendship') m.category = 'friendship';
+      else if (rawCat.indexOf('amor') > -1 || rawCat === 'real_love') m.category = 'real_love';
+      else if (rawCat.indexOf('caliente') > -1 || rawCat.indexOf('hot') > -1) m.category = 'hot_talks';
+      else if (rawCat.indexOf('mail') > -1 || rawCat.indexOf('correo') > -1) m.category = 'mail';
+      else m.category = 'friendship';
       return m;
     }).filter(Boolean);
     window._ibMode = 'ready';
@@ -222,9 +227,9 @@ async function executeIcebreakerSweep() {
       if (window._ibMode !== 'sending') break;
       var msg = toSend[i];
       document.getElementById('ibStatus').textContent = 'Enviando ' + (i + 1) + '/' + total + '\u2026';
-      var createBtn = document.evaluate('//label[.//p[contains(text(),"create new")]]', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+      var createBtn = document.evaluate('//label[.//p[contains(translate(text(),"ABCDEFGHIJKLMNOPQRSTUVWXYZ","abcdefghijklmnopqrstuvwxyz"),"create new")]]', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
       if (!createBtn) {
-        createBtn = document.querySelector(TALK_Y.ICEBREAKER_CREATE_NEW);
+        createBtn = document.querySelector(TALK_Y.ICEBREAKER_CREATE_NEW) || Array.from(document.querySelectorAll('label.chip-root')).find(function (l) { return /create\s*new/i.test(l.textContent || ''); }) || null;
       }
       if (!createBtn) { showTessToast('No se encontró el botón Create new en la página Icebreakers', 'error'); break; }
       createBtn.click();
