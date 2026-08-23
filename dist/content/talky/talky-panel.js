@@ -1686,7 +1686,7 @@ if (document.readyState === 'loading') {
     clearInterval(bootTimer);
   }, 1500);
 
-  setInterval(() => { if (document.getElementById('tesseract-main-panel')) pollActive(false).catch(() => {}); }, 5000);
+  setInterval(() => { if (document.getElementById('tesseract-main-panel') && activePeer) pollActive(false).catch(() => {}); }, 5000);
   setInterval(() => {
     if (!document.getElementById('tesseract-main-panel')) return;
     loadMyThreads().catch(() => {});

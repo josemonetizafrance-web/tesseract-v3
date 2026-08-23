@@ -272,17 +272,22 @@ async function executeIcebreakerSweep() {
       if (!createBtn) {
         createBtn = document.querySelector(TALK_Y.ICEBREAKER_CREATE_NEW) || Array.from(document.querySelectorAll('label.chip-root')).find(function (l) { return /create\s*new/i.test(l.textContent || ''); }) || null;
       }
-      if (!createBtn) { showTessToast('No se encontró el botón Create new en la página Icebreakers', 'error'); break; }
+      if (!createBtn) { console.error('[IB] Create new NO encontrado (XPath + test-id + chip-root fallaron)'); showTessToast('No se encontró el botón Create new en la página Icebreakers', 'error'); break; }
       createBtn.click();
       console.log('[IB] createBtn clicked for msg', i, 'category:', msg.category);
       await sleep(800);
       var textarea = null;
-      for (var tw = 0; tw < 8; tw++) {
-        textarea = document.querySelector(TALK_Y.ICEBREAKER_TEXTAREA) || document.querySelector('textarea[placeholder="Type your message here"]:not([maxlength="1000"])');
+      for (var tw = 0; tw < 12; tw++) {
+        textarea = document.querySelector(TALK_Y.ICEBREAKER_TEXTAREA)
+          || document.querySelector('textarea[placeholder*="message" i]:not([maxlength="1000"])')
+          || Array.from(document.querySelectorAll('textarea')).find(function (t) {
+            return _tessElVisible(t) && !t.disabled && t.getAttribute('maxlength') !== '1000' && !t.hasAttribute('data-idx') && !t.closest('#ibPreview');
+          }) || null;
         if (textarea && !textarea.disabled) break;
-        await sleep(200);
+        await sleep(250);
       }
-      if (!textarea) { showTessToast('No se encontró el textarea', 'error'); break; }
+      if (!textarea) { console.error('[IB] textarea NO encontrada tras 3s — el form de Create new quizá no abrió'); showTessToast('No se encontró el textarea del Icebreaker', 'error'); break; }
+      console.log('[IB] textarea ok:', textarea.getAttribute('placeholder') || '(sin placeholder)', '| maxlen=', textarea.getAttribute('maxlength'));
       await sleep(300);
       textarea.removeAttribute('disabled');
       textarea.disabled = false;
