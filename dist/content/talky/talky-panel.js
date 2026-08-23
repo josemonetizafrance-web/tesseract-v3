@@ -1686,7 +1686,7 @@ if (document.readyState === 'loading') {
     clearInterval(bootTimer);
   }, 1500);
 
-  setInterval(() => { if (document.getElementById('tesseract-main-panel') && activePeer) pollActive(false).catch(() => {}); }, 5000);
+  setInterval(() => { if (document.getElementById('tesseract-main-panel') && activePeer && Date.now() > clearPollPauseUntil) pollActive(false).catch(() => {}); }, 5000);
   setInterval(() => {
     if (!document.getElementById('tesseract-main-panel')) return;
     loadMyThreads().catch(() => {});
@@ -1696,6 +1696,7 @@ if (document.readyState === 'loading') {
   // LIMPIAR CHAT: doble via (delegacion + onclick directo) con handler unico compartido
   let clearArmed = 0;
   let lastClearClick = 0;
+  let clearPollPauseUntil = 0;
   async function onClearClick(ev) {
     if (ev) { ev.preventDefault(); ev.stopPropagation(); }
     const b = els().clearBtn || (ev && ev.target && ev.target.closest ? ev.target.closest('#btnOpChatClear') : null);
@@ -1726,6 +1727,8 @@ if (document.readyState === 'loading') {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { showTessToast('No se pudo eliminar (' + res.status + ')', 'error'); return; }
       lastTsBy[activePeer] = 0;
+      fails = 0;
+      clearPollPauseUntil = Date.now() + 6000;
       const box = els().msgs;
       if (box) box.innerHTML = '<div class="wa-empty" style="margin:auto;color:#666;font-size:10px;text-align:center;">Historial eliminado 🧹</div>';
       loadMyThreads().catch(() => {});
