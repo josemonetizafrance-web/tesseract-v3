@@ -346,7 +346,8 @@ function initChatUI() {
   let clearArmed = 0;
   const btnClear = document.getElementById('btn-chat-clear');
   btnClear.addEventListener('click', async () => {
-    if (!chatWith) { btnClear.title = 'Abre primero una conversación'; return; }
+    console.log('[TESSERACT][ADMIN] limpiar chat click, chatWith =', chatWith);
+    if (!chatWith) { btnClear.title = 'Abre primero una conversación'; btnClear.style.borderColor = '#f59e0b'; setTimeout(() => { btnClear.style.borderColor = '#7f1d1d'; }, 1200); return; }
     if (Date.now() - clearArmed > 3500) {
       clearArmed = Date.now();
       btnClear.textContent = '⚠';
@@ -364,6 +365,7 @@ function initChatUI() {
       await openThread(chatWith);
       refreshThreads();
       showTmpStatus('Historial eliminado (' + (d.deleted || 0) + ' mensajes)');
+      console.log('[TESSERACT][ADMIN] historial borrado:', d.deleted, 'media:', d.media);
     } catch (e) { alert('No se pudo eliminar: ' + e.message); }
   });
   document.getElementById('btn-attach').addEventListener('click', () => document.getElementById('chat-file').click());

@@ -521,7 +521,7 @@ function createMainPanel() {
     <button id="btnOpChatSend" style="background:#22c55e;border:none;color:#fff;border-radius:6px;width:34px;height:30px;font-size:12px;font-weight:700;cursor:pointer;">➤</button>
   </div>
 </div>
-  <div style="text-align:center;color:#3a3a55;font-size:8px;padding:1px 0;">Tesseract Chat v3.1</div>
+  <div style="text-align:center;color:#3a3a55;font-size:8px;padding:1px 0;">Tesseract Chat v3.2</div>
 </div>
 
 </div></div>`;
@@ -1370,6 +1370,7 @@ if (document.readyState === 'loading') {
 
 // ============ MENSAJES v3: ESTILO WHATSAPP (SOPORTE + CHAT PRIVADO) ============
 (function initSupportChat() {
+  console.log('[TESSERACT] Chat v3.2 cargado');
   const TAPI = 'https://tesseract-v3-production.up.railway.app';
   const ADMIN_PEER = 'ADMIN';
   const EMOJIS = ['😀','😁','😂','🤣','😊','😍','😘','😜','😎','🤩','😏','🙂','🙃','😉','😇','🥰','😭','😅','🥺','😢','😡','🤔','🤗','🤫','🙌','👏','👍','👎','💪','🙏','💯','🔥','✨','⭐','❤️','💔','🌹','🌸','🍀','🎉','☕','🍕','⚽','🚀','💤','🤑','👀'];
@@ -1670,6 +1671,7 @@ if (document.readyState === 'loading') {
     e.attachBtn.addEventListener('click', () => e.fileInput.click());
     e.fileInput.addEventListener('change', () => { if (e.fileInput.files[0]) sendImage(e.fileInput.files[0]); e.fileInput.value = ''; });
     e.emojiBtn.addEventListener('click', () => { buildEmojiBar(); e.emojiBar.style.display = e.emojiBar.style.display === 'none' ? 'flex' : 'none'; });
+    if (e.clearBtn) e.clearBtn.onclick = onClearClick;
     clearInterval(bootTimer);
   }, 1500);
 
@@ -1680,17 +1682,19 @@ if (document.readyState === 'loading') {
     if (Math.floor(Date.now() / 60000) % 3 === 0) loadContacts().catch(() => {});
   }, 15000);
 
-  // LIMPIAR CHAT: delegacion a nivel documento, inmune a recreacion del panel y al timing de boot
+  // LIMPIAR CHAT: doble via (delegacion + onclick directo) con handler unico compartido
   let clearArmed = 0;
-  document.addEventListener('click', async ev => {
-    const t = ev.target;
-    const b = t && t.closest ? t.closest('#btnOpChatClear') : null;
+  let lastClearClick = 0;
+  async function onClearClick(ev) {
+    if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+    const b = els().clearBtn || (ev && ev.target && ev.target.closest ? ev.target.closest('#btnOpChatClear') : null);
     if (!b) return;
-    ev.preventDefault();
-    ev.stopPropagation();
-    console.debug('[TESSERACT] limpiar chat click');
-    if (Date.now() - clearArmed > 3500) {
-      clearArmed = Date.now();
+    const now = Date.now();
+    if (now - lastClearClick < 400) return;
+    lastClearClick = now;
+    console.log('[TESSERACT] limpiar chat click');
+    if (now - clearArmed > 3500) {
+      clearArmed = now;
       b.textContent = '⚠';
       b.style.background = '#7f1d1d';
       b.title = 'Haz clic de nuevo para CONFIRMAR el borrado total';
@@ -1715,9 +1719,10 @@ if (document.readyState === 'loading') {
       if (box) box.innerHTML = '<div class="wa-empty" style="margin:auto;color:#666;font-size:10px;text-align:center;">Historial eliminado 🧹</div>';
       loadMyThreads().catch(() => {});
       showTessToast('Conversación eliminada (' + (data.deleted || 0) + ' mensajes)', 'info');
-      console.debug('[TESSERACT] historial borrado:', data.deleted, 'media:', data.media);
+      console.log('[TESSERACT] historial borrado:', data.deleted, 'media:', data.media);
     } catch (err) { showTessToast('Sin conexión al eliminar', 'error'); }
-  });
+  }
+  document.addEventListener('click', onClearClick);
 
   stGet(['user_email', 'tess_user']).then(d => {
     myEmail = (d.user_email && String(d.user_email).includes('@')) ? d.user_email : (d.tess_user && String(d.tess_user).includes('@') ? d.tess_user : '');
