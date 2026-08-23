@@ -1667,36 +1667,6 @@ if (document.readyState === 'loading') {
       try { await loadContacts(); await loadMyThreads(); await openPeer(activePeer); }
       finally { e.refreshBtn.textContent = '⟳'; }
     });
-    let clearArmed = 0;
-    e.clearBtn.addEventListener('click', async () => {
-      if (Date.now() - clearArmed > 3500) {
-        clearArmed = Date.now();
-        e.clearBtn.textContent = '⚠';
-        e.clearBtn.style.background = '#7f1d1d';
-        e.clearBtn.title = 'Haz clic de nuevo para CONFIRMAR el borrado total';
-        setTimeout(() => { if (Date.now() - clearArmed >= 3400) { clearArmed = 0; e.clearBtn.textContent = '🧹'; e.clearBtn.style.background = '#16162a'; e.clearBtn.title = 'Borrar TODO el historial de esta conversación'; } }, 3600);
-        return;
-      }
-      clearArmed = 0;
-      e.clearBtn.textContent = '🧹';
-      e.clearBtn.style.background = '#16162a';
-      const token = await ensureToken();
-      if (!token) { sessionNotice(); return; }
-      try {
-        const res = await fetch(TAPI + '/api/tess/chat/clear', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-          body: JSON.stringify({ with: activePeer === ADMIN_PEER ? '' : activePeer })
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) { showTessToast('No se pudo eliminar (' + res.status + ')', 'error'); return; }
-        lastTsBy[activePeer] = 0;
-        const box = els().msgs;
-        if (box) box.innerHTML = '<div class="wa-empty" style="margin:auto;color:#666;font-size:10px;text-align:center;">Historial eliminado 🧹</div>';
-        loadMyThreads().catch(() => {});
-        showTessToast('Conversación eliminada (' + (data.deleted || 0) + ' mensajes)', 'info');
-      } catch (err) { showTessToast('Sin conexión al eliminar', 'error'); }
-    });
     e.attachBtn.addEventListener('click', () => e.fileInput.click());
     e.fileInput.addEventListener('change', () => { if (e.fileInput.files[0]) sendImage(e.fileInput.files[0]); e.fileInput.value = ''; });
     e.emojiBtn.addEventListener('click', () => { buildEmojiBar(); e.emojiBar.style.display = e.emojiBar.style.display === 'none' ? 'flex' : 'none'; });
@@ -1709,6 +1679,45 @@ if (document.readyState === 'loading') {
     loadMyThreads().catch(() => {});
     if (Math.floor(Date.now() / 60000) % 3 === 0) loadContacts().catch(() => {});
   }, 15000);
+
+  // LIMPIAR CHAT: delegacion a nivel documento, inmune a recreacion del panel y al timing de boot
+  let clearArmed = 0;
+  document.addEventListener('click', async ev => {
+    const t = ev.target;
+    const b = t && t.closest ? t.closest('#btnOpChatClear') : null;
+    if (!b) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    console.debug('[TESSERACT] limpiar chat click');
+    if (Date.now() - clearArmed > 3500) {
+      clearArmed = Date.now();
+      b.textContent = '⚠';
+      b.style.background = '#7f1d1d';
+      b.title = 'Haz clic de nuevo para CONFIRMAR el borrado total';
+      setTimeout(() => { if (Date.now() - clearArmed >= 3400) { clearArmed = 0; b.textContent = '🧹'; b.style.background = '#16162a'; b.title = 'Borrar TODO el historial de esta conversación'; } }, 3600);
+      return;
+    }
+    clearArmed = 0;
+    b.textContent = '🧹';
+    b.style.background = '#16162a';
+    const token = await ensureToken();
+    if (!token) { sessionNotice(); return; }
+    try {
+      const res = await fetch(TAPI + '/api/tess/chat/clear', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ with: activePeer === ADMIN_PEER ? '' : activePeer })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { showTessToast('No se pudo eliminar (' + res.status + ')', 'error'); return; }
+      lastTsBy[activePeer] = 0;
+      const box = els().msgs;
+      if (box) box.innerHTML = '<div class="wa-empty" style="margin:auto;color:#666;font-size:10px;text-align:center;">Historial eliminado 🧹</div>';
+      loadMyThreads().catch(() => {});
+      showTessToast('Conversación eliminada (' + (data.deleted || 0) + ' mensajes)', 'info');
+      console.debug('[TESSERACT] historial borrado:', data.deleted, 'media:', data.media);
+    } catch (err) { showTessToast('Sin conexión al eliminar', 'error'); }
+  });
 
   stGet(['user_email', 'tess_user']).then(d => {
     myEmail = (d.user_email && String(d.user_email).includes('@')) ? d.user_email : (d.tess_user && String(d.tess_user).includes('@') ? d.tess_user : '');
