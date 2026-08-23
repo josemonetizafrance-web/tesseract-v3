@@ -27,9 +27,27 @@ async function setMailCribsEnabled(enabled) {
   await loadMailCribsConfig();
   mailCribsConfig.enabled = enabled;
   await saveMailCribsConfig();
+  console.log('[MAIL-CRIBS] enabled =', enabled);
   if (enabled) startMailCribsObserver();
   else stopMailCribsObserver();
 }
+
+// Aplicador unico del toggle con guarda anti-doble-ejecucion
+// (binding directo + delegacion de respaldo pueden disparar juntos)
+var _lastToggleApply = 0;
+window._applyMailCribsToggle = function (checked) {
+  var n = Date.now();
+  if (n - _lastToggleApply < 300) return;
+  _lastToggleApply = n;
+  setMailCribsEnabled(!!checked);
+};
+// Delegacion de respaldo: funciona aunque el binding directo se pierda al recrear el panel
+document.addEventListener('change', function (ev) {
+  var t = ev.target;
+  if (t && t.id === 'btnToggleMailCribs' && typeof window._applyMailCribsToggle === 'function') {
+    window._applyMailCribsToggle(t.checked);
+  }
+}, true);
 
 // ============ MESSAGE TEXT OBSERVER ============
 function startMailCribsObserver() {

@@ -757,10 +757,12 @@ function setupAllEvents() {
 
   // Mail CRIBS
   document.getElementById('btnToggleMailCribs').addEventListener('change', function() {
-    if (typeof window._setMailCribsEnabled === 'function') {
+    if (typeof updateMailCribsUI === 'function') updateMailCribsUI();
+    if (typeof window._applyMailCribsToggle === 'function') {
+      window._applyMailCribsToggle(this.checked);
+    } else if (typeof window._setMailCribsEnabled === 'function') {
       window._setMailCribsEnabled(this.checked);
     }
-    setTimeout(updateMailCribsUI, 300);
   });
 
   // Smart Mailing
