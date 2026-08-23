@@ -102,6 +102,11 @@ function ibEditHandler(e) {
   }
 }
 
+window._ibSentCount = window._ibSentCount || 0;
+
+// Visibilidad real (chips duplicados/ocultos del dropdown)
+function _tessElVisible(el) { return !!(el && el.offsetParent !== null); }
+
 async function generateIcebreakersFromAI() {
   console.log('[IB] GENERAR click — iniciando');
   try {
@@ -259,8 +264,13 @@ async function executeIcebreakerSweep() {
       textarea.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: msg.text }));
       textarea.dispatchEvent(new Event('change', { bubbles: true }));
       if (msg.category && msg.category.toLowerCase() === 'mail') {
-        var radio = document.querySelector(TALK_Y.ICEBREAKER_RADIO_MAIL) || document.querySelector('input[type="radio"][name="messageType"][value="mail"]');
-        if (radio) { (radio.closest('label') || radio).click(); await sleep(400); }
+        var radio = document.querySelector('input[type="radio"][name="messageType"][value="mail"]') || document.querySelector(TALK_Y.ICEBREAKER_RADIO_MAIL);
+        if (radio) {
+          (radio.closest('label') || radio).click();
+          try { radio.dispatchEvent(new Event('change', { bubbles: true })); } catch (_rc) {}
+          await sleep(400);
+          console.log('[IB] radio mail checked:', radio.checked || document.querySelector('.radio-input-wrapper[data-is-checked="true"] input[value="mail"]') ? '✓' : '✗');
+        }
         var mailTextarea = document.querySelector(TALK_Y.ICEBREAKER_TEXTAREA_MAIL);
         if (mailTextarea && mailTextarea !== textarea) {
           mailTextarea.removeAttribute('disabled');
@@ -275,24 +285,20 @@ async function executeIcebreakerSweep() {
         console.log('[IB] mood selection: category=', msg.category, '→ mood=', mood);
         var moodEl = null;
         for (var mc = 0; mc < 10; mc++) {
-          var candidates = document.querySelectorAll('div[data-mood="' + mood + '"]');
-          moodEl = Array.from(candidates).find(function (el) {
-            return el.getAttribute('data-isselectable') === 'true' && el.getAttribute('data-isdisabled') !== 'true';
-          });
-          if (!moodEl) {
-            var wrapEl = document.querySelector('[data-test-id="mood-chip selectMood ' + mood + '"]');
-            if (wrapEl) {
-              moodEl = wrapEl.querySelector('div[data-mood]') || (wrapEl.getAttribute('data-mood') === mood ? wrapEl : null);
-            }
+          // 1) Chip dentro del wrapper EXACTO: [data-test-id="mood-chip selectMood <mood>"]
+          var wrapEl = document.querySelector('[data-test-id="mood-chip selectMood ' + mood + '"]');
+          if (wrapEl) {
+            var cand = wrapEl.querySelector('div[data-mood="' + mood + '"]') || (wrapEl.getAttribute('data-mood') === mood ? wrapEl : null);
+            if (cand && _tessElVisible(cand)) moodEl = cand;
           }
+          // 2) Cualquier div[data-mood] VISIBLE, seleccionable y no deshabilitado
           if (!moodEl) {
-            var anyChip = Array.from(document.querySelectorAll('[data-test-id*="mood-chip"], .mood-chip'));
-            moodEl = anyChip.map(function (c) { return c.querySelector('div[data-mood]') || c; }).find(function (c) {
-              return c.getAttribute('data-mood') === mood || (c.getAttribute('data-test-id') || '').indexOf(mood) !== -1;
+            moodEl = Array.from(document.querySelectorAll('div[data-mood="' + mood + '"]')).find(function (el) {
+              return _tessElVisible(el) && el.getAttribute('data-isselectable') === 'true' && el.getAttribute('data-isdisabled') !== 'true';
             }) || null;
           }
           if (moodEl) break;
-          await sleep(200);
+          await sleep(250);
         }
         console.log('[IB] moodEl found for', mood, moodEl ? '✓' : '✗');
         if (moodEl) {
@@ -300,7 +306,8 @@ async function executeIcebreakerSweep() {
           var selected = false;
           for (var sw = 0; sw < 15; sw++) {
             await sleep(200);
-            if (document.querySelector('div[data-mood="' + mood + '"][data-isselected="true"]')) { selected = true; break; }
+            var selEl = document.querySelector('div[data-mood="' + mood + '"][data-isselected="true"]');
+            if (selEl && _tessElVisible(selEl)) { selected = true; break; }
           }
           console.log('[IB] mood clicked:', mood, '| confirmado:', selected);
           if (!selected) console.log('[IB] WARN: mood no confirmo data-isselected, continuando');
@@ -310,14 +317,19 @@ async function executeIcebreakerSweep() {
         }
       }
       await sleep(300);
-      var sendBtn = document.querySelector(TALK_Y.ICEBREAKER_SEND_MODERATION);
-      if (!sendBtn) {
-        sendBtn = Array.from(document.querySelectorAll('button')).find(function(b) {
-          return /\bSend for Moderation\b/i.test(b.textContent);
-        });
+      var sendBtn = null;
+      for (var sb = 0; sb < 6; sb++) {
+        sendBtn = document.querySelector('button[data-test-id*="send-to-moderation"]') || document.querySelector(TALK_Y.ICEBREAKER_SEND_MODERATION) || Array.from(document.querySelectorAll('button')).find(function (b) { return /\bSend\s+for\s+Moderation\b/i.test((b.textContent || '').trim()); }) || null;
+        if (sendBtn && _tessElVisible(sendBtn)) break;
+        sendBtn = null;
+        await sleep(300);
       }
       if (!sendBtn) { showTessToast('No se encontró el botón Send for Moderation', 'error'); break; }
-      console.log('[IB] sending msg', i, 'category:', msg.category);
+      var dis = sendBtn.disabled || sendBtn.getAttribute('aria-disabled') === 'true';
+      console.log('[IB] sending msg', i, 'category:', msg.category, '| disabled:', dis);
+      if (dis) {
+        for (var dw = 0; dw < 5; dw++) { await sleep(300); if (!sendBtn.disabled) break; }
+      }
       sendBtn.click();
       await sleep(1500);
       if (document.querySelector('.warning-text')) {
