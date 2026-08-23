@@ -270,23 +270,28 @@ async function executeIcebreakerSweep() {
       document.getElementById('ibStatus').textContent = 'Enviando ' + (i + 1) + '/' + total + '\u2026';
       var createBtn = document.evaluate('//label[.//p[contains(translate(text(),"ABCDEFGHIJKLMNOPQRSTUVWXYZ","abcdefghijklmnopqrstuvwxyz"),"create new")]]', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
       if (!createBtn) {
-        createBtn = document.querySelector(TALK_Y.ICEBREAKER_CREATE_NEW) || Array.from(document.querySelectorAll('label.chip-root')).find(function (l) { return /create\s*new/i.test(l.textContent || ''); }) || null;
+        createBtn = document.querySelector('label.chip-root[data-test-id*="tab-mode-create-icebreaker"]') || document.querySelector(TALK_Y.ICEBREAKER_CREATE_NEW) || Array.from(document.querySelectorAll('label.chip-root')).find(function (l) { return /create\s*new/i.test(l.textContent || ''); }) || null;
       }
       if (!createBtn) { console.error('[IB] Create new NO encontrado (XPath + test-id + chip-root fallaron)'); showTessToast('No se encontró el botón Create new en la página Icebreakers', 'error'); break; }
-      createBtn.click();
-      console.log('[IB] createBtn clicked for msg', i, 'category:', msg.category);
+      var createInput = createBtn.querySelector('input.chip-input');
+      (createInput || createBtn).click();
+      try { if (createInput) createInput.dispatchEvent(new Event('change', { bubbles: true })); } catch (_ce) {}
+      console.log('[IB] createBtn clicked for msg', i, 'category:', msg.category, '| via:', createInput ? 'input.chip-input' : 'label');
       await sleep(800);
       var textarea = null;
+      var formOpen = false;
       for (var tw = 0; tw < 12; tw++) {
+        if (!formOpen && createBtn.getAttribute('data-isselected') === 'true') { formOpen = true; console.log('[IB] tab create-new activado (data-isselected)'); }
         textarea = document.querySelector(TALK_Y.ICEBREAKER_TEXTAREA)
           || document.querySelector('textarea[placeholder*="message" i]:not([maxlength="1000"])')
           || Array.from(document.querySelectorAll('textarea')).find(function (t) {
             return _tessElVisible(t) && !t.disabled && t.getAttribute('maxlength') !== '1000' && !t.hasAttribute('data-idx') && !t.closest('#ibPreview');
           }) || null;
-        if (textarea && !textarea.disabled) break;
+        if (textarea && !textarea.disabled) { if (!formOpen) console.log('[IB] tab create-new: textarea apareció sin marca data-isselected'); break; }
         await sleep(250);
       }
-      if (!textarea) { console.error('[IB] textarea NO encontrada tras 3s — el form de Create new quizá no abrió'); showTessToast('No se encontró el textarea del Icebreaker', 'error'); break; }
+      if (!formOpen && !textarea) console.error('[IB] tab NO se activó ni textarea apareció — el clic en el radio no surtió efecto');
+      if (!textarea) { showTessToast('No se encontró el textarea del Icebreaker', 'error'); break; }
       console.log('[IB] textarea ok:', textarea.getAttribute('placeholder') || '(sin placeholder)', '| maxlen=', textarea.getAttribute('maxlength'));
       await sleep(300);
       textarea.removeAttribute('disabled');
