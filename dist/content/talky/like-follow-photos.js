@@ -51,13 +51,13 @@ function lfpToast(msg, type) {
   if (typeof showInPageToast === 'function') { showInPageToast(msg, type); return; }
   var el = document.getElementById('tess-toast');
   if (!el) { el = document.createElement('div'); el.id = 'tess-toast';
-    el.style.cssText = 'position:fixed;bottom:80px;right:20px;z-index:99999;padding:10px 18px;border-radius:8px;font-family:Orbitron,sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;color:#fff;box-shadow:0 4px 20px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);transition:opacity 0.3s;';
+    el.style.cssText = 'position:fixed;bottom:80px;right:20px;z-index:99999;padding:10px 18px;border-radius:8px;font-family:Orbitron,sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;color:#fff;box-shadow:0 4px 20px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);transition:opacity 0.3s;pointer-events:none;display:none;';
     document.body.appendChild(el);
   }
   el.style.background = type === 'error' ? 'linear-gradient(135deg,#ef4444,#b91c1c)' : type === 'success' ? 'linear-gradient(135deg,#10b981,#059669)' : 'linear-gradient(135deg,#3b82f6,#2563eb)';
-  el.textContent = msg; el.style.opacity = '1';
+  el.textContent = msg; el.style.opacity = '1'; el.style.display = 'block';
   if (window.__tt) clearTimeout(window.__tt);
-  window.__tt = setTimeout(function () { el.style.opacity = '0'; }, 2500);
+  window.__tt = setTimeout(function () { el.style.opacity = '0'; setTimeout(function () { if (el && el.style.opacity === '0') el.style.display = 'none'; }, 320); }, 2500);
 }
 
 function lfpIsBlocked() {
@@ -441,13 +441,13 @@ function lfpMsgToast(msg, type) {
   var el = document.getElementById('tess-toast-msg');
   if (!el) {
     el = document.createElement('div'); el.id = 'tess-toast-msg';
-    el.style.cssText = 'position:fixed;bottom:130px;right:20px;z-index:99999;padding:10px 18px;border-radius:8px;font-family:Orbitron,sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;color:#fff;box-shadow:0 4px 20px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);transition:opacity 0.3s;';
+    el.style.cssText = 'position:fixed;bottom:130px;right:20px;z-index:99999;padding:10px 18px;border-radius:8px;font-family:Orbitron,sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;color:#fff;box-shadow:0 4px 20px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);transition:opacity 0.3s;pointer-events:none;display:none;';
     document.body.appendChild(el);
   }
   el.style.background = type === 'error' ? 'linear-gradient(135deg,#ef4444,#b91c1c)' : type === 'success' ? 'linear-gradient(135deg,#10b981,#059669)' : 'linear-gradient(135deg,#3b82f6,#2563eb)';
-  el.textContent = msg; el.style.opacity = '1';
+  el.textContent = msg; el.style.opacity = '1'; el.style.display = 'block';
   if (window.__ttm) clearTimeout(window.__ttm);
-  window.__ttm = setTimeout(function () { el.style.opacity = '0'; }, 2500);
+  window.__ttm = setTimeout(function () { el.style.opacity = '0'; setTimeout(function () { if (el && el.style.opacity === '0') el.style.display = 'none'; }, 320); }, 2500);
 }
 
 function lfpMsgCollectContacts() {

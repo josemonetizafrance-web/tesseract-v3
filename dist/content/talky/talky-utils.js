@@ -107,7 +107,7 @@ function findChatInput() {
 
 function showTessToast(msg, type) {
   var el = document.createElement('div');
-  el.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:999999;padding:10px 16px;border-radius:8px;font-size:12px;font-family:Segoe UI,sans-serif;box-shadow:0 4px 12px rgba(0,0,0,0.5);transition:opacity 0.3s;' +
+  el.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:999999;padding:10px 16px;border-radius:8px;font-size:12px;font-family:Segoe UI,sans-serif;box-shadow:0 4px 12px rgba(0,0,0,0.5);transition:opacity 0.3s;pointer-events:none;' +
     (type === 'success' ? 'background:#166534;border:1px solid #22c55e;color:#bbf7d0;' :
      type === 'warning' ? 'background:#713f12;border:1px solid #f59e0b;color:#fde68a;' :
      'background:#7f1d1d;border:1px solid #ef4444;color:#fecaca;');
