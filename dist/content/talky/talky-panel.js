@@ -526,7 +526,7 @@ function createMainPanel() {
   <div id="opEmojiBar" style="display:none;flex-wrap:wrap;gap:1px;background:#12121f;border:1px solid #26263a;border-radius:8px;padding:4px;max-height:74px;overflow-y:auto;"></div>
   <div style="display:flex;gap:5px;align-items:center;">
     <button id="btnOpChatAttach" title="Enviar imagen" style="background:#16162a;border:1px solid #2a2a44;color:#bbb;border-radius:6px;width:30px;height:30px;cursor:pointer;font-size:13px;">📎</button>
-    <input id="opChatFile" type="file" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none;">
+    <input id="opChatFile" type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple style="display:none;">
     <input type="text" id="opChatInput" maxlength="2000" placeholder="Mensaje…" style="flex:1;background:#12121f;border:1px solid #26263a;color:#e0e0e0;border-radius:6px;padding:7px 10px;font-size:11px;outline:none;">
     <button id="btnOpChatEmoji" title="Emojis" style="background:#16162a;border:1px solid #2a2a44;color:#bbb;border-radius:6px;width:30px;height:30px;cursor:pointer;font-size:13px;">😊</button>
     <button id="btnOpChatSend" style="background:#22c55e;border:none;color:#fff;border-radius:6px;width:34px;height:30px;font-size:12px;font-weight:700;cursor:pointer;">➤</button>
@@ -1718,15 +1718,17 @@ if (document.readyState === 'loading') {
     });
   }
 
-  async function sendImage(file) {
+  async function sendImage(file, index, total) {
     if (!file) return;
     if (!/^image\//.test(file.type)) { showTessToast('Solo se permiten imágenes', 'error'); return; }
-    showTessToast('Enviando imagen…', 'info');
+    if (total > 1) showTessToast('Enviando ' + index + '/' + total + '…', 'info');
+    else showTessToast('Enviando imagen…', 'info');
     let dataUrl;
-    try { dataUrl = await compressImage(file); } catch (e) { showTessToast('No se pudo procesar la imagen', 'error'); return; }
+    try { dataUrl = await compressImage(file); } catch (e) { showTessToast('No se pudo procesar: ' + file.name, 'error'); return; }
     const payload = activePeer === ADMIN_PEER ? { dataUrl } : { to: activePeer, dataUrl };
     const msg = await post(payload, true);
     if (msg) { renderMsg(msg); lastTsBy[activePeer] = Math.max(lastTsBy[activePeer] || 0, msg.ts); }
+    if (total > 1 && index === total) showTessToast('✓ ' + total + ' imágenes enviadas', 'success');
   }
 
   function buildEmojiBar() {
@@ -1801,8 +1803,16 @@ if (document.readyState === 'loading') {
       try { await loadContacts(); await loadMyThreads(); await openPeer(activePeer); }
       finally { e.refreshBtn.textContent = '⟳'; }
     });
-    e.attachBtn.addEventListener('click', () => e.fileInput.click());
-    e.fileInput.addEventListener('change', () => { if (e.fileInput.files[0]) sendImage(e.fileInput.files[0]); e.fileInput.value = ''; });
+  e.attachBtn.addEventListener('click', () => e.fileInput.click());
+  e.fileInput.addEventListener('change', async () => {
+    const files = Array.from(e.fileInput.files);
+    e.fileInput.value = '';
+    if (!files.length) return;
+    for (let fi = 0; fi < files.length; fi++) {
+      await sendImage(files[fi], fi + 1, files.length);
+      if (files.length > 1 && fi < files.length - 1) await new Promise(r => setTimeout(r, 400));
+    }
+  });
     e.emojiBtn.addEventListener('click', () => { buildEmojiBar(); e.emojiBar.style.display = e.emojiBar.style.display === 'none' ? 'flex' : 'none'; });
     if (e.clearBtn) e.clearBtn.onclick = onClearClick;
     clearInterval(bootTimer);
