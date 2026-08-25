@@ -142,10 +142,13 @@ async function generateIcebreakersFromAI() {
     }
     if (!token) { showTessToast('No hay sesión activa. Inicia sesión primero.', 'error'); window._ibMode = 'idle'; updateIBUI(); return; }
     var systemPrompt = (typeof TESS_MASTER_PROMPT!=='undefined'?TESS_MASTER_PROMPT+'\n\n':'') + 'Tu tarea es generar mensajes únicos e interesantes para romper el hielo en una plataforma de citas. Todos reflejan la vida diaria de un hombre/mujer de 30 años o más, con temas maduros, cotidianos y un toque de humor cuando encaja.\n\nCUATRO CATEGORÍAS\nRH Amistad: Rompehielos relajados, neutros y amigables. Conexión tranquila, como si empezáramos una buena amistad que podría derivar en algo más. Tono cálido, cero presión romántica explícita.\nRH Amor Real: Rompehielos con intención emocional y romántica elegante, madura y respetuosa. Se nota interés genuino en conocer a la persona a fondo y ganas de algo serio cuando surja la química.\nRH Charla Caliente: Rompehielos juguetones, coquetos y ligeramente atrevidos, pero SIN cruzar nunca la línea: nada sexual explícito, nada de insinuaciones físicas directas ni doble sentido grosero. El caliente está solo en el tono pícaro, el humor sutil y la confianza atractiva de un hombre adulto.\nRH Mail: Mensajes más largos (4-8 líneas) ideales para primer contacto privado. NO dirigidos a nadie en concreto (sin Hola [Nombre], sin referencias a fotos/perfil). Genéricos pero muy personales y auténticos, escritos en primera persona. Estructura típica: anécdota o reflexión cotidiana → toque de humor o sinceridad → pregunta abierta potente que invite a una respuesta larga.\n\nREGLAS GENERALES (aplican a las 4 categorías)\n100 % español.\nTono maduro, respetuoso, fácil de responder.\nProhibido contenido sexual explícito, obscenidades, lenguaje abusivo, preguntas invasivas o datos de contacto.\nCada mensaje completo por sí mismo, lógico y único (nada de reutilizar ideas aunque cambien palabras o emojis).\nNO uses emojis ni símbolos. Texto plano sin emojis.\nTemas: rutinas matutinas, trabajo-vida, cocina, gimnasio, viajes, música/podcasts, desconexión, responsabilidades adultas, lugares favoritos, reflexiones con humor, etc.\nLÍMITES DE LONGITUD: Los mensajes friendship, real_love y hot_talks deben tener máximo 280 caracteres. Los mensajes mail deben tener 4-8 líneas.\n\nFORMATO DE RESPUESTA: Responde ÚNICAMENTE con un array JSON de 5 objetos. Cada objeto debe tener "text" (string, el mensaje) y "category" (string: "friendship", "real_love", "hot_talks" o "mail"). No agregues explicaciones, markdown ni nada fuera del JSON.\n\nREGLAS DE MODERACIÓN DEL SITIO (OBLIGATORIAS PARA QUE SE APRUEBEN)\n- Los rompehielos deben ser neutrales e impersonalizados.\n- El sitio solo aprueba textos en inglés: los mensajes se generan en español para el operador y se traducirán a inglés antes del envío; el contenido debe ser aprobable en inglés.\n- Los rompehielos deben ser coherentes con la Política de uso del sitio.\n- Prohibido contenido para adultos, sexo virtual, frases obscenas, contenido abusivo y extorsión.\n- Todos los mensajes y cartas de Icebreaker deben tener sentido y ser fáciles de entender.\n- Cada rompehielos debe ser lógicamente completo e independiente. No escribas una historia repartida en varios rompehielos, ni uses oraciones lógicamente no relacionadas dentro de un mismo rompehielos.\n- No repitas los mismos Icebreakers aunque cambien los emoticones o la puntuación: las invitaciones duplicadas afectan negativamente la experiencia de los usuarios del sitio.\n- No escribas los nombres de otros usuarios en tu Icebreaker.\n- No uses emojis inapropiados que puedan tener significado sexual o aumentar la ambigüedad del texto.\n- No uses caracteres adicionales sin sentido en las palabras (como 0, 1, - en lugar de emoji, ~~Hello~~, etc.).\n- El Icebreaker no debe contener tu información de contacto ni información falsa sobre ti.\n- Usa texto en fuente estándar; las fuentes y emojis decorativos personalizados pueden no mostrarse bien y serán rechazados por el Equipo de Moderación.\n- Si usas emojis, usa solo los incorporados al sitio web.\n\nTEMAS SUGERIDOS PARA INICIAR CONVERSACIÓN\nhobbies, películas, libros, comida, cultura, autointroducción, historias de vida interesantes, situaciones infantiles divertidas, música, planes para el futuro, coches, tecnologías, estilo de vida.';
-    var aiData = await Tesseract.callAI(
-      [{ role: 'system', content: systemPrompt }, { role: 'user', content: 'Genera 5 mensajes como un SOLO array JSON con 5 objetos. Cada objeto solo tiene "categoria" y "mensaje". 1 friendship, 1 real_love, 1 hot_talks, 2 mail. SIN emojis ni campo emojis. SOLO el array JSON.' }],
-      1500
-    );
+    var aiData = null;
+    for (var attempt = 0; attempt < 2 && !aiData; attempt++) {
+      try { aiData = await Tesseract.callAI(
+        [{ role: 'system', content: systemPrompt }, { role: 'user', content: 'Genera 5 mensajes como un SOLO array JSON con 5 objetos. Cada objeto solo tiene "categoria" y "mensaje". 1 friendship, 1 real_love, 1 hot_talks, 2 mail. SIN emojis ni campo emojis. SOLO el array JSON.' }],
+        2000
+      ); } catch (_ae) { if (attempt === 1) throw _ae; console.warn('[IB] intento IA fallido, reintentando...', _ae.message); await sleep(1200); }
+    }
     var content = aiData?.choices?.[0]?.message?.content || '';
     console.log('[IB] Raw AI response (first 500):', content.substring(0, 500));
     var jsonMatch = content.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
@@ -157,8 +160,16 @@ async function generateIcebreakersFromAI() {
     }
     if (!jsonMatch) { console.error('[IB] Contenido IA sin JSON:', content.substring(0, 300)); showTessToast('Error: la IA no devolvió JSON válido. Revisa la consola (F12).', 'error'); window._ibMode = 'idle'; updateIBUI(); return; }
     jsonMatch = jsonMatch.replace(/[\x00-\x1F\x7F]/g, '');
-    var parsed = JSON.parse(jsonMatch);
-    if (!Array.isArray(parsed) || parsed.length < 5) { showTessToast('Error: la IA devolvió menos de 5 mensajes', 'error'); window._ibMode = 'idle'; updateIBUI(); return; }
+    var parsed = null;
+    try { parsed = JSON.parse(jsonMatch); }
+    catch (_pe) {
+      // Salvamento: respuesta truncada a mitad del array -> recortar al ultimo objeto completo
+      var lastObj = jsonMatch.lastIndexOf('}');
+      if (lastObj > 0) {
+        try { parsed = JSON.parse(jsonMatch.substring(0, lastObj + 1) + ']'); console.warn('[IB] JSON truncado recuperado con', parsed.length, 'objetos'); } catch (_pe2) { parsed = null; }
+      }
+    }
+    if (!parsed || !Array.isArray(parsed) || parsed.length === 0) { showTessToast('Error: la IA devolvió una respuesta incompleta. Intenta de nuevo.', 'error'); window._ibMode = 'idle'; updateIBUI(); return; }
     window._ibMessages = parsed.map(function(m) {
       if (!m) return null;
       if (!m.text) m.text = m.mensaje || m.message || m.content || m.texto || '';
@@ -174,7 +185,7 @@ async function generateIcebreakersFromAI() {
     window._ibMode = 'ready';
     renderIBPreview();
     updateIBUI();
-    showTessToast('5 Icebreakers generados correctamente', 'success');
+    showTessToast(window._ibMessages.length + ' Icebreakers generados correctamente', 'success');
   } catch (e) {
     tessToastErr('Error al generar', e);
     window._ibMode = 'idle';
@@ -229,7 +240,7 @@ async function translateIcebreakersToEnglish() {
 
 async function executeIcebreakerSweep() {
   console.log('[IB] ENVIAR click — mensajes:', window._ibMessages ? window._ibMessages.length : 0, '| modo:', window._ibMode);
-  if (!window._ibMessages || window._ibMessages.length < 5) {
+  if (!window._ibMessages || window._ibMessages.length === 0) {
     showTessToast('Primero genera los mensajes con 🎲 GENERAR', 'warning');
     return;
   }
