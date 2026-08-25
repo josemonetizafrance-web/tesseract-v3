@@ -498,6 +498,17 @@ function createMainPanel() {
 #tabSoporte .wa-you{align-self:flex-start;background:#202c33;color:#e9edef;border-bottom-left-radius:3px;}
 #tabSoporte .wa-t{font-size:8px;color:#8696a0;text-align:right;margin-top:3px;display:block;}
 #tabSoporte .wa-img{max-width:180px;max-height:180px;border-radius:8px;display:block;cursor:pointer;margin-bottom:2px;background:#111;}
+#tabSoporte .wa-media-wrap{position:relative;display:inline-block;}
+#tabSoporte .wa-media-menu{position:absolute;top:4px;right:4px;width:24px;height:24px;background:rgba(0,0,0,0.6);border:none;border-radius:50%;color:#e0e0e0;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:5;opacity:0;transition:opacity 0.2s;}
+#tabSoporte .wa-media-wrap:hover .wa-media-menu{opacity:1;}
+#tabSoporte .wa-media-menu-content{display:none;position:absolute;top:30px;right:0;background:#1f2c34;border:1px solid #3b4a54;border-radius:8px;min-width:130px;z-index:10;box-shadow:0 4px 16px rgba(0,0,0,0.5);overflow:hidden;}
+#tabSoporte .wa-media-menu-content.open{display:block;}
+#tabSoporte .wa-media-menu-item{padding:8px 12px;font-size:11px;color:#e0e0e0;cursor:pointer;display:flex;align-items:center;gap:6px;transition:background 0.15s;}
+#tabSoporte .wa-media-menu-item:hover{background:rgba(139,92,246,0.25);}
+#tabSoporte .wa-share-list{max-height:200px;overflow-y:auto;}
+#tabSoporte .wa-share-item{padding:6px 12px;font-size:11px;color:#e0e0e0;cursor:pointer;border-bottom:1px solid #2a3a44;transition:background 0.15s;}
+#tabSoporte .wa-share-item:hover{background:rgba(139,92,246,0.25);}
+#tabSoporte .wa-share-item:last-child{border-bottom:none;}
 #tabSoporte .wa-emoji{background:transparent;border:none;font-size:16px;padding:2px 3px;cursor:pointer;line-height:1;}
 #tabSoprite .x{}
 </style>
@@ -1429,12 +1440,18 @@ if (document.readyState === 'loading') {
     if (after) p.push('after=' + after);
     return '/api/tess/chat/messages' + (p.length ? '?' + p.join('&') : '');
   }
-  async function api(path) {
+  async function api(path, method, body) {
     const token = await ensureToken();
     if (!token) throw new Error('sin-sesion');
-    const res = await fetch(TAPI + path, { headers: { 'Authorization': 'Bearer ' + token } });
+    const opts = { headers: { 'Authorization': 'Bearer ' + token } };
+    if (method === 'POST' && body) {
+      opts.method = 'POST';
+      opts.headers['Content-Type'] = 'application/json';
+      opts.body = JSON.stringify(body);
+    }
+    const res = await fetch(TAPI + path, opts);
     if (res.status === 401 && typeof tryRefreshToken === 'function') {
-      if (await tryRefreshToken()) return api(path);
+      if (await tryRefreshToken()) return api(path, method, body);
     }
     if (!res.ok) throw new Error('HTTP ' + res.status);
     return res.json();
@@ -1453,9 +1470,52 @@ if (document.readyState === 'loading') {
 
 
   function appendMediaImg(div, m) {
+    const wrap = document.createElement('div');
+    wrap.className = 'wa-media-wrap';
     const img = document.createElement('img');
     img.className = 'wa-img';
-    div.appendChild(img);
+    wrap.appendChild(img);
+
+    const menuBtn = document.createElement('button');
+    menuBtn.className = 'wa-media-menu';
+    menuBtn.textContent = '⋮';
+    menuBtn.title = 'Opciones';
+    const menuContent = document.createElement('div');
+    menuContent.className = 'wa-media-menu-content';
+
+    const dlItem = document.createElement('div');
+    dlItem.className = 'wa-media-menu-item';
+    dlItem.textContent = '⬇ Download';
+    dlItem.onclick = function (e) {
+      e.stopPropagation();
+      menuContent.classList.remove('open');
+      downloadMedia(m);
+    };
+
+    const shItem = document.createElement('div');
+    shItem.className = 'wa-media-menu-item';
+    shItem.textContent = '↗ Share';
+    shItem.onclick = function (e) {
+      e.stopPropagation();
+      menuContent.classList.remove('open');
+      showSharePicker(m, menuContent);
+    };
+
+    menuContent.appendChild(dlItem);
+    menuContent.appendChild(shItem);
+    wrap.appendChild(menuBtn);
+    wrap.appendChild(menuContent);
+
+    menuBtn.onclick = function (e) {
+      e.stopPropagation();
+      menuContent.classList.toggle('open');
+    };
+
+    document.addEventListener('click', function closeMenu() {
+      menuContent.classList.remove('open');
+    });
+
+    div.appendChild(wrap);
     const mid = String(m.mediaId);
     if (mediaCache[mid]) { img.src = mediaCache[mid]; wireOpen(img); return; }
     api('/api/tess/chat/media/' + mid).then(d => {
@@ -1469,6 +1529,68 @@ if (document.readyState === 'loading') {
         const w = window.open();
         if (w && i.src) w.document.write('<img src="' + i.src + '" style="max-width:100%">');
       };
+    }
+  }
+
+  function downloadMedia(m) {
+    const mid = String(m.mediaId);
+    const cached = mediaCache[mid];
+    if (!cached) { showTessToast('Descargando imagen...', 'info'); return; }
+    const parts = cached.split(',');
+    const mime = parts[0].match(/data:(.*?);/)[1];
+    const b64 = parts[1];
+    const bin = atob(b64);
+    const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    const blob = new Blob([arr], { type: mime });
+    const ext = mime.includes('png') ? '.png' : mime.includes('gif') ? '.gif' : mime.includes('webp') ? '.webp' : '.jpg';
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'tesseract_' + mid + ext;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showTessToast('⬇ Imagen descargada', 'success');
+  }
+
+  async function showSharePicker(m, menuEl) {
+    let picker = menuEl.querySelector('.wa-share-list');
+    if (picker) { picker.remove(); return; }
+    picker = document.createElement('div');
+    picker.className = 'wa-share-list';
+    picker.innerHTML = '<div style="padding:6px 12px;color:#888;font-size:10px;">Cargando contactos...</div>';
+    menuEl.appendChild(picker);
+    try {
+      const resp = await api('/api/tess/chat/contacts');
+      const all = resp.contacts || [];
+      const me = (contacts.me || '').toLowerCase();
+      picker.innerHTML = '';
+      if (all.length === 0) {
+        picker.innerHTML = '<div style="padding:6px 12px;color:#888;font-size:10px;">No hay contactos</div>';
+        return;
+      }
+      all.forEach(function (c) {
+        const item = document.createElement('div');
+        item.className = 'wa-share-item';
+        item.textContent = (c.name || c.email.split('@')[0]) + (c.unread > 0 ? ' (' + c.unread + ')' : '');
+        item.onclick = async function (e) {
+          e.stopPropagation();
+          item.textContent = '⏳ Enviando...';
+          try {
+            await api('/api/tess/chat/share-media', 'POST', { mediaId: m.mediaId, to: c.email });
+            item.textContent = '✓ Enviado';
+            showTessToast('↗ Compartido con ' + (c.name || c.email.split('@')[0]), 'success');
+          } catch (err) {
+            item.textContent = '✗ Error';
+            showTessToast('Error al compartir: ' + err.message, 'error');
+          }
+        };
+        picker.appendChild(item);
+      });
+    } catch (err) {
+      picker.innerHTML = '<div style="padding:6px 12px;color:#f59e0b;font-size:10px;">Error al cargar contactos</div>';
     }
   }
 

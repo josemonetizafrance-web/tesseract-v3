@@ -194,6 +194,39 @@ router.get('/api/tess/chat/media/:id', validateToken, async (req, res) => {
     if (!allowed) return res.status(403).json({ error: 'Sin acceso a esta imagen' });
     res.json({ mime: media.mime, data: media.data });
   } catch (err) {
+    console.error('[CHAT] media error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Compartir media con otro operador (reenvía el mismo media sin re-subir)
+router.post('/api/tess/chat/share-media', validateToken, async (req, res) => {
+  try {
+    const { mediaId, to } = req.body;
+    if (!mediaId || !to) return res.status(400).json({ error: 'mediaId y to requeridos' });
+    const me = String(req.user.email || '').toLowerCase();
+    const media = await getChatMedia(String(mediaId));
+    if (!media) return res.status(404).json({ error: 'Media no encontrado' });
+    const allowed = me === String(media.by).toLowerCase() ||
+      me === String(media.to).toLowerCase() ||
+      me === ADMIN_ID.toLowerCase();
+    if (!allowed) return res.status(403).json({ error: 'Sin acceso a este media' });
+    const rawTo = String(to).trim().toLowerCase();
+    const staff = !!(req.user.is_admin || req.user.is_developer);
+    let fromId, target;
+    if (rawTo === ADMIN_ID.toLowerCase()) {
+      fromId = me; target = ADMIN_ID;
+    } else {
+      const dest = await findUserByEmail(rawTo);
+      if (!dest) return res.status(404).json({ error: 'Usuario destino no encontrado' });
+      target = String(dest.email).toLowerCase();
+      fromId = staff ? ADMIN_ID : me;
+    }
+    const newMedia = await saveChatMedia({ data: media.data, mime: media.mime, by: fromId, to: target });
+    const msg = await saveChatMessage(fromId, target, '', { kind: 'image', mediaId: String(newMedia.id), mime: media.mime });
+    res.json({ success: true, message: msg });
+  } catch (err) {
+    console.error('[CHAT] share-media error:', err);
     res.status(500).json({ error: err.message });
   }
 });
