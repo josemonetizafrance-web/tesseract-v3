@@ -53,6 +53,26 @@ function toggleClonacion() {
 function copyEaterResponseToChat() {
   if (typeof isAuthenticated !== 'undefined' && !isAuthenticated) return;
   if (typeof eaterActive !== 'undefined' && !eaterActive) return;
+  // MULTI: copiar el cuadro enfocado, o el primero no vacio
+  var mFocus = (document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('tess-multi-box')) ? document.activeElement : null;
+  if (mFocus && mFocus.value && mFocus.value !== '🤖 Generando...') {
+    copyToChatInput(mFocus.value);
+    mFocus.style.borderColor = '#4CAF50';
+    setTimeout(function () { mFocus.style.borderColor = '#2a2a44'; }, 800);
+    return;
+  }
+  var mBoxes = document.querySelectorAll('#eaterMultiBoxes .tess-multi-box');
+  if (mBoxes.length) {
+    for (var mb = 0; mb < mBoxes.length; mb++) {
+      if (mBoxes[mb].value && mBoxes[mb].value !== '🤖 Generando...') {
+        copyToChatInput(mBoxes[mb].value);
+        mBoxes[mb].style.borderColor = '#4CAF50';
+        (function (b) { setTimeout(function () { b.style.borderColor = '#2a2a44'; }, 800); })(mBoxes[mb]);
+        break;
+      }
+    }
+    return;
+  }
   const area = document.getElementById('eaterResponseArea');
   if (!area || !area.value || area.value === 'Esperando mensaje...') return;
   copyToChatInput(area.value);
@@ -539,9 +559,9 @@ function injectEaterTrigger(msgEl, messageText) {
     } else {
       if (_selectedEaterMessages.length > 0) {
         _selectedEaterMessages.push(msgText.trim());
-        const combined = _selectedEaterMessages.join(' | ');
+        const list = _selectedEaterMessages.slice();
         _clearEaterSelection();
-        generateFromMessage(combined);
+        generateMultiFromSelection(list);
       } else {
         generateFromMessage(msgText.trim());
       }
@@ -655,6 +675,7 @@ function generateFromMessage(msgText) {
   _eaterLastGenTime = now;
   _eaterGenCount++;
   ensurePanelVisible();
+  _eaterRemoveMultiBoxes();
   
   const clientName = currentClientName || 'Cliente';
   var _clientMsgFull = _selectedEaterMessages.length > 0 ? _selectedEaterMessages.join(' | ') : msgText;
@@ -697,6 +718,78 @@ function generateFromMessage(msgText) {
     if (btn2) btn2.textContent = '🔄 FRASES';
     displaySuggestions(clientName);
   });
+}
+
+// ============ GENERACIÓN MULTI: una respuesta por mensaje seleccionado, cada una en su cuadro ============
+function _eaterRemoveMultiBoxes() {
+  var cont = document.getElementById('eaterMultiBoxes');
+  if (cont) cont.remove();
+  var area = document.getElementById('eaterResponseArea');
+  if (area) area.style.display = '';
+}
+
+async function generateMultiFromSelection(list) {
+  if (!list || !list.length) return;
+  var today = new Date().toISOString().slice(0, 10);
+  if (_eaterGenDate !== today) { _eaterGenDate = today; _eaterGenCount = 0; }
+  if (_eaterGenCount >= 20) { showTessToast('Límite diario de IA alcanzado (20)', 'warning'); return; }
+  _eaterLastGenTime = Date.now();
+  ensurePanelVisible();
+
+  var clientName = currentClientName || 'Cliente';
+  window._eaterClientMsgText = list.join(' | ');
+  var profile = window._lastClientProfile || { name: clientName, interests: [], location: null, bio: '', age: null, hasPhoto: false, hobbies: null };
+
+  var area = document.getElementById('eaterResponseArea');
+  if (!area) return;
+  _eaterRemoveMultiBoxes();
+
+  // Contenedor con un cuadro por mensaje seleccionado, en orden
+  var cont = document.createElement('div');
+  cont.id = 'eaterMultiBoxes';
+  cont.style.cssText = 'display:flex;flex-direction:column;gap:5px;margin:4px 0;';
+  var boxes = [];
+  for (var bi = 0; bi < list.length; bi++) {
+    var wrapEl = document.createElement('div');
+    var lbl = document.createElement('div');
+    lbl.textContent = '→ Respuesta ' + (bi + 1) + '/' + list.length + ': "' + String(list[bi]).substring(0, 40) + (list[bi].length > 40 ? '…' : '') + '"';
+    lbl.style.cssText = 'font-size:8px;color:#8b5cf6;font-weight:bold;margin-bottom:1px;word-break:break-word;';
+    var ta = document.createElement('textarea');
+    ta.className = 'tess-multi-box';
+    ta.rows = 2;
+    ta.setAttribute('data-idx', bi);
+    ta.value = '🤖 Generando...';
+    ta.style.cssText = 'width:100%;background:#12121f;border:1px solid #2a2a44;color:#888;border-radius:6px;padding:6px;font-size:11px;box-sizing:border-box;resize:vertical;min-height:34px;';
+    wrapEl.appendChild(lbl);
+    wrapEl.appendChild(ta);
+    cont.appendChild(wrapEl);
+    boxes.push(ta);
+  }
+  area.parentElement.insertBefore(cont, area);
+  area.style.display = 'none';
+
+  var btn2 = document.getElementById('btnRefreshEater2');
+  if (btn2) btn2.textContent = '🤖 IA x' + list.length;
+
+  var responses = [];
+  for (var gi = 0; gi < list.length; gi++) {
+    var resp = null;
+    try { resp = await generateWithAI(clientName, profile, list[gi]); } catch (_ge) { resp = null; }
+    if (!resp) resp = generateLocalResponse(clientName, profile);
+    resp = _eaterCap120(resp);
+    responses.push(resp);
+    boxes[gi].value = resp;
+    boxes[gi].style.color = '#e0e0e0';
+    console.log('[EATER MULTI] Respuesta ' + (gi + 1) + '/' + list.length + ' (' + resp.length + ' chars)');
+    if (gi < list.length - 1) await sleep(300);
+  }
+
+  _eaterGenCount++;
+  eaterResponse = Tesseract.set('eaterResponse', responses.join('\n\n'));
+  window._eaterMultiResponses = responses;
+  if (eaterResponse) _processedTexts.add(eaterResponse.substring(0, 80));
+  isUsingAI = Tesseract.set('isUsingAI', true);
+  if (btn2) btn2.textContent = '🤖 IA';
 }
 
 // ============ EXTRACCIÓN DE PERFIL ============
@@ -787,6 +880,18 @@ function collectRecentConversation(maxTurns) {
   } catch (e) { return []; }
 }
 
+// Corte inteligente a 120 caracteres (frase/coma/espacio)
+function _eaterCap120(t) {
+  t = String(t || '').replace(/^["'\u201c\u201d\s]+/, '').replace(/["'\u201c\u201d\s]+$/, '');
+  if (t.length <= 120) return t;
+  var cut = t.substring(0, 120);
+  var p = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? '), cut.lastIndexOf(', '), cut.lastIndexOf('; '));
+  if (p >= 60) return cut.substring(0, p + 1).trim();
+  var sp = cut.lastIndexOf(' ');
+  if (sp >= 60) return cut.substring(0, sp).trim();
+  return cut.trim();
+}
+
 async function generateWithAI(name, profile, accumulatedMsg) {
   try {
     if (!accumulatedMsg || accumulatedMsg.trim().length < 3) {
@@ -847,6 +952,7 @@ async function generateWithAI(name, profile, accumulatedMsg) {
       '- NO saludes a menos que el cliente haya saludado.\n' +
       '- NO preguntes hora, fecha, ni en que piensas?.\n' +
       '- NO uses frases hechas ni halagos vacios.\n' +
+      '- LONGITUD: tu respuesta completa debe tener MAXIMO 120 caracteres. Sin excepciones. Breve y directo.\n' +
       '- IDIOMA: responde en el MISMO idioma en que escribe el cliente. Si escribe en ingles, responde en ingles natural; si en espanol, en espanol. NUNCA mezcles idiomas ni respondas en otro idioma.\n' +
       '- NO termines cada respuesta con pregunta. Solo pregunta si es necesario.\n' +
       '- NO lleves todo al terreno romantico. Puede ser divertida, intelectual, cotidiana.\n' +
@@ -857,7 +963,7 @@ async function generateWithAI(name, profile, accumulatedMsg) {
       'Sigue el tono del cliente: si bromea, sigue humor; si es directo, se directo; si es profundo, conectate. ' +
       'DETECTA DISCUSION: si el cliente discute, rete o cuestiona, responde con la misma intensidad defiende tu punto con firmeza, no te doblegues. ' +
       'Habla como WhatsApp, no como carta. ' +
-      (isMultiple ? 'Cubre todos los mensajes recibidos con la extension necesaria para cada uno, sin ser excesivamente breve.' : 'Se concreto, maximo 300 caracteres.') + ' Responde SOLO el texto de mi respuesta.';
+      (isMultiple ? 'Cubre todos los mensajes recibidos con la extension necesaria para cada uno, sin exceder JAMAS los 120 caracteres en total.' : 'Se concreto, MAXIMO 120 caracteres.') + ' Responde SOLO el texto de mi respuesta.';
 
     console.log('[EATER AI] Llamando a IA vía proxy');
 
@@ -894,8 +1000,8 @@ async function generateWithAI(name, profile, accumulatedMsg) {
     console.log('[EATER AI] AI response:', aiData);
     
     if (aiData && aiData.choices && aiData.choices[0]?.message?.content) {
-      const text = aiData.choices[0].message.content.trim();
-      console.log('[EATER AI] Respuesta generada:', text);
+      const text = _eaterCap120(aiData.choices[0].message.content.trim());
+      console.log('[EATER AI] Respuesta generada (' + text.length + ' chars):', text);
       return text;
     }
     return null;
@@ -941,7 +1047,7 @@ function displaySuggestions(name) {
   if (!area) return;
   
   if (eaterResponse) {
-    var displayText = eaterResponse;
+    var displayText = _eaterCap120(eaterResponse);
     var ta = document.querySelector('textarea#form-textarea');
     if (ta) {
       var ml = parseInt(ta.getAttribute('maxlength'));
