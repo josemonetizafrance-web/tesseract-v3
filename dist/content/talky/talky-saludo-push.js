@@ -153,10 +153,10 @@ async function spTypeAndSend(text) {
   input.value = text;
   input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
   input.dispatchEvent(new Event('change', { bubbles: true }));
-  await sleep(600);
+  await sleep(350);
 
   var btn = spFindSendBtn();
-  var ready = await spWaitSendEnabled(btn, 4000);
+  var ready = await spWaitSendEnabled(btn, 3000);
   if (!ready) {
     console.log('[SP] Boton de envio sigue deshabilitado');
     return false;
@@ -207,6 +207,23 @@ async function spWaitForInput(timeoutMs) {
     input.disabled = false;
   }
   return input || null;
+}
+
+// Limites del contacto LEIDOS DIRECTO DEL ITEM DE LA LISTA (sin abrir el chat)
+// <div class="counter" data-nolimits="false" data-type="Chat" data-test-id="file:restriction-limits messages-counter">
+//   <span class="counter-success">9</span></div>
+function spItemLimits(item) {
+  try {
+    var c = item.querySelector('[data-test-id*="restriction-limits"]') || item.querySelector('.counter[data-type="Chat"]') || item.querySelector('.counter');
+    if (!c) return { ok: true, left: Infinity };
+    if (c.getAttribute('data-nolimits') === 'true') return { ok: false, left: 0 };
+    var span = c.querySelector('span.counter-success') || c.querySelector('span');
+    var n = parseInt(((span && span.textContent) || '').trim(), 10);
+    if (isNaN(n)) n = -1;
+    var agotado = !!c.querySelector('[class*="danger"], [class*="error"]');
+    if (agotado || n === 0) return { ok: false, left: 0 };
+    return { ok: true, left: n > 0 ? n : Infinity };
+  } catch (e) { return { ok: true, left: Infinity }; }
 }
 
 async function spGetMsgCount() {
@@ -341,13 +358,20 @@ async function executeSaludoPush() {
       continue;
     }
 
+    // LIMITES: si no tiene o agoto, saltar DE UNA VEZ sin abrir chat
+    var lim = spItemLimits(item);
+    if (!lim.ok || lim.left <= 0) {
+      console.log('[SP] Sin limites disponibles (data-nolimits/contador en 0), saltando:', profileId);
+      continue;
+    }
+
     // Abrir chat
     var clickTarget = item.querySelector(TALK_Y.DIALOG_GO_TO_CHAT);
     if (!clickTarget) continue;
     clickTarget.click();
-    await sleep(1500);
+    await sleep(900);
 
-    var input = await spWaitForInput(5000);
+    var input = await spWaitForInput(4000);
     if (!input) {
       console.log('[SP] No se encontro input de chat para:', profileId);
       continue;
@@ -373,18 +397,20 @@ async function executeSaludoPush() {
     var msgs = await spTranslateBatch(seq);
     if (!spActive) break;
 
-    // Espacio disponible (max 10 msg por conversacion, enviamos hasta 5)
+    // Espacio disponible: minimo entre limites del item y espacio real del chat (max 10)
     var maxMsg = 10;
     var curMsg = await spGetMsgCount();
-    var room = Math.max(0, maxMsg - curMsg);
+    var room = lim.left;
+    if (curMsg > 0) room = Math.min(room, Math.max(0, maxMsg - curMsg));
     if (room <= 0) {
-      console.log('[SP] Contacto sin espacio (' + curMsg + '/' + maxMsg + '), saltando:', profileId);
+      console.log('[SP] Contacto sin espacio/limites (' + curMsg + '/10, left=' + lim.left + '), saltando:', profileId);
       if (input && input.value) { input.value = ''; input.dispatchEvent(new Event('input', { bubbles: true })); }
       continue;
     }
 
     var sentSeq = await spGetSentSeq(profileId);
     var msgsToSend = Math.min(msgs.length, room, 5);
+    var sentToThis = 0;
     for (var mi = 0; mi < msgsToSend; mi++) {
       if (!spActive) break;
       if (spConfig.maxDaily > 0 && spConfig.sentToday >= spConfig.maxDaily) break;
@@ -400,16 +426,17 @@ async function executeSaludoPush() {
         continue;
       }
 
-      await sleep(800 + Math.random() * 400);
+      await sleep(400 + Math.random() * 250);
       var ok = await spTypeAndSend(msgs[mi]);
       if (!ok) {
         console.log('[SP] Error al enviar mensaje ' + (mi + 1) + '/5 para:', profileId);
         break;
       }
-      await sleep(1200 + Math.random() * 800);
+      await sleep(700 + Math.random() * 400);
 
       spConfig.sentToday++;
       sent++;
+      sentToThis++;
       try {
         var spStats = Tesseract.get('botStats') || {};
         spStats.saludosSent = (spStats.saludosSent || 0) + 1;
@@ -418,10 +445,15 @@ async function executeSaludoPush() {
       await spMarkProfileContacted(profileId, mi);
       await saveSPConfig();
       updateSPUI();
+
+      // Limites agotados en medio de la secuencia -> siguiente contacto
+      if (sentToThis >= lim.left) { console.log('[SP] Limites del contacto agotados tras', sentToThis, 'mensaje(s)'); break; }
+      var nowLeft = await spGetMsgCount();
+      if (nowLeft > 0 && nowLeft >= maxMsg) { console.log('[SP] Chat lleno (' + nowLeft + '/10), siguiente'); break; }
     }
     if (input && input.value) { input.value = ''; input.dispatchEvent(new Event('input', { bubbles: true })); }
 
-    await sleep(1000 + Math.random() * 1000);
+    await sleep(500 + Math.random() * 500);
   }
 
   console.log('[SP] Barrido completado. Enviados:', sent);
