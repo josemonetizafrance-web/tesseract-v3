@@ -1166,10 +1166,10 @@ const CHAT_ADMIN_ID = 'ADMIN';
 
 async function saveChatMessage(from, to, text, extra) {
   const doc = Object.assign(
-    { from: String(from), to: String(to), text: String(text || '').slice(0, 2000), ts: Date.now(), read: false },
+    { from: String(from).toLowerCase(), to: String(to).toLowerCase(), text: String(text || '').slice(0, 2000), ts: Date.now(), read: false },
     extra || {}
   );
-  await db.collection('tess_chat').insertOne(doc);
+  db.collection('tess_chat').insertOne(doc);
   return doc;
 }
 
@@ -1188,17 +1188,18 @@ async function getChatMedia(id) {
 }
 
 async function getChatMessages(userA, userB, after = 0, limit = 300) {
-  return await db.collection('tess_chat').find({
-    $or: [ { from: userA, to: userB }, { from: userB, to: userA } ],
+  const a = String(userA).toLowerCase(), b = String(userB).toLowerCase();
+  return db.collection('tess_chat').find({
+    $or: [ { from: a, to: b }, { from: b, to: a } ],
     ts: { $gt: Number(after) || 0 }
   }).sort({ ts: 1 }).limit(limit).toArray();
 }
 
 async function clearChatThread(userA, userB) {
-  // userB null => hilo de soporte con ADMIN
-  const filter = userB
-    ? { $or: [ { from: userA, to: userB }, { from: userB, to: userA } ] }
-    : { $or: [ { from: userA, to: 'ADMIN' }, { from: 'ADMIN', to: userA } ] };
+  const a = String(userA).toLowerCase(), b = userB ? String(userB).toLowerCase() : null;
+  const filter = b
+    ? { $or: [ { from: a, to: b }, { from: b, to: a } ] }
+    : { $or: [ { from: a, to: 'admin' }, { from: 'admin', to: a } ] };
   const col = db.collection('tess_chat');
   const docs = await col.find(filter, { projection: { mediaId: 1 } }).toArray();
   let mediaDeleted = 0;
@@ -1215,9 +1216,9 @@ async function clearChatThread(userA, userB) {
 }
 
 async function markChatRead(userA, userB) {
-  // marca como leidos los mensajes que userB envio a userA
+  const a = String(userA).toLowerCase(), b = String(userB).toLowerCase();
   await db.collection('tess_chat').updateMany(
-    { from: userB, to: userA, read: false },
+    { from: b, to: a, read: false },
     { $set: { read: true } }
   );
 }
@@ -1239,7 +1240,7 @@ async function getAdminThreads() {
 }
 
 async function getMyThreads(userEmail) {
-  const me = String(userEmail);
+  const me = String(userEmail).toLowerCase();
   const docs = await db.collection('tess_chat')
     .find({ $or: [{ from: me }, { to: me }] })
     .sort({ ts: -1 })
@@ -1247,11 +1248,12 @@ async function getMyThreads(userEmail) {
     .toArray();
   const map = new Map();
   for (const m of docs) {
-    const other = m.from === me ? m.to : m.from;
+    const mf = String(m.from || '').toLowerCase(), mt = String(m.to || '').toLowerCase();
+    const other = mf === me ? mt : mf;
     if (!other || other === me) continue;
     let t = map.get(other);
     if (!t) { t = { email: other, lastText: m.text, lastTs: m.ts, unread: 0 }; map.set(other, t); }
-    if (m.to === me && !m.read) t.unread++;
+    if (mt === me && !m.read) t.unread++;
   }
   return Array.from(map.values()).sort((a, b) => b.lastTs - a.lastTs);
 }

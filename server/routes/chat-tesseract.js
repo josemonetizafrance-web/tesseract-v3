@@ -168,6 +168,29 @@ router.post('/api/tess/admin/chat/migrate-admin-to-email', validateToken, requir
   }
 });
 
+// Migracion: normalizar TODOS los emails en tess_chat a lowercase
+router.post('/api/tess/admin/chat/normalize-emails', validateToken, requireTesseractAdmin, requireRootMaster, async (req, res) => {
+  try {
+    const { getDb } = require('../db/tesseract.js');
+    const db = getDb();
+    const col = db.collection('tess_chat');
+    const docs = await col.find({}).toArray();
+    let fixed = 0;
+    for (const d of docs) {
+      const updates = {};
+      if (d.from !== String(d.from).toLowerCase()) updates.from = String(d.from).toLowerCase();
+      if (d.to !== String(d.to).toLowerCase()) updates.to = String(d.to).toLowerCase();
+      if (Object.keys(updates).length) {
+        await col.updateOne({ _id: d._id }, { $set: updates });
+        fixed++;
+      }
+    }
+    res.json({ success: true, normalized: fixed });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Enviar imagen (sube el media y crea el mensaje en una sola llamada)
 router.post('/api/tess/chat/send-image', validateToken, async (req, res) => {
   try {
