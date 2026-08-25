@@ -24,8 +24,7 @@ router.post('/api/tess/chat/send', validateToken, async (req, res) => {
     let fromId, target;
 
     if (!rawTo || rawTo === ADMIN_ID.toLowerCase()) {
-      if (staff) return res.status(400).json({ error: 'Destinatario requerido' });
-      fromId = req.user.email;
+      fromId = staff ? ADMIN_ID : req.user.email;
       target = ADMIN_ID;
     } else {
       const dest = await findUserByEmail(rawTo);
@@ -33,9 +32,9 @@ router.post('/api/tess/chat/send', validateToken, async (req, res) => {
       if (String(dest.email).toLowerCase() === String(req.user.email).toLowerCase()) {
         return res.status(400).json({ error: 'No puedes escribirte a ti mismo' });
       }
+      const destStaff = !!(dest.is_admin || dest.is_developer);
       target = String(dest.email).toLowerCase();
-      // El staff escribe en nombre del ADMIN cuando habla con operadores
-      fromId = staff ? ADMIN_ID : req.user.email;
+      fromId = (staff && !destStaff) ? ADMIN_ID : req.user.email;
     }
     const msg = await saveChatMessage(fromId, target, String(text).trim());
     res.json({ success: true, message: msg });
@@ -56,10 +55,16 @@ router.get('/api/tess/chat/messages', validateToken, async (req, res) => {
     const after = Number(req.query.after) || 0;
     const withQ = String(req.query.with || '').trim().toLowerCase();
     let a, b;
-    if (admin) {
-      b = withQ;
-      if (!b) return res.status(400).json({ error: 'Parámetro "with" requerido' });
-      a = ADMIN_ID;
+    if (admin && withQ) {
+      const dest = await findUserByEmail(withQ).catch(() => null);
+      const destStaff = dest ? !!(dest.is_admin || dest.is_developer) : false;
+      if (destStaff) {
+        a = req.user.email;
+        b = withQ;
+      } else {
+        a = ADMIN_ID;
+        b = withQ;
+      }
     } else if (withQ && withQ !== ADMIN_ID.toLowerCase()) {
       a = req.user.email;
       b = withQ;

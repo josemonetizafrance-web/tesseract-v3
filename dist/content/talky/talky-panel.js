@@ -1771,7 +1771,7 @@ if (document.readyState === 'loading') {
     const opts = [{ v: ADMIN_PEER, l: labelFor(ADMIN_PEER, null, true, unreadBy[ADMIN_PEER] || 0) }]
       .concat(contactsCache.map(c => ({
         v: c.email,
-        l: labelFor(c.email, (c.name || c.email.split('@')[0]) + (c.pending ? ' (pendiente)' : ''), c.online, unreadBy[c.email] || 0)
+        l: labelFor(c.email, (c.staff ? '👑 ' : '') + (c.name || c.email.split('@')[0]) + (c.pending ? ' (pendiente)' : ''), c.online, unreadBy[c.email] || 0)
       })));
     sel.innerHTML = opts.map(o => '<option value="' + escAttr(o.v) + '">' + escAttr(o.l) + '</option>').join('');
     for (const o of sel.options) { if (o.value === prev) { sel.value = prev; break; } }
