@@ -15,6 +15,19 @@ let spActive = false;
 let spProcessedIds = new Set();
 let spLastSequence = null;
 
+// Auto-bloqueo: si hay 3+ mensajes enviados Y 3+ recibidos recientes, hay conversación activa
+window._mlAutoBlockIfInteraction = function (profileId) {
+  try {
+    var sent = document.querySelectorAll('.my-tu-message-wrapper').length;
+    var recv = document.querySelectorAll('.tu-message-wrapper:not(.my-tu-message-wrapper)').length;
+    if (sent >= 3 && recv >= 3) {
+      console.log('[SP] AutoBlock: conversación activa detectada (' + sent + ' env, ' + recv + ' rec). Saltando:', profileId);
+      return true;
+    }
+  } catch (e) {}
+  return false;
+};
+
 const SP_FALLBACK_SEQ = [
   'Hola, como has estado?',
   'Me genera algo de intriga no haber sabido mas nada acerca de ti.',
