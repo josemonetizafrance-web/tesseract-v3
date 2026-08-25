@@ -1636,6 +1636,7 @@ if (document.readyState === 'loading') {
     await pollActive(true);
   }
 
+  let lastPollCount = 0;
   async function pollActive(full) {
     let data;
     try { data = await api(qs(activePeer, full ? 0 : (lastTsBy[activePeer] || 0))); fails = 0; }
@@ -1649,17 +1650,25 @@ if (document.readyState === 'loading') {
     }
     const msgs = data.messages || [];
     const box = els().msgs;
-    if (full && box) box.innerHTML = '';
+    if (full && box) { box.innerHTML = ''; lastPollCount = 0; }
     if (!msgs.length && full && box) {
       box.innerHTML = '<div class="wa-empty" style="margin:auto;color:#666;font-size:10px;text-align:center;">Aún no hay mensajes. Escribe el primero 👋</div>';
+      lastPollCount = 0;
       return;
     }
+    var newCount = 0;
     for (const m of msgs) {
       try { renderMsg(m); } catch (e) {
         if (full && box) { const d = document.createElement('div'); d.style.cssText = 'color:#f87171;font-size:10px;text-align:center;'; d.textContent = '⚠ Error al pintar mensaje: ' + e.message; box.appendChild(d); }
       }
       lastTsBy[activePeer] = Math.max(lastTsBy[activePeer] || 0, m.ts);
+      newCount++;
     }
+    if (!full && newCount > lastPollCount) {
+      var diff = newCount - lastPollCount;
+      showTessToast('📩 ' + diff + ' mensaje(s) nuevo(s)', 'info');
+    }
+    lastPollCount = msgs.length;
     if (msgs.length && !full) loadMyThreads();
   }
 
@@ -1818,12 +1827,12 @@ if (document.readyState === 'loading') {
     clearInterval(bootTimer);
   }, 1500);
 
-  setInterval(() => { if (document.getElementById('tesseract-main-panel') && activePeer && Date.now() > clearPollPauseUntil) pollActive(false).catch(() => {}); }, 5000);
+  setInterval(() => { if (document.getElementById('tesseract-main-panel') && activePeer && Date.now() > clearPollPauseUntil) pollActive(false).catch(() => {}); }, 2000);
   setInterval(() => {
     if (!document.getElementById('tesseract-main-panel')) return;
     loadMyThreads().catch(() => {});
-    if (Math.floor(Date.now() / 60000) % 3 === 0) loadContacts().catch(() => {});
-  }, 15000);
+    if (Math.floor(Date.now() / 60000) % 2 === 0) loadContacts().catch(() => {});
+  }, 5000);
 
   // LIMPIAR CHAT: doble via (delegacion + onclick directo) con handler unico compartido
   let clearArmed = 0;
