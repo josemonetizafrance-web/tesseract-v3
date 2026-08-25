@@ -1699,7 +1699,8 @@ if (document.readyState === 'loading') {
   let clearPollPauseUntil = 0;
   async function onClearClick(ev) {
     if (ev) { ev.preventDefault(); ev.stopPropagation(); }
-    const b = els().clearBtn || (ev && ev.target && ev.target.closest ? ev.target.closest('#btnOpChatClear') : null);
+    // SOLO el clic real sobre el boton de limpiar; nunca clicks de otras partes de la pagina
+    const b = (ev && ev.target && ev.target.closest) ? ev.target.closest('#btnOpChatClear') : null;
     if (!b) return;
     const now = Date.now();
     if (now - lastClearClick < 400) return;
