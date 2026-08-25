@@ -494,8 +494,8 @@ function createMainPanel() {
 <style>
 #tabSoporte .wa-msgs{background:#0b141a;flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:5px;border-radius:8px;padding:10px;border:1px solid #2a2a44;}
 #tabSoporte .wa-b{max-width:80%;padding:7px 9px;border-radius:11px;font-size:11px;line-height:1.35;position:relative;word-break:break-word;white-space:pre-wrap;}
-#tabSoporte .wa-me{align-self:flex-end;background:#005c4b;color:#e9edef;border-bottom-right-radius:3px;}
-#tabSoporte .wa-you{align-self:flex-start;background:#202c33;color:#e9edef;border-bottom-left-radius:3px;}
+#tabSoporte .wa-me{align-self:flex-end;background:#6d28d9;color:#fff;border-bottom-right-radius:3px;}
+#tabSoporte .wa-you{align-self:flex-start;background:#1a1a1a;color:#fff;border-bottom-left-radius:3px;}
 #tabSoporte .wa-t{font-size:8px;color:#8696a0;text-align:right;margin-top:3px;display:block;}
 #tabSoporte .wa-img{max-width:180px;max-height:180px;border-radius:8px;display:block;cursor:pointer;margin-bottom:2px;background:#111;}
 #tabSoporte .wa-media-wrap{position:relative;display:inline-block;}
@@ -1598,7 +1598,8 @@ if (document.readyState === 'loading') {
     const box = els().msgs;
     if (!box) return;
     clearEmpty(box);
-    const mine = String(m.from || '').trim().toLowerCase() === String(myEmail || '').trim().toLowerCase();
+    const fromNorm = String(m.from || '').trim().toLowerCase();
+    const mine = fromNorm === String(myEmail || '').trim().toLowerCase() || fromNorm === ADMIN_PEER.toLowerCase();
     const div = document.createElement('div');
     div.className = 'wa-b ' + (mine ? 'wa-me' : 'wa-you');
     if (m.kind === 'image' && m.mediaId) {
