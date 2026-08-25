@@ -279,11 +279,17 @@ async function executeIcebreakerSweep() {
       if (window._ibMode !== 'sending') break;
       var msg = toSend[i];
       document.getElementById('ibStatus').textContent = 'Enviando ' + (i + 1) + '/' + total + '\u2026';
-      var createBtn = document.evaluate('//label[.//p[contains(translate(text(),"ABCDEFGHIJKLMNOPQRSTUVWXYZ","abcdefghijklmnopqrstuvwxyz"),"create new")]]', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-      if (!createBtn) {
-        createBtn = document.querySelector('label.chip-root[data-test-id*="tab-mode-create-icebreaker"]') || document.querySelector(TALK_Y.ICEBREAKER_CREATE_NEW) || Array.from(document.querySelectorAll('label.chip-root')).find(function (l) { return /create\s*new/i.test(l.textContent || ''); }) || null;
+      var createBtn = null;
+      for (var cbw = 0; cbw < 12; cbw++) {
+        createBtn = document.evaluate('//label[.//p[contains(translate(text(),"ABCDEFGHIJKLMNOPQRSTUVWXYZ","abcdefghijklmnopqrstuvwxyz"),"create new")]]', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+        if (!createBtn) createBtn = document.querySelector('label.chip-root[data-test-id*="tab-mode-create-icebreaker"]');
+        if (!createBtn) createBtn = document.querySelector(TALK_Y.ICEBREAKER_CREATE_NEW);
+        if (!createBtn) createBtn = Array.from(document.querySelectorAll('label.chip-root')).find(function (l) { return /create\s*new/i.test(l.textContent || ''); }) || null;
+        if (createBtn && _tessElVisible(createBtn)) break;
+        createBtn = null;
+        await sleep(300);
       }
-      if (!createBtn) { console.error('[IB] Create new NO encontrado (XPath + test-id + chip-root fallaron)'); showTessToast('No se encontró el botón Create new en la página Icebreakers', 'error'); break; }
+      if (!createBtn) { console.error('[IB] Create new NO encontrado tras 3.6s | URL actual:', location.pathname); showTessToast('No se encontró el botón Create new en la página Icebreakers', 'error'); break; }
       var createInput = createBtn.querySelector('input.chip-input');
       (createInput || createBtn).click();
       try { if (createInput) createInput.dispatchEvent(new Event('change', { bubbles: true })); } catch (_ce) {}
