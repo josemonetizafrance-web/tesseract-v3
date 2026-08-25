@@ -374,27 +374,33 @@ async function generateMailResponse(msgText, observer, profileId, senderName) {
   if (letterStyle) {
     var styleLines = letterStyle.split('\n').filter(function (l) { return l.trim(); });
     if (styleLines.length > 0) {
-      styleHint = '\n\nEste es tu estilo de escritura en cartas anteriores (emula exactamente este tono, formato y manera de expresarte):\n' + styleLines.slice(-3).join('\n');
+      styleHint = '\n\nEstas son TODAS tus cartas anteriores con este cliente (emula exactamente este tono, formato, longitud y manera de expresarte — NO uses un estilo diferente):\n' + styleLines.join('\n');
     }
   }
 
+  var targetLen = receivedText.length;
+  var minLen = Math.max(200, Math.round(targetLen * 0.7));
+  var maxLen = Math.round(targetLen * 1.3);
+
   const systemMsg = (typeof TESS_MASTER_PROMPT!=='undefined'?TESS_MASTER_PROMPT+'\n\n':'') + '\n\n' + 'Eres un asistente de cartas para una plataforma de citas. Responde a la carta recibida de forma personal, cálida y natural. '
     + 'Usa el mismo tono y estilo que el operador usa en sus cartas (se proporciona abajo). '
-    + 'La carta debe tener al menos 5000 caracteres. Responde solo con el mensaje, sin explicaciones ni introducciones.'
+    + 'La carta debe tener entre ' + minLen + ' y ' + maxLen + ' caracteres (longitud similar a la carta recibida de ' + targetLen + ' caracteres). NO te extiendas más de lo necesario ni seas más breve de lo pedido. '
+    + 'Responde solo con el mensaje, sin explicaciones ni introducciones.'
     + styleHint;
 
-  const userMsg = 'Perfil del destinatario:\n' + profileInfo + '\n\nCarta recibida:\n' + receivedText.slice(0, 1500)
-    + '\n\nGenera una respuesta personal a esta carta usando el estilo del operador.';
+  const userMsg = 'Perfil del destinatario:\n' + profileInfo + '\n\nCarta recibida completa:\n' + receivedText
+    + '\n\nGenera una respuesta personal a esta carta usando el estilo del operador. Respeta la longitud indicada en las instrucciones.';
 
   try {
     if (typeof Tesseract === 'undefined' || typeof Tesseract.callGroq !== 'function') {
       showTessToast('⚠ Motor IA no disponible', 'error');
       return;
     }
+    var maxTokensNeeded = Math.min(Math.max(2000, Math.round(targetLen * 1.8)), 12000);
     const groqData = await Tesseract.callGroq(
       [{ role: 'system', content: systemMsg }, { role: 'user', content: userMsg }],
       'openai/gpt-oss-120b',
-      2000
+      maxTokensNeeded
     );
     if (!groqData) { showTessToast('⚠ Error de API Groq', 'error'); return; }
     const response = groqData.choices?.[0]?.message?.content;
