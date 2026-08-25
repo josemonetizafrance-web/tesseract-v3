@@ -9,7 +9,7 @@ let mailCribsProcessed = new Set();
 let mailCribsLetterStyleEnabled = true;
 let capturedLetterCache = new Set();
 
-const MAIL_MSG_SEL = '[data-test-id*="mail-history-item"], [data-test-id*="message-text"]';
+const MAIL_MSG_SEL = '.observer';
 
 // ============ CONFIG ============
 async function loadMailCribsConfig() {
@@ -84,51 +84,31 @@ function scanExistingMessageTexts() {
 }
 
 function processMessageText(msgText) {
-  if (!msgText || !mailCribsConfig.enabled) { console.log('[MAIL-CRIBS] processMessageText: disabled or null'); return; }
-  if (mailCribsProcessed.has(msgText)) { console.log('[MAIL-CRIBS] processMessageText: already processed'); return; }
-  console.log('[MAIL-CRIBS] processMessageText:', msgText.className);
+  if (!msgText || !mailCribsConfig.enabled) return;
+  if (mailCribsProcessed.has(msgText)) return;
 
-  let observer = msgText.querySelector('.observer');
-  if (!observer) {
-    console.log('[MAIL-CRIBS] no .observer inside msgText, injecting in msgText');
-    observer = msgText;
-  } else {
-    console.log('[MAIL-CRIBS] found .observer');
-  }
+  var mailItem = findMailItem(msgText);
+  if (!mailItem) { console.log('[MAIL-CRIBS] no mail-item found'); return; }
 
-  // Find the preceding mail-header sibling to determine direction
-  const header = findPrecedingMailHeader(msgText);
-  if (!header) { console.log('[MAIL-CRIBS] no preceding mail-header found'); return; }
-  console.log('[MAIL-CRIBS] found header');
+  var senderName = extractMailSenderName(mailItem);
+  if (!senderName) { console.log('[MAIL-CRIBS] no senderName'); return; }
 
-  let nameEl = header.querySelector(TALK_Y.MAIL_HEADER_NAME);
-  if (!nameEl || !(nameEl.textContent || '').trim()) {
-    nameEl = header.querySelector(TALK_Y.MAIL_HEADER_NAME_FALLBACK);
-  }
-  if (!nameEl) { console.log('[MAIL-CRIBS] no nameEl found'); return; }
-  const senderName = (nameEl.textContent || '').trim();
-  if (!senderName) { console.log('[MAIL-CRIBS] empty senderName'); return; }
-  console.log('[MAIL-CRIBS] senderName:', senderName);
-
-  // Dedup by element reference only (msgText is a new DOM node each navigation)
   mailCribsProcessed.add(msgText);
   if (mailCribsProcessed.size > 200) {
-    const first = Array.from(mailCribsProcessed).slice(0, 50);
-    first.forEach(k => mailCribsProcessed.delete(k));
+    var first = Array.from(mailCribsProcessed).slice(0, 50);
+    first.forEach(function (k) { mailCribsProcessed.delete(k); });
   }
 
-  const isMe = senderName === TALK_Y.MAIL_OPERATOR_NAME;
-  console.log('[MAIL-CRIBS] isMe:', isMe);
+  var isMe = senderName === TALK_Y.MAIL_OPERATOR_NAME;
 
   if (isMe) {
-    if (mailCribsLetterStyleEnabled) injectCaptureButton(observer, msgText, header);
+    if (mailCribsLetterStyleEnabled) injectCaptureButton(msgText, mailItem);
   } else {
-    console.log('[MAIL-CRIBS] Incoming mail from', senderName);
-    injectResponseButton(observer, msgText, header, senderName);
-    if (typeof showTessToast === 'function') showTessToast('📬 Carta de ' + senderName + ' detectada', 'info');
+    if (isLastIncomingInThread(msgText)) {
+      injectResponseButton(msgText, mailItem, senderName);
+    }
   }
-  // Show CRIBS overlay for the CLIENT (sender for incoming, recipient for outgoing)
-  showCribsForMailContact(isMe, msgText, header, senderName);
+  showCribsForMailContact(isMe, msgText, mailItem, senderName);
 }
 
 function findCribsByName(name, cb) {
@@ -193,49 +173,44 @@ function showCribsForMailContact(isMe, msgText, header, senderName) {
   console.log('[MAIL-CRIBS] No client ID available for outgoing mail');
 }
 
-function findPrecedingMailHeader(msgText) {
-  console.log('[MAIL-CRIBS] findPrecedingMailHeader for', msgText.className);
-  // Only search within mail context (max 2 levels up)
-  // 1. Previous sibling
-  let prev = msgText.previousElementSibling;
-  if (prev && prev.matches && prev.matches(TALK_Y.MAIL_HEADER)) { console.log('[MAIL-CRIBS] found as prev sibling'); return prev; }
-  // 2. Inside previous sibling
-  if (prev) {
-    var inner = prev.querySelector(TALK_Y.MAIL_HEADER);
-    if (inner) { console.log('[MAIL-CRIBS] found inside prev sibling'); return inner; }
+function findMailItem(el) {
+  var cur = el;
+  for (var i = 0; i < 12 && cur; i++) {
+    if (cur.matches && cur.matches(TALK_Y.MAIL_ITEM)) return cur;
+    cur = cur.parentElement;
   }
-  // 3. Parent's other children (siblings within same parent)
-  const parent = msgText.parentElement;
-  if (parent) {
-    const kids = Array.from(parent.children);
-    const idx = kids.indexOf(msgText);
-    for (let i = idx - 1; i >= 0; i--) {
-      if (kids[i].matches && kids[i].matches(TALK_Y.MAIL_HEADER)) { console.log('[MAIL-CRIBS] found as parent child'); return kids[i]; }
-    }
-    // Also check inside parent siblings
-    for (let i = idx - 1; i >= 0; i--) {
-      var inner2 = kids[i].querySelector(TALK_Y.MAIL_HEADER);
-      if (inner2) { console.log('[MAIL-CRIBS] found inside parent sibling'); return inner2; }
-    }
-  }
-  // 4. Grandparent's children — only if gp contains a mail-header
-  const gp = parent ? parent.parentElement : null;
-  if (gp && gp.querySelector(TALK_Y.MAIL_HEADER)) {
-    const gpKids = Array.from(gp.children);
-    const pIdx = gpKids.indexOf(parent);
-    for (let i = pIdx - 1; i >= 0; i--) {
-      if (gpKids[i].matches && gpKids[i].matches(TALK_Y.MAIL_HEADER)) { console.log('[MAIL-CRIBS] found as gp child'); return gpKids[i]; }
-      var inner3 = gpKids[i].querySelector(TALK_Y.MAIL_HEADER);
-      if (inner3) { console.log('[MAIL-CRIBS] found inside gp sibling'); return inner3; }
-    }
-  }
-  console.log('[MAIL-CRIBS] NO mail-header found for message-text');
   return null;
 }
 
+function findPrecedingMailHeader(msgText) {
+  return findMailItem(msgText);
+}
+
+function extractMailSenderName(mailItem) {
+  if (!mailItem) return '';
+  var nameEl = mailItem.querySelector(TALK_Y.MAIL_HEADER_NAME);
+  if (!nameEl || !(nameEl.textContent || '').trim()) {
+    nameEl = mailItem.querySelector(TALK_Y.MAIL_HEADER_NAME_FALLBACK);
+  }
+  return nameEl ? (nameEl.textContent || '').trim() : '';
+}
+
+function isLastIncomingInThread(observer) {
+  var container = observer.closest(TALK_Y.MAIL_HISTORY_CONTAINER) || document;
+  var items = container.querySelectorAll(TALK_Y.MAIL_OBSERVER);
+  var lastIncoming = null;
+  for (var i = 0; i < items.length; i++) {
+    var mi = findMailItem(items[i]);
+    if (!mi) continue;
+    var nm = extractMailSenderName(mi);
+    if (nm && nm !== TALK_Y.MAIL_OPERATOR_NAME) lastIncoming = items[i];
+  }
+  return lastIncoming === observer;
+}
+
 // ============ 🎭 CAPTURE BUTTON (OUTGOING) ============
-function injectCaptureButton(observer, msgText, header) {
-  if (observer.querySelector('.tess-mail-capture-trigger')) return;
+function injectCaptureButton(msgText, mailItem) {
+  if (msgText.querySelector('.tess-mail-capture-trigger')) return;
 
   var capturedText = extractMailText(msgText);
   var alreadyCaptured = capturedText && capturedLetterCache.has(capturedText.trim().slice(0, 300));
@@ -262,38 +237,31 @@ function injectCaptureButton(observer, msgText, header) {
     if (!capturedText) { showTessToast('⚠ No se encontró texto de la carta', 'warning'); return; }
     this._processing = true;
     this.style.opacity = '0.3';
-    // Determine the client profile (recipient for outgoing, sender for incoming)
     var profileId = null;
     var profileName = '';
-    var senderName = (header.querySelector(TALK_Y.MAIL_HEADER_NAME) || {}).textContent || '';
-    if (senderName.trim() === TALK_Y.MAIL_OPERATOR_NAME) {
-      // Outgoing mail → capture to RECIPIENT's CRIBS entry
-      var recipientEl = document.querySelector('.send-title .name.text, [data-test-id*="send-title"] .name, .send-wrap .name');
-      if (recipientEl) profileName = (recipientEl.textContent || '').trim();
-      if (profileName && typeof _cribsLocalCache !== 'undefined' && _cribsLocalCache) {
-        for (var ci = 0; ci < _cribsLocalCache.length; ci++) {
-          if (_cribsLocalCache[ci].profile_name === profileName) {
-            profileId = String(_cribsLocalCache[ci].profile_id).replace(/^0+/, '');
-            break;
-          }
+    var recipientEl = mailItem.querySelector('.send-title .name.text, [data-test-id*="send-title"] .name, .send-wrap .name');
+    if (recipientEl) profileName = (recipientEl.textContent || '').trim();
+    if (!profileName) {
+      var avatar = mailItem.querySelector('img[alt]:not([alt=""])');
+      if (avatar) profileName = (avatar.alt || '').trim();
+    }
+    if (!profileName) {
+      var nameEl = mailItem.querySelector(TALK_Y.MAIL_HEADER_NAME);
+      if (nameEl) profileName = (nameEl.textContent || '').trim();
+      if (profileName === TALK_Y.MAIL_OPERATOR_NAME) profileName = '';
+    }
+    if (profileName && typeof _cribsLocalCache !== 'undefined' && _cribsLocalCache) {
+      for (var ci = 0; ci < _cribsLocalCache.length; ci++) {
+        if (_cribsLocalCache[ci].profile_name === profileName) {
+          profileId = String(_cribsLocalCache[ci].profile_id).replace(/^0+/, '');
+          break;
         }
       }
     }
     if (!profileId) {
-      // false => prioriza ID del CLIENTE (URL par op_cliente, ultima ficha vista);
-      // con true podria guardar el estilo en la ficha del propio operador (incorrecto)
-      profileId = extractProfileIdFromMail(msgText, header, false);
+      profileId = extractProfileIdFromMail(msgText, mailItem, false);
     }
     if (!profileId) { showTessToast('⚠ No se pudo identificar el perfil', 'warning'); this._processing = false; this.style.opacity = '0.5'; return; }
-    if (!profileName) {
-      var avatar = header.querySelector('img[alt]:not([alt=""])');
-      if (avatar) profileName = (avatar.alt || '').trim();
-      if (!profileName) {
-        var nameEl = header.querySelector(TALK_Y.MAIL_HEADER_NAME);
-        if (nameEl) profileName = (nameEl.textContent || '').trim();
-      }
-      if (profileName === TALK_Y.MAIL_OPERATOR_NAME) profileName = '';
-    }
     sendLetterStyleToCribs(profileId, capturedText, profileName).then(function () {
       trigger._processing = false;
       trigger.style.opacity = '0.5';
@@ -303,13 +271,17 @@ function injectCaptureButton(observer, msgText, header) {
     });
   };
 
-  observer.appendChild(trigger);
-  console.log('[MAIL-CRIBS] ' + (alreadyCaptured ? '✅' : '🎭') + ' button added' + (alreadyCaptured ? ' (already captured)' : ''));
+  msgText.appendChild(trigger);
+  console.log('[MAIL-CRIBS] 🎭 button added');
 }
 
-// ============ 🤖 RESPONSE BUTTON (INCOMING) ============
-function injectResponseButton(observer, msgText, header, senderName) {
-  if (observer.querySelector('.tess-mail-gen-trigger')) return;
+// ============ 🤖 RESPONSE BUTTON (INCOMING — solo último del hilo) ============
+function injectResponseButton(msgText, mailItem, senderName) {
+  if (msgText.querySelector('.tess-mail-gen-trigger')) return;
+
+  var container = msgText.closest(TALK_Y.MAIL_HISTORY_CONTAINER) || document;
+  var existing = container.querySelectorAll('.tess-mail-gen-trigger');
+  for (var ei = 0; ei < existing.length; ei++) existing[ei].remove();
 
   const trigger = document.createElement('span');
   trigger.className = 'tess-mail-gen-trigger';
@@ -328,22 +300,22 @@ function injectResponseButton(observer, msgText, header, senderName) {
   trigger.onmouseleave = function () { this.style.opacity = '0.5'; };
   trigger.onclick = function (e) {
     e.stopPropagation();
-    var profileId = extractProfileIdFromMail(msgText, header, false);
+    var profileId = extractProfileIdFromMail(msgText, mailItem, false);
     if (!profileId) { showTessToast('⚠ No se pudo identificar el perfil', 'warning'); return; }
     this.textContent = '⏳';
     trigger.style.opacity = '1';
-    generateMailResponse(msgText, observer, profileId, senderName).then(function () {
+    generateMailResponse(msgText, msgText, profileId, senderName).then(function () {
       trigger.textContent = '✓';
       setTimeout(function () { trigger.textContent = '🤖'; }, 2000);
     });
   };
 
-  observer.appendChild(trigger);
+  msgText.appendChild(trigger);
   console.log('[MAIL-CRIBS] 🤖 button added for', senderName);
 }
 
 // ============ AI RESPONSE GENERATION ============
-async function generateMailResponse(msgText, observer, profileId, senderName) {
+async function generateMailResponse(msgText, _unused, profileId, senderName) {
   const receivedText = extractMailText(msgText);
   if (!receivedText || receivedText.length < 5) {
     if (typeof showTessToast === 'function') showTessToast('⚠ No se encontró el texto de la carta', 'warning');

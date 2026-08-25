@@ -125,12 +125,15 @@ var TALK_Y = {
 
   // ─── MAIL HISTORY ───
   MAIL_HISTORY_CONTAINER: '[data-test-id*="mail-history"], [class*="mail-history"], [class*="thread-view"]',
-  MAIL_HEADER: '[class*="mail-header"]',
-  MAIL_HEADER_NAME: '[class*="name"]',
-  MAIL_HEADER_NAME_FALLBACK: '[class*="name"]:not([class*="avatar"])',
+  MAIL_ITEM: 'div[data-test-id*="mail-history-item"]',
+  MAIL_HEADER: 'div[data-test-id*="mail-history-item"]',
+  MAIL_HEADER_NAME: '.ui-tooltip-reference p[data-type="heading"]',
+  MAIL_HEADER_NAME_FALLBACK: '.ui-tooltip-reference p',
   MAIL_OPERATOR_NAME: 'Me',
   MAIL_BOX_ITEM: '[data-test-id="mail-box-item-root"], [class*="mail-box-item"]',
   MAIL_BOX_OPEN_THREAD: '[data-test-id="file:mail-box-item click:open-thread"]',
+  MAIL_OBSERVER: '.observer',
+  MAIL_MSG_TEXT: 'div[data-test-id*="message-text"]',
 
   // ─── TIME ───
   TIME_ELEMENT: '[data-test-id*="time"], [class*="time"], [class*="date"], time',
