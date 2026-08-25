@@ -370,9 +370,13 @@ function initChatUI() {
     } catch (e) { alert('No se pudo eliminar: ' + e.message); }
   });
   document.getElementById('btn-attach').addEventListener('click', () => document.getElementById('chat-file').click());
-  document.getElementById('chat-file').addEventListener('change', e => {
-    if (e.target.files[0]) sendChatImage(e.target.files[0]);
+  document.getElementById('chat-file').addEventListener('change', async e => {
+    const files = Array.from(e.target.files || []);
     e.target.value = '';
+    for (let i = 0; i < files.length; i++) {
+      showTmpStatus('Enviando imagen ' + (i + 1) + '/' + files.length + '…');
+      await sendChatImage(files[i]);
+    }
   });
   document.getElementById('btn-emoji').addEventListener('click', () => {
     buildAdminEmojiBar();

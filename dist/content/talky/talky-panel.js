@@ -1534,25 +1534,32 @@ if (document.readyState === 'loading') {
 
   function downloadMedia(m) {
     const mid = String(m.mediaId);
-    const cached = mediaCache[mid];
-    if (!cached) { showTessToast('Descargando imagen...', 'info'); return; }
-    const parts = cached.split(',');
-    const mime = parts[0].match(/data:(.*?);/)[1];
-    const b64 = parts[1];
-    const bin = atob(b64);
-    const arr = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-    const blob = new Blob([arr], { type: mime });
-    const ext = mime.includes('png') ? '.png' : mime.includes('gif') ? '.gif' : mime.includes('webp') ? '.webp' : '.jpg';
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'tesseract_' + mid + ext;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showTessToast('⬇ Imagen descargada', 'success');
+    function doDownload(dataUrl) {
+      const parts = dataUrl.split(',');
+      const mime = parts[0].match(/data:(.*?);/)[1];
+      const b64 = parts[1];
+      const bin = atob(b64);
+      const arr = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      const blob = new Blob([arr], { type: mime });
+      const ext = mime.includes('png') ? '.png' : mime.includes('gif') ? '.gif' : mime.includes('webp') ? '.webp' : '.jpg';
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'tesseract_' + mid + ext;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showTessToast('⬇ Imagen descargada', 'success');
+    }
+    if (mediaCache[mid]) { doDownload(mediaCache[mid]); return; }
+    showTessToast('Descargando imagen...', 'info');
+    api('/api/tess/chat/media/' + mid).then(d => {
+      const url = 'data:' + d.mime + ';base64,' + d.data;
+      mediaCache[mid] = url;
+      doDownload(url);
+    }).catch(() => showTessToast('Error al descargar imagen', 'error'));
   }
 
   async function showSharePicker(m, menuEl) {
