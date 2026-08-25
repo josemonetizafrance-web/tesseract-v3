@@ -1599,7 +1599,7 @@ if (document.readyState === 'loading') {
     if (!box) return;
     clearEmpty(box);
     const fromNorm = String(m.from || '').trim().toLowerCase();
-    const mine = fromNorm === String(myEmail || '').trim().toLowerCase() || fromNorm === ADMIN_PEER.toLowerCase();
+    const mine = fromNorm === String(myEmail || '').trim().toLowerCase() || (fromNorm === ADMIN_PEER.toLowerCase() && activePeer === ADMIN_PEER);
     const div = document.createElement('div');
     div.className = 'wa-b ' + (mine ? 'wa-me' : 'wa-you');
     if (m.kind === 'image' && m.mediaId) {

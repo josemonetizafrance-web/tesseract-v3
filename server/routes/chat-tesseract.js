@@ -13,28 +13,29 @@ const ONLINE_MS = 5 * 60 * 1000;
 function isStaffUser(u) { return !!(u.is_admin || u.user_is_developer || u.is_developer); }
 
 // Enviar mensaje.
-//  - sin "to" (o to=ADMIN): hilo de SOPORTE con el administrador (solo operadores).
+//  - sin "to" (o to=ADMIN): hilo de SOPORTE con el administrador.
 //  - con "to"=email: conversacion privada entre dos usuarios registrados.
+// MASTER/ADMIN/OPERADOR: todos envían con su email real.
+// Si destino es ADMIN_ID, se resuelve al email real del admin principal.
 router.post('/api/tess/chat/send', validateToken, async (req, res) => {
   try {
     const { to, text } = req.body;
     if (!text || !String(text).trim()) return res.status(400).json({ error: 'Mensaje vacío' });
-    const staff = !!(req.user.is_admin || req.user.is_developer);
     const rawTo = String(to || '').trim().toLowerCase();
+    const rootAdmin = (process.env.TESS_ADMIN_EMAIL || 'ChevyAdmin@tesseract.com').toLowerCase();
     let fromId, target;
 
     if (!rawTo || rawTo === ADMIN_ID.toLowerCase()) {
-      fromId = staff ? ADMIN_ID : req.user.email;
-      target = ADMIN_ID;
+      fromId = req.user.email;
+      target = rootAdmin;
     } else {
       const dest = await findUserByEmail(rawTo);
       if (!dest) return res.status(404).json({ error: 'Usuario destino no encontrado' });
       if (String(dest.email).toLowerCase() === String(req.user.email).toLowerCase()) {
         return res.status(400).json({ error: 'No puedes escribirte a ti mismo' });
       }
-      const destStaff = !!(dest.is_admin || dest.is_developer);
       target = String(dest.email).toLowerCase();
-      fromId = (staff && !destStaff) ? ADMIN_ID : req.user.email;
+      fromId = req.user.email;
     }
     const msg = await saveChatMessage(fromId, target, String(text).trim());
     res.json({ success: true, message: msg });
@@ -46,31 +47,21 @@ router.post('/api/tess/chat/send', validateToken, async (req, res) => {
 
 // Mensajes de un hilo. PRIVACIDAD: el par siempre incluye a req.user.email,
 // por lo que un usuario jamas puede leer hilos de terceros.
-//  - operador sin ?with=: su hilo de soporte con ADMIN
-//  - cualquier usuario con ?with=email: su hilo privado con ese usuario
-//  - admin/staff con ?with=email: puede moderar cualquier hilo
+//  - sin ?with=: hilo de soporte con ADMIN (resuelve al email real)
+//  - con ?with=email: hilo privado con ese usuario
+// Todos los roles (master, admin, operador) usan la misma logica.
 router.get('/api/tess/chat/messages', validateToken, async (req, res) => {
   try {
-    const admin = !!(req.user.is_admin || req.user.is_developer);
     const after = Number(req.query.after) || 0;
     const withQ = String(req.query.with || '').trim().toLowerCase();
+    const rootAdmin = (process.env.TESS_ADMIN_EMAIL || 'ChevyAdmin@tesseract.com').toLowerCase();
     let a, b;
-    if (admin && withQ) {
-      const dest = await findUserByEmail(withQ).catch(() => null);
-      const destStaff = dest ? !!(dest.is_admin || dest.is_developer) : false;
-      if (destStaff) {
-        a = req.user.email;
-        b = withQ;
-      } else {
-        a = ADMIN_ID;
-        b = withQ;
-      }
-    } else if (withQ && withQ !== ADMIN_ID.toLowerCase()) {
+    if (withQ && withQ !== ADMIN_ID.toLowerCase()) {
       a = req.user.email;
       b = withQ;
     } else {
       a = req.user.email;
-      b = ADMIN_ID;
+      b = rootAdmin;
     }
     const messages = await getChatMessages(a, b, after);
     if (!after) await markChatRead(a, b);
@@ -95,9 +86,10 @@ router.post('/api/tess/chat/clear', validateToken, async (req, res) => {
   try {
     const me = String(req.user.email);
     const otherRaw = req.body && req.body.with ? String(req.body.with).trim() : '';
-    const other = !otherRaw || otherRaw === ADMIN_ID ? null : otherRaw;
+    const rootAdmin = (process.env.TESS_ADMIN_EMAIL || 'ChevyAdmin@tesseract.com').toLowerCase();
+    const other = !otherRaw || otherRaw === ADMIN_ID.toLowerCase() ? rootAdmin : otherRaw;
     const r = await clearChatThread(me, other);
-    console.log('[CHAT] clear por', me, 'hilo con', other || 'ADMIN', JSON.stringify(r));
+    console.log('[CHAT] clear por', me, 'hilo con', other, JSON.stringify(r));
     res.json({ success: true, ...r });
   } catch (err) {
     console.error('[CHAT] clear error:', err);
@@ -156,6 +148,26 @@ router.post('/api/tess/admin/chat/migrate-legacy', validateToken, requireTessera
   }
 });
 
+// Migracion inversa: ADMIN -> email real del admin principal (para que el chat funcione entre todos los roles)
+router.post('/api/tess/admin/chat/migrate-admin-to-email', validateToken, requireTesseractAdmin, requireRootMaster, async (req, res) => {
+  try {
+    const root = (process.env.TESS_ADMIN_EMAIL || 'ChevyAdmin@tesseract.com').toLowerCase();
+    const { getDb } = require('../db/tesseract.js');
+    const db = getDb();
+    const r1 = await db.collection('tess_chat').updateMany(
+      { from: ADMIN_ID },
+      { $set: { from: root } }
+    );
+    const r2 = await db.collection('tess_chat').updateMany(
+      { to: ADMIN_ID },
+      { $set: { to: root } }
+    );
+    res.json({ success: true, migrated: r1.modifiedCount + r2.modifiedCount });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Enviar imagen (sube el media y crea el mensaje en una sola llamada)
 router.post('/api/tess/chat/send-image', validateToken, async (req, res) => {
   try {
@@ -163,25 +175,24 @@ router.post('/api/tess/chat/send-image', validateToken, async (req, res) => {
     const m = /^data:(image\/(?:png|jpe?g|webp|gif));base64,(.+)$/.exec(String(dataUrl || ''));
     if (!m) return res.status(400).json({ error: 'Imagen inválida' });
     if (m[2].length > 2800000) return res.status(413).json({ error: 'Imagen demasiado grande (máx ~2MB)' });
-    const staff = !!(req.user.is_admin || req.user.is_developer);
+    const rootAdmin = (process.env.TESS_ADMIN_EMAIL || 'ChevyAdmin@tesseract.com').toLowerCase();
     const rawTo = String(to || '').trim().toLowerCase();
     let fromId, target;
     if (!rawTo || rawTo === ADMIN_ID.toLowerCase()) {
-      if (staff) return res.status(400).json({ error: 'Destinatario requerido' });
       fromId = req.user.email;
-      target = ADMIN_ID;
+      target = rootAdmin;
     } else {
       const dest = await findUserByEmail(rawTo);
       if (!dest) return res.status(404).json({ error: 'Usuario destino no encontrado' });
       target = String(dest.email).toLowerCase();
-      fromId = staff ? ADMIN_ID : req.user.email;
+      fromId = req.user.email;
     }
     const media = await saveChatMedia({ data: m[2], mime: m[1], by: fromId, to: target });
     const msg = await saveChatMessage(fromId, target, '', { kind: 'image', mediaId: String(media.id), mime: m[1] });
     res.json({ success: true, message: msg });
   } catch (err) {
     console.error('[CHAT] send-image error:', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Error: ' + err.message });
   }
 });
 
@@ -194,8 +205,7 @@ router.get('/api/tess/chat/media/:id', validateToken, async (req, res) => {
     const isAdmin = !!(req.user.is_admin || req.user.is_developer);
     const allowed = isAdmin ||
       me === String(media.by).toLowerCase() ||
-      me === String(media.to).toLowerCase() ||
-      (String(media.to) === ADMIN_ID && me === ADMIN_ID.toLowerCase());
+      me === String(media.to).toLowerCase();
     if (!allowed) return res.status(403).json({ error: 'Sin acceso a esta imagen' });
     res.json({ mime: media.mime, data: media.data });
   } catch (err) {
@@ -213,19 +223,17 @@ router.post('/api/tess/chat/share-media', validateToken, async (req, res) => {
     const media = await getChatMedia(String(mediaId));
     if (!media) return res.status(404).json({ error: 'Media no encontrado' });
     const allowed = me === String(media.by).toLowerCase() ||
-      me === String(media.to).toLowerCase() ||
-      me === ADMIN_ID.toLowerCase();
+      me === String(media.to).toLowerCase();
     if (!allowed) return res.status(403).json({ error: 'Sin acceso a este media' });
     const rawTo = String(to).trim().toLowerCase();
-    const staff = !!(req.user.is_admin || req.user.is_developer);
     let fromId, target;
     if (rawTo === ADMIN_ID.toLowerCase()) {
-      fromId = me; target = ADMIN_ID;
+      fromId = me; target = (process.env.TESS_ADMIN_EMAIL || 'ChevyAdmin@tesseract.com').toLowerCase();
     } else {
       const dest = await findUserByEmail(rawTo);
       if (!dest) return res.status(404).json({ error: 'Usuario destino no encontrado' });
       target = String(dest.email).toLowerCase();
-      fromId = staff ? ADMIN_ID : me;
+      fromId = me;
     }
     const newMedia = await saveChatMedia({ data: media.data, mime: media.mime, by: fromId, to: target });
     const msg = await saveChatMessage(fromId, target, '', { kind: 'image', mediaId: String(newMedia.id), mime: media.mime });
