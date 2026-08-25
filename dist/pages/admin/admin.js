@@ -248,7 +248,8 @@ function renderChatMsg(m) {
   if (!boxEl) return;
   const ph = boxEl.querySelector('.empty-chat');
   if (ph) ph.remove();
-  const mine = m.from === 'ADMIN';
+  const myEmail = (document.getElementById('admin-email')?.textContent || '').trim().toLowerCase();
+  const mine = m.from === myEmail || m.from === 'ADMIN';
   const div = document.createElement('div');
   div.className = 'bubble ' + (mine ? 'mine' : 'theirs');
   if (m.kind === 'image' && m.mediaId) {
