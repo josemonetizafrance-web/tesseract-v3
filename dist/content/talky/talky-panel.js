@@ -1476,7 +1476,7 @@ if (document.readyState === 'loading') {
     const box = els().msgs;
     if (!box) return;
     clearEmpty(box);
-    const mine = m.from === myEmail;
+    const mine = String(m.from || '').trim().toLowerCase() === String(myEmail || '').trim().toLowerCase();
     const div = document.createElement('div');
     div.className = 'wa-b ' + (mine ? 'wa-me' : 'wa-you');
     if (m.kind === 'image' && m.mediaId) {
@@ -1740,6 +1740,8 @@ if (document.readyState === 'loading') {
   document.addEventListener('click', onClearClick);
 
   stGet(['user_email', 'tess_user']).then(d => {
-    myEmail = (d.user_email && String(d.user_email).includes('@')) ? d.user_email : (d.tess_user && String(d.tess_user).includes('@') ? d.tess_user : '');
+    const raw = (d.user_email && String(d.user_email).includes('@')) ? d.user_email : (d.tess_user && String(d.tess_user).includes('@') ? d.tess_user : '');
+    myEmail = String(raw || '').trim().toLowerCase();
+    console.log('[TESSERACT] chat: identidad operador =', myEmail || '(vacía)');
   });
 })();
