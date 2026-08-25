@@ -422,8 +422,7 @@ function stopLFPMessages() {
     localStorage.removeItem('lfpMsgState');
     localStorage.setItem('lfpMsgStopAt', String(Date.now()));
   } catch (e) {}
-  var btn = document.getElementById('btnLFPMessages');
-  if (btn) { btn.textContent = '\uD83D\uDCAC L+F+P MENSAJES'; btn.style.opacity = '1'; }
+  _lfpMsgUpdateBtn();
   lfpMsgToast('\u23F9 L+F+P Mensajes Detenido', 'info');
   console.log('[LFP-MSG] stopLFPMessages ejecutado (activo:', wasActive + ')');
 }
@@ -434,6 +433,13 @@ function lfpMsgSleep(ms) {
   if (lfpMsgDead()) return Promise.resolve();
   if (document.hidden) return Promise.resolve();
   return new Promise(function (r) { setTimeout(r, ms); });
+}
+
+function _lfpMsgUpdateBtn() {
+  var btn = document.getElementById('btnLFPMessages');
+  if (!btn) return;
+  if (lfpMsgActive) { btn.textContent = '\u23F8 L+F+P MENSAJES \u2022 CLICK PARA DETENER'; btn.style.opacity = '0.6'; }
+  else { btn.textContent = '\uD83D\uDCAC L+F+P MENSAJES'; btn.style.opacity = '1'; }
 }
 
 function lfpMsgToast(msg, type) {
@@ -502,9 +508,7 @@ executeLFPMessages = window.executeLFPMessages = async function () {
   lfpMsgCurRunId = Date.now();
   try { localStorage.removeItem('lfpMsgStopAt'); } catch (e) {}
 
-  var btn = document.getElementById('btnLFPMessages');
-  if (btn) { btn.textContent = '\u23F8 L+F+P MENSAJES'; btn.style.opacity = '0.6'; }
-
+  _lfpMsgUpdateBtn();
   await lfpLoadBlacklist();
   lfpMsgSearchUrl = window.location.href;
 
@@ -513,7 +517,7 @@ executeLFPMessages = window.executeLFPMessages = async function () {
     console.log('[LFP-MSG] No contacts found via lfpMsgCollectContacts');
     lfpMsgToast('\u26A0\uFE0F No se encontraron contactos en la lista de mensajes', 'error');
     lfpMsgActive = false;
-    if (btn) { btn.textContent = '\uD83D\uDCAC L+F+P MENSAJES'; btn.style.opacity = '1'; }
+    _lfpMsgUpdateBtn();
     return;
   }
 
@@ -556,7 +560,7 @@ executeLFPMessages = window.executeLFPMessages = async function () {
   // All done
   lfpMsgActive = false;
   try { localStorage.removeItem('lfpMsgSweepActive'); localStorage.removeItem('lfpMsgState'); } catch (e) {}
-  if (btn) { btn.textContent = '\uD83D\uDCAC L+F+P MENSAJES'; btn.style.opacity = '1'; }
+  _lfpMsgUpdateBtn();
   lfpMsgToast('\u2705 L+F+P Mensajes completado: ' + lfpMsgStats.processed + ' contactos', 'success');
 };
 
@@ -586,6 +590,7 @@ executeLFPMessages = window.executeLFPMessages = async function () {
   window.lfpMsgStats = lfpMsgStats;
   lfpMsgSearchUrl = saved.searchUrl || '/inbox';
   lfpMsgActive = true;
+  _lfpMsgUpdateBtn();
   console.log('[LFP-MSG] State restored, ' + saved.contacts.length + ' contacts, ' + lfpMsgVisited.length + ' visited. Waiting 2s...');
 
   setTimeout(async function () {
@@ -639,8 +644,7 @@ executeLFPMessages = window.executeLFPMessages = async function () {
         if (nextIdx === -1) {
           lfpMsgActive = false;
           try { localStorage.removeItem('lfpMsgSweepActive'); localStorage.removeItem('lfpMsgState'); } catch (e) {}
-          var btn = document.getElementById('btnLFPMessages');
-          if (btn) { btn.textContent = '\uD83D\uDCAC L+F+P MENSAJES'; btn.style.opacity = '1'; }
+          _lfpMsgUpdateBtn();
           lfpMsgToast('\u2705 L+F+P Mensajes completado: ' + lfpMsgStats.processed + ' contactos', 'success');
           return;
         }
@@ -711,8 +715,7 @@ executeLFPMessages = window.executeLFPMessages = async function () {
       if (nextIdx === -1) {
         lfpMsgActive = false;
         try { localStorage.removeItem('lfpMsgSweepActive'); localStorage.removeItem('lfpMsgState'); } catch (e) {}
-        var btn = document.getElementById('btnLFPMessages');
-        if (btn) { btn.textContent = '\uD83D\uDCAC L+F+P MENSAJES'; btn.style.opacity = '1'; }
+        _lfpMsgUpdateBtn();
         lfpMsgToast('\u2705 L+F+P Mensajes completado: ' + lfpMsgStats.processed + ' contactos', 'success');
         return;
       }
@@ -766,8 +769,7 @@ executeLFPMessages = window.executeLFPMessages = async function () {
       console.log('[LFP-MSG] All contacts processed (' + lfpMsgStats.processed + ' total)');
       lfpMsgActive = false;
       try { localStorage.removeItem('lfpMsgSweepActive'); localStorage.removeItem('lfpMsgState'); } catch (e) {}
-      var btn = document.getElementById('btnLFPMessages');
-      if (btn) { btn.textContent = '\uD83D\uDCAC L+F+P MENSAJES'; btn.style.opacity = '1'; }
+      _lfpMsgUpdateBtn();
       lfpMsgToast('\u2705 L+F+P Mensajes completado: ' + lfpMsgStats.processed + ' contactos', 'success');
       return;
     }
