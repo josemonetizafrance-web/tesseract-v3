@@ -776,7 +776,7 @@ async function generateMultiFromSelection(list) {
     var resp = null;
     try { resp = await generateWithAI(clientName, profile, list[gi]); } catch (_ge) { resp = null; }
     if (!resp) resp = generateLocalResponse(clientName, profile);
-    resp = _eaterCap120(resp);
+    resp = _eaterCapLen(resp, Math.max(20, Math.round(String(list[gi] || '').length * 0.5)));
     responses.push(resp);
     boxes[gi].value = resp;
     boxes[gi].style.color = '#e0e0e0';
@@ -880,16 +880,20 @@ function collectRecentConversation(maxTurns) {
   } catch (e) { return []; }
 }
 
-// Corte inteligente a 120 caracteres (frase/coma/espacio)
-function _eaterCap120(t) {
+// Corte inteligente por longitud maxima (frase/coma/espacio)
+function _eaterCapLen(t, maxLen) {
+  maxLen = Math.max(1, Math.round(maxLen || 120));
   t = String(t || '').replace(/^["'\u201c\u201d\s]+/, '').replace(/["'\u201c\u201d\s]+$/, '');
-  if (t.length <= 120) return t;
-  var cut = t.substring(0, 120);
+  if (t.length <= maxLen) return t;
+  var cut = t.substring(0, maxLen);
   var p = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? '), cut.lastIndexOf(', '), cut.lastIndexOf('; '));
-  if (p >= 60) return cut.substring(0, p + 1).trim();
+  if (p >= Math.floor(maxLen * 0.5)) return cut.substring(0, p + 1).trim();
   var sp = cut.lastIndexOf(' ');
-  if (sp >= 60) return cut.substring(0, sp).trim();
+  if (sp >= Math.floor(maxLen * 0.5)) return cut.substring(0, sp).trim();
   return cut.trim();
+}
+function _eaterCap120(t) {
+  return _eaterCapLen(t, 120);
 }
 
 async function generateWithAI(name, profile, accumulatedMsg) {
@@ -899,8 +903,11 @@ async function generateWithAI(name, profile, accumulatedMsg) {
     }
     
     const isMultiple = accumulatedMsg.includes(' | ');
+    // Regla proporcional (como Mail): responder con la MITAD de caracteres del mensaje recibido
+    var srcLen = String(accumulatedMsg || '').length;
+    var targetLen = Math.max(20, Math.round(srcLen * 0.5));
     const contextNote = isMultiple
-      ? 'El cliente ha enviado VARIOS mensajes seguidos. Toma en cuenta TODOS para generar una respuesta coherente y completa. Responde con una extensión PROPORCIONAL a la cantidad de mensajes que recibiste: si son 2-3 mensajes, responde con 1-2 párrafos; si son más, usa el espacio necesario para cubrir cada punto que mencionó.'
+      ? 'El cliente ha enviado VARIOS mensajes seguidos. Toma en cuenta TODOS para generar una respuesta coherente y completa. Longitud total proporcional: responde con alrededor de la mitad de caracteres que la suma de los recibidos.'
       : '';
     
     var confianza = 'nueva';
@@ -952,7 +959,7 @@ async function generateWithAI(name, profile, accumulatedMsg) {
       '- NO saludes a menos que el cliente haya saludado.\n' +
       '- NO preguntes hora, fecha, ni en que piensas?.\n' +
       '- NO uses frases hechas ni halagos vacios.\n' +
-      '- LONGITUD: tu respuesta completa debe tener MAXIMO 120 caracteres. Sin excepciones. Breve y directo.\n' +
+      '- LONGITUD PROPORCIONAL: el cliente escribió ' + srcLen + ' caracteres. Tu respuesta debe tener ALCANZAR APROXIMADAMENTE LA MITAD: alrededor de ' + targetLen + ' caracteres. Ni más ni menos. Usa exactamente esa longitud como referencia.\n' +
       '- IDIOMA: responde en el MISMO idioma en que escribe el cliente. Si escribe en ingles, responde en ingles natural; si en espanol, en espanol. NUNCA mezcles idiomas ni respondas en otro idioma.\n' +
       '- NO termines cada respuesta con pregunta. Solo pregunta si es necesario.\n' +
       '- NO lleves todo al terreno romantico. Puede ser divertida, intelectual, cotidiana.\n' +
@@ -963,7 +970,7 @@ async function generateWithAI(name, profile, accumulatedMsg) {
       'Sigue el tono del cliente: si bromea, sigue humor; si es directo, se directo; si es profundo, conectate. ' +
       'DETECTA DISCUSION: si el cliente discute, rete o cuestiona, responde con la misma intensidad defiende tu punto con firmeza, no te doblegues. ' +
       'Habla como WhatsApp, no como carta. ' +
-      (isMultiple ? 'Cubre todos los mensajes recibidos con la extension necesaria para cada uno, sin exceder JAMAS los 120 caracteres en total.' : 'Se concreto, MAXIMO 120 caracteres.') + ' Responde SOLO el texto de mi respuesta.';
+      (isMultiple ? 'Cubre todos los mensajes recibidos con la extensión necesaria, respetando la longitud proporcional indicada.' : 'Sé concreto, respeta la longitud de ' + targetLen + ' caracteres.') + ' Responde SOLO el texto de mi respuesta.';
 
     console.log('[EATER AI] Llamando a IA vía proxy');
 
@@ -1000,8 +1007,8 @@ async function generateWithAI(name, profile, accumulatedMsg) {
     console.log('[EATER AI] AI response:', aiData);
     
     if (aiData && aiData.choices && aiData.choices[0]?.message?.content) {
-      const text = _eaterCap120(aiData.choices[0].message.content.trim());
-      console.log('[EATER AI] Respuesta generada (' + text.length + ' chars):', text);
+      const text = _eaterCapLen(aiData.choices[0].message.content.trim(), targetLen);
+      console.log('[EATER AI] Respuesta generada (' + text.length + ' chars, target ' + targetLen + '):', text);
       return text;
     }
     return null;
