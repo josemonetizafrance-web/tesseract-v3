@@ -1054,7 +1054,7 @@ function displaySuggestions(name) {
   if (!area) return;
   
   if (eaterResponse) {
-    var displayText = _eaterCap120(eaterResponse);
+    var displayText = String(eaterResponse).replace(/^["'\u201c\u201d\s]+/, '').replace(/["'\u201c\u201d\s]+$/, '');
     var ta = document.querySelector('textarea#form-textarea');
     if (ta) {
       var ml = parseInt(ta.getAttribute('maxlength'));
