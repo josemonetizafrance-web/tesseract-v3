@@ -776,7 +776,8 @@ async function generateMultiFromSelection(list) {
     var resp = null;
     try { resp = await generateWithAI(clientName, profile, list[gi]); } catch (_ge) { resp = null; }
     if (!resp) resp = generateLocalResponse(clientName, profile);
-    resp = _eaterCapLen(resp, Math.max(20, Math.round(String(list[gi] || '').length * 0.5)));
+    var miLen = String(list[gi] || '').length;
+    resp = _eaterCapLen(resp, Math.max(20, miLen <= 200 ? miLen : Math.round(miLen * 0.5)));
     responses.push(resp);
     boxes[gi].value = resp;
     boxes[gi].style.color = '#e0e0e0';
@@ -903,9 +904,10 @@ async function generateWithAI(name, profile, accumulatedMsg) {
     }
     
     const isMultiple = accumulatedMsg.includes(' | ');
-    // Regla proporcional (como Mail): responder con la MITAD de caracteres del mensaje recibido
+    // Regla proporcional (como Mail): si el cliente escribe hasta 200 caracteres, IGUALAR su longitud;
+    // si escribe más de 200, responder con la MITAD.
     var srcLen = String(accumulatedMsg || '').length;
-    var targetLen = Math.max(20, Math.round(srcLen * 0.5));
+    var targetLen = Math.max(20, srcLen <= 200 ? srcLen : Math.round(srcLen * 0.5));
     const contextNote = isMultiple
       ? 'El cliente ha enviado VARIOS mensajes seguidos. Toma en cuenta TODOS para generar una respuesta coherente y completa. Longitud total proporcional: responde con alrededor de la mitad de caracteres que la suma de los recibidos.'
       : '';
@@ -959,7 +961,7 @@ async function generateWithAI(name, profile, accumulatedMsg) {
       '- NO saludes a menos que el cliente haya saludado.\n' +
       '- NO preguntes hora, fecha, ni en que piensas?.\n' +
       '- NO uses frases hechas ni halagos vacios.\n' +
-      '- LONGITUD PROPORCIONAL: el cliente escribió ' + srcLen + ' caracteres. Tu respuesta debe tener ALCANZAR APROXIMADAMENTE LA MITAD: alrededor de ' + targetLen + ' caracteres. Ni más ni menos. Usa exactamente esa longitud como referencia.\n' +
+      '- LONGITUD PROPORCIONAL: el cliente escribió ' + srcLen + ' caracteres. Regla: si el cliente escribe HASTA 200 caracteres, tu respuesta debe IGUALAR su longitud (alrededor de ' + targetLen + ' caracteres). Si escribe MÁS de 200, responde con la mitad (' + targetLen + ' caracteres). Ni mucho más ni mucho menos. Usa ' + targetLen + ' caracteres como referencia exacta.\n' +
       '- IDIOMA: responde en el MISMO idioma en que escribe el cliente. Si escribe en ingles, responde en ingles natural; si en espanol, en espanol. NUNCA mezcles idiomas ni respondas en otro idioma.\n' +
       '- NO termines cada respuesta con pregunta. Solo pregunta si es necesario.\n' +
       '- NO lleves todo al terreno romantico. Puede ser divertida, intelectual, cotidiana.\n' +
