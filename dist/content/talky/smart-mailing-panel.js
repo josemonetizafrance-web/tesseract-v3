@@ -33,6 +33,17 @@ function createMailingPanel() {
 .ml-section h4{font-size:10px;letter-spacing:1px;margin:0 0 8px 0;color:#e0e0e0;text-transform:uppercase;}
 .ml-section label{display:flex;align-items:center;gap:8px;font-size:11px;color:#ccc;margin:6px 0;cursor:pointer;}
 .ml-section input[type="checkbox"]{accent-color:#8b5cf6;width:16px;height:16px;cursor:pointer;}
+.ml-check{position:relative;display:inline-flex;align-items:center;gap:8px;font-size:11px;color:#ccc;margin:6px 0;cursor:pointer;user-select:none;}
+.ml-check input{position:absolute;opacity:0;width:0;height:0;pointer-events:none;}
+.ml-box{width:18px;height:18px;border:2px solid #555;border-radius:4px;background:#000;display:inline-flex;align-items:center;justify-content:center;font-size:13px;line-height:1;transition:all 0.2s;flex-shrink:0;}
+.ml-box::after{content:'';width:9px;height:5px;border-left:2px solid #fff;border-bottom:2px solid #fff;opacity:0;transform:rotate(-45deg) scale(0);transition:all 0.15s;margin-top:-2px;}
+.ml-check input:checked + .ml-box{background:#8b5cf6;border-color:#8b5cf6;box-shadow:0 0 8px rgba(139,92,246,0.6);}
+.ml-check input:checked + .ml-box::after{opacity:1;transform:rotate(-45deg) scale(1);}
+.ml-check input:checked ~ .ml-lbl{color:#a78bfa;font-weight:600;}
+.ml-check input:checked ~ .ml-lbl .ml-state-on{display:inline;}
+.ml-check input:checked ~ .ml-lbl .ml-state-off{display:none;}
+.ml-state-on{display:none;color:#4CAF50;font-weight:700;letter-spacing:1px;}
+.ml-state-off{color:#666;font-weight:700;letter-spacing:1px;}
 .ml-section textarea{width:100%;padding:6px;background:#000;border:1px solid #8b5cf6;border-radius:4px;color:#e0e0e0;font-family:Arial;font-size:12px;box-sizing:border-box;height:90px;resize:vertical;}
 .ml-section textarea:focus{outline:none;border-color:#7c3aed;}
 .ml-hint{font-size:8px;color:#666;margin-top:6px;}
@@ -53,7 +64,11 @@ function createMailingPanel() {
 
   <div class="ml-section">
     <h4>MULTIMAILING</h4>
-    <label><input type="checkbox" id="mlEnabledToggle"> Activar Multimailing</label>
+    <label class="ml-check">
+      <input type="checkbox" id="mlEnabledToggle">
+      <span class="ml-box"></span>
+      <span class="ml-lbl">Activar Multimailing <span class="ml-state-off">[OFF]</span><span class="ml-state-on">[ACTIVO]</span></span>
+    </label>
   </div>
 
   <div class="ml-section">
@@ -64,7 +79,11 @@ function createMailingPanel() {
 
   <div class="ml-section">
     <h4>MODO DE ENVIO</h4>
-    <label><input type="checkbox" id="mlSendOnlyOver4"> Solo enviar a contactos con MÁS DE 4 cartas</label>
+    <label class="ml-check">
+      <input type="checkbox" id="mlSendOnlyOver4">
+      <span class="ml-box"></span>
+      <span class="ml-lbl">Solo enviar a contactos con MÁS DE 4 cartas <span class="ml-state-off">[OFF]</span><span class="ml-state-on">[SOLO &gt;4]</span></span>
+    </label>
     <div class="ml-hint">Al activarlo, el barrido envia cartas unicamente a personas cuyo contador de cartas totales sea mayor a 4, saltando a quienes tengan 4 o menos.</div>
   </div>
 
@@ -83,6 +102,28 @@ function createMailingPanel() {
   document.getElementById('mlCloseBtn').addEventListener('click', () => mlModal(false));
   document.getElementById('mlCloseBtn2').addEventListener('click', () => mlModal(false));
   document.getElementById('mlSaveBtn').addEventListener('click', saveMLPanelConfigWrapper);
+
+  document.getElementById('mlEnabledToggle').addEventListener('change', async function (e) {
+    updateMLStatusBar(e.target.checked);
+    try {
+      const cfg = mlCfgCache || {};
+      cfg.enabled = e.target.checked;
+      if (typeof window._getMailingConfigDirect === 'function') Object.assign(window._getMailingConfigDirect(), { enabled: cfg.enabled });
+      if (typeof window._saveMailingConfigDirect === 'function') { mlCfgCache = cfg; await window._saveMailingConfigDirect(); }
+      else { await chrome.storage.local.set({ tess_mailing_config: cfg }); }
+      if (typeof window._updateMLTabUI === 'function') window._updateMLTabUI();
+    } catch (err) { console.error('[ML] Error al activar multimailing:', err); }
+  });
+  document.getElementById('mlSendOnlyOver4').addEventListener('change', async function (e) {
+    try {
+      const cfg = mlCfgCache || {};
+      cfg.sendOnlyOver4Letters = e.target.checked;
+      if (typeof window._getMailingConfigDirect === 'function') Object.assign(window._getMailingConfigDirect(), { sendOnlyOver4Letters: cfg.sendOnlyOver4Letters });
+      if (typeof window._saveMailingConfigDirect === 'function') { mlCfgCache = cfg; await window._saveMailingConfigDirect(); }
+      else { await chrome.storage.local.set({ tess_mailing_config: cfg }); }
+      if (typeof window._updateMLTabUI === 'function') window._updateMLTabUI();
+    } catch (err) { console.error('[ML] Error al cambiar modo de envio:', err); }
+  });
 }
 
 function mlModal(show) {
