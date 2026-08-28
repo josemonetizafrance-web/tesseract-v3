@@ -559,14 +559,14 @@ function mlDetectRecentInteraction(profileId, contactEl) {
       var mi = items[i];
       var nmEl = mi.querySelector(TALK_Y.MAIL_HEADER_NAME) || mi.querySelector(TALK_Y.MAIL_HEADER_NAME_FALLBACK);
       var sender = nmEl ? (nmEl.textContent || '').trim() : '';
-      var tmEl = mi.querySelector(TALK_Y.TIME_ELEMENT);
+      var tmEl = mi.querySelector(TALK_Y.TIME_ELEMENT) || mi.querySelector('p[data-type="caption"]') || mi.querySelector('[class*="time"], [class*="date"]');
       var tm = tmEl ? (tmEl.textContent || '').trim() : '';
       var isMe = sender === TALK_Y.MAIL_OPERATOR_NAME;
       if (isMe) { info.sent++; }
       else if (sender) { info.received++; if (!lastIncoming) lastIncoming = { tm: tm }; }
     }
     if (lastIncoming) {
-      info.lastIncomingAgo = mlParseRelativeTime(lastIncoming.tm || '');
+      info.lastIncomingAgo = mlParseMailTimeHoursAgo(lastIncoming.tm || '');
       var hours = mailingConfig.activeDialogueHours || 48;
       if (info.lastIncomingAgo !== null && info.lastIncomingAgo <= hours) info.recent = true;
       else if (info.lastIncomingAgo === null && info.received > 0) info.recent = true;
@@ -575,17 +575,54 @@ function mlDetectRecentInteraction(profileId, contactEl) {
   return info;
 }
 
-function mlParseRelativeTime(txt) {
+// Convierte la hora del DOM ("8:06 am", "May 28, 12:28 am", "48 minutes ago") a horas transcurridas
+function mlParseMailTimeHoursAgo(txt) {
   if (!txt) return null;
-  var t = String(txt).toLowerCase();
+  var t = String(txt).trim().toLowerCase();
   if (t.includes('now') || t.includes('ahora') || t.includes('just')) return 0;
-  var m = t.match(/(\d+)\s*(m|min|minuto|minute)/);
+
+  // Relativo: "X minutes/min/hours/horas/days/dias ago"
+  var m = t.match(/(\d+)\s*(m|min|minuto|minute)s?\b/);
   if (m) return parseInt(m[1], 10) / 60;
-  m = t.match(/(\d+)\s*(h|hr|hora|hour)/);
+  m = t.match(/(\d+)\s*(h|hr|hora|hour)s?\b/);
   if (m) return parseInt(m[1], 10);
-  m = t.match(/(\d+)\s*(d|dia|día|day)/);
+  m = t.match(/(\d+)\s*(d|dia|día|day)s?\b/);
   if (m) return parseInt(m[1], 10) * 24;
   if (t.includes('ayer') || t.includes('yesterday')) return 24;
+
+  // Hora del día: "8:06 am" (hoy) o "12:28 am"
+  m = t.match(/(\d{1,2}):(\d{2})\s*(am|pm)?/);
+  if (m) {
+    var hh = parseInt(m[1], 10);
+    var mm = parseInt(m[2], 10);
+    var ap = (m[3] || '').toLowerCase();
+    if (ap === 'pm' && hh < 12) hh += 12;
+    if (ap === 'am' && hh === 12) hh = 0;
+    if (!ap && hh < 8) hh += 12;
+    var now = new Date();
+    var d = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh, mm, 0, 0);
+    if (d.getTime() > now.getTime()) d = new Date(now.getTime() - 24 * 3600 * 1000);
+    return (now.getTime() - d.getTime()) / 3600000;
+  }
+
+  // Fecha absoluta: "May 28, 12:28 am"
+  var months = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
+  var md = t.match(/([a-z]{3,9})\s+(\d{1,2}),?\s+(\d{1,2}):(\d{2})\s*(am|pm)?/);
+  if (md) {
+    var mon = months[String(md[1]).toLowerCase().substring(0, 3)];
+    if (mon !== undefined) {
+      var hh2 = parseInt(md[3], 10);
+      var mm2 = parseInt(md[4], 10);
+      var ap2 = (md[5] || '').toLowerCase();
+      if (ap2 === 'pm' && hh2 < 12) hh2 += 12;
+      if (ap2 === 'am' && hh2 === 12) hh2 = 0;
+      var now2 = new Date();
+      var y = now2.getFullYear();
+      var dd = new Date(y, mon, parseInt(md[2], 10), hh2, mm2, 0, 0);
+      if (dd.getTime() > now2.getTime()) dd = new Date(y - 1, mon, parseInt(md[2], 10), hh2, mm2, 0, 0);
+      return (now2.getTime() - dd.getTime()) / 3600000;
+    }
+  }
   return null;
 }
 
