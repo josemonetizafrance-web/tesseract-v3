@@ -23,6 +23,7 @@ function createMailingPanel() {
   m.innerHTML = `
 <style>
 #mailingModal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9999999;display:none;width:460px;max-height:90vh;background:#0a0a0a;border:2px solid #8b5cf6;border-radius:12px;box-shadow:0 0 40px rgba(139,92,246,0.5);color:#e0e0e0;font-family:'Orbitron','Segoe UI',sans-serif;overflow:hidden;display:flex;flex-direction:column;}
+.ml-wrp{display:flex;flex-direction:column;flex:1;min-height:0;}
 .ml-hdr{background:linear-gradient(135deg,#1e1b4b,#8b5cf6,#1e1b4b);padding:12px 16px;font-weight:bold;letter-spacing:2px;display:flex;justify-content:space-between;border-bottom:2px solid #8b5cf6;color:#e0e0e0;font-size:13px;cursor:default;}
 .ml-hdr span{cursor:pointer;font-size:18px;}
 .ml-body{padding:16px;overflow-y:auto;flex:1;}
@@ -58,7 +59,7 @@ function createMailingPanel() {
 .ml-foot button.primary:hover{background:#7c3aed;color:#fff;}
 .ml-error{color:#dc2626;font-size:9px;margin:4px 0;padding:6px 10px;background:rgba(220,38,38,0.1);border:1px solid #dc2626;border-radius:4px;display:none;}
 </style>
-<div class="ml-box">
+<div class="ml-wrp">
 <div class="ml-hdr"><span>SMART MAILING</span><span id="mlCloseBtn">&times;</span></div>
 <div class="ml-body">
 
