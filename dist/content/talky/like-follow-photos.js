@@ -93,7 +93,8 @@ function lfpFindNextPage() {
 }
 
 // Navigate back to search preserving filters
-// Visible tab: history.back() (fast SPA nav)
+// Visible tab: history.back() (fast SPA nav), pero si no hay URL de search conocida
+// (LFP arrancó desde chat/mail), navega DIRECTO a /search en vez de caer en mails.
 // Hidden tab: direct navigation (page reload via lfpSearchUrl)
 async function lfpGoBack() {
   if (window.location.href.includes('/search')) { console.log('[LFP] back: already on search'); return; }
@@ -109,9 +110,22 @@ async function lfpGoBack() {
     window.location.href = lfpSearchUrl || '/search/all';
     return;
   }
+  if (!lfpSearchUrl) {
+    if (lfpActive) {
+      try {
+        localStorage.setItem('lfpSweepActive', '1');
+        localStorage.setItem('lfpVisited', JSON.stringify(lfpVisited));
+        localStorage.setItem('lfpStats', JSON.stringify(lfpStats));
+        localStorage.setItem('lfpPage', localStorage.getItem('tessSearchPage') || '1');
+      } catch (e) {}
+    }
+    window.location.href = '/search/all';
+    return;
+  }
   try { window.history.back(); } catch (e) {}
   for (var w = 0; w < 100 && lfpActive; w++) {
     if (document.querySelectorAll(TALK_Y.PERSON_CARD).length > 0) return;
+    if (window.location.href.includes('/search')) return;
     await lfpSleep(100);
   }
   if (!lfpActive) return;
