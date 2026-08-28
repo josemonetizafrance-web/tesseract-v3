@@ -467,6 +467,7 @@ function createMainPanel() {
     <div class="mod-card"><h4>⏱ Intervalo</h4><div class="st" id="mlIntervalDisplay">60 min</div></div>
     <div class="mod-card"><h4>💬 Mensaje</h4><div class="st" id="mlMsgPreview" style="font-size:8px;">—</div></div>
   </div>
+  <div id="mlModeBadge" style="display:none;margin-top:6px;padding:4px 8px;border-radius:4px;font-size:9px;font-weight:700;letter-spacing:0.5px;text-align:center;"></div>
   <button class="btn-auth" id="btnOpenMLConfig" style="margin-top:8px;">⚙ CONFIGURAR SMART MAILING</button>
   <button class="btn-auth" id="btnScrapeML" style="margin-top:4px;background:#7c3aed;">🔍 RASTREAR CONTACTOS</button>
   <button class="btn-auth" id="btnStartCarta" style="margin-top:4px;background:#059669;border-color:#059669;">📨 INICIAR ENVIO DE CARTAS</button>
@@ -1207,6 +1208,23 @@ function updateMLTabUI() {
 
   const preview = (cfg.messageTemplate || '').slice(0, 40);
   document.getElementById('mlMsgPreview').textContent = preview + (preview.length >= 40 ? '...' : '');
+
+  const badge = document.getElementById('mlModeBadge');
+  if (badge) {
+    if (cfg.sendOnlyOver4Letters) {
+      badge.style.display = 'block';
+      badge.style.background = 'rgba(255,215,0,0.15)';
+      badge.style.color = '#eab308';
+      badge.style.border = '1px solid #eab308';
+      badge.textContent = '🎯 MODO: SOLO CONTACTOS CON MÁS DE 4 CARTAS';
+    } else {
+      badge.style.display = 'block';
+      badge.style.background = 'rgba(139,92,246,0.15)';
+      badge.style.color = '#8b5cf6';
+      badge.style.border = '1px solid #8b5cf6';
+      badge.textContent = '🌐 MODO: GENERAL (salta >4 cartas / diálogo activo)';
+    }
+  }
 
   const stats = typeof window._getMailingStats === 'function' ? window._getMailingStats() : null;
   document.getElementById('mlQueueCountInline').textContent = stats?.lastScrapedCount ?? '--';

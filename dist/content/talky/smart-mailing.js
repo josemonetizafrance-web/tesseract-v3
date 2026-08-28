@@ -702,19 +702,6 @@ function goBackToInbox() {
   history.back();
 }
 
-function getLetterCount(container) {
-  if (!container) return 0;
-  try {
-    var els = container.querySelectorAll('span, div, [class*="typography"]');
-    for (var ei = 0; ei < els.length; ei++) {
-      var text = (els[ei].textContent || '').trim();
-      var match = text.match(/^(\d+)\s+letter\s+total/i);
-      if (match) return parseInt(match[1], 10);
-    }
-  } catch (e) {}
-  return 0;
-}
-
 function pageLetterCount() {
   try {
     // Identificador real: <span data-type="paragraph" data-fontweight="semibold">517 letter total</span>
