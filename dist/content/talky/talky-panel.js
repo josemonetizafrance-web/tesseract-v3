@@ -1123,6 +1123,7 @@ async function startCartaMailing() {
 
   var originalMaxDaily = null;
   var originalRespectQuiet = null;
+  var originalEnabled = null;
   try {
     if (typeof window._loadMailingConfigDirect === 'function') await window._loadMailingConfigDirect();
     var cfg = typeof window._getMailingConfigDirect === 'function' ? window._getMailingConfigDirect() : null;
@@ -1130,6 +1131,7 @@ async function startCartaMailing() {
     // Guardar y desactivar el limite diario para procesar todas las paginas
     originalMaxDaily = cfg.maxDaily;
     originalRespectQuiet = cfg.respectQuietHours;
+    originalEnabled = cfg.enabled;
     cfg.maxDaily = 99999;
     cfg.respectQuietHours = false;
     cfg.enabled = true;
@@ -1172,9 +1174,11 @@ async function startCartaMailing() {
     if (restored) {
       if (originalMaxDaily !== null) restored.maxDaily = originalMaxDaily;
       if (originalRespectQuiet !== null) restored.respectQuietHours = originalRespectQuiet;
+      if (originalEnabled !== null) restored.enabled = originalEnabled;
       if (typeof window._saveMailingConfigDirect === 'function') window._saveMailingConfigDirect();
     }
   }
+  if (typeof window._setMailingState === 'function' && originalEnabled !== null) window._setMailingState(originalEnabled);
   window._mlProgressCallback = null;
   if (btn) {
     btn.textContent = '📨 INICIAR ENVIO DE CARTAS';

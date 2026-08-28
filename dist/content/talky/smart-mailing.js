@@ -84,7 +84,8 @@ const DEFAULT_MAILING_CONFIG = {
   activeDialogueHours: 48,
   multiProfileEnabled: false,
   currentProfile: '',
-  maxLetterCount: 4
+  maxLetterCount: 4,
+  sendOnlyOver4Letters: false
 };
 
 let mailingConfig = null;
@@ -638,16 +639,24 @@ async function sendMailingMessage(text, profileId, contactEl) {
       return false;
     }
     var interactInfo = mlDetectRecentInteraction(profileId, contactEl);
-    if (interactInfo.recent) {
+    if (interactInfo.recent && !mailingConfig.sendOnlyOver4Letters) {
       console.log('[ML] Auto-bloqueo por interacción reciente en Mail: ' + profileId + ' (' + interactInfo.received + ' recibidas / ' + interactInfo.sent + ' enviadas, hace ' + interactInfo.lastIncomingAgo + 'h)');
       window._addToMLBlacklist(String(profileId));
       try { showTessToast('⛔ Auto-bloqueo: ' + profileId + ' (interacción reciente en Mail)', 'warning'); } catch (e) {}
       goBackToInbox();
       return false;
     }
-    // REGLA: si el total de cartas del hilo es > ML_MAX_LETTERS_TOTAL (4), bloquear y saltar
+    // REGLA de cartas totales (>4). Modo normal: >4 -> bloquear y saltar.
+    // Modo inverso (sendOnlyOver4Letters): solo enviar a quienes tengan >4 cartas, saltar los que tengan <=4.
     var lc = pageLetterCount();
-    if (lc > ML_MAX_LETTERS_TOTAL) {
+    if (mailingConfig.sendOnlyOver4Letters) {
+      if (lc <= ML_MAX_LETTERS_TOTAL) {
+        console.log('[ML] Skip (modo >4 cartas): ' + profileId + ' tiene ' + lc + ' cartas (<= ' + ML_MAX_LETTERS_TOTAL + ')');
+        goBackToInbox();
+        return false;
+      }
+      console.log('[ML] Enviado (modo >4 cartas): ' + profileId + ' tiene ' + lc + ' cartas > ' + ML_MAX_LETTERS_TOTAL);
+    } else if (lc > ML_MAX_LETTERS_TOTAL) {
       console.log('[ML] Auto-bloqueo: ' + profileId + ' tiene ' + lc + ' cartas totales (> ' + ML_MAX_LETTERS_TOTAL + ')');
       window._addToMLBlacklist(String(profileId));
       try { showTessToast('⛔ Auto-bloqueo: ' + profileId + ' (' + lc + ' cartas)', 'warning'); } catch (e) {}
@@ -756,7 +765,7 @@ async function executeMailingRound() {
         var cType = contacts[ci].contactType || 'new';
 
         if (contacts[ci].element) {
-          if (mailingConfig.blockActiveDialogue && cType === 'active') {
+          if (mailingConfig.blockActiveDialogue && !mailingConfig.sendOnlyOver4Letters && cType === 'active') {
             window._addToMLBlacklist(String(cid));
             console.log('[ML] Auto-bloqueo (bucle): contacto activo en Mail ->', cid);
             blacklisted++; activeSkipped++; skipped++; processedIds.add(cid);
@@ -767,15 +776,15 @@ async function executeMailingRound() {
           if (elText.includes('deleted user') || elText.includes('has blocked you')) {
             skipped++; processedIds.add(cid); continue;
           }
-        } else if (mailingConfig.blockActiveDialogue && cType === 'active') {
+        } else if (mailingConfig.blockActiveDialogue && !mailingConfig.sendOnlyOver4Letters && cType === 'active') {
           window._addToMLBlacklist(String(cid));
           console.log('[ML] Auto-bloqueo (bucle): contacto activo en Mail ->', cid);
           blacklisted++; activeSkipped++; skipped++; processedIds.add(cid);
           if (mailingConfig.stopOnBlacklistHit) { mailingActive = false; return { sent, skipped, blacklisted, alreadyContacted, activeSkipped, total: totalScanned }; }
           continue;
         }
-        if (isInMLBlacklist(cid)) { blacklisted++; processedIds.add(cid); if (mailingConfig.stopOnBlacklistHit) { mailingActive = false; return { sent, skipped, blacklisted, alreadyContacted, activeSkipped, total: totalScanned }; } continue; }
-        if (await isContactAlreadyContactedML(cid)) { alreadyContacted++; skipped++; processedIds.add(cid); continue; }
+        if (!mailingConfig.sendOnlyOver4Letters && isInMLBlacklist(cid)) { blacklisted++; processedIds.add(cid); if (mailingConfig.stopOnBlacklistHit) { mailingActive = false; return { sent, skipped, blacklisted, alreadyContacted, activeSkipped, total: totalScanned }; } continue; }
+        if (!mailingConfig.sendOnlyOver4Letters && await isContactAlreadyContactedML(cid)) { alreadyContacted++; skipped++; processedIds.add(cid); continue; }
 
         contact = contacts[ci];
         break;
@@ -876,6 +885,13 @@ async function updateMailingBlockActiveDialogue(block, hours) {
   await saveMailingConfig();
 }
 
+async function updateMailingSendOnlyOver4(enabled) {
+  await loadMailingConfig();
+  mailingConfig.sendOnlyOver4Letters = !!enabled;
+  await saveMailingConfig();
+  console.log('[ML] Modo solo >4 cartas =', mailingConfig.sendOnlyOver4Letters);
+}
+
 function getMailingConfig() { return mailingConfig; }
 
 function getMailingStats() {
@@ -889,7 +905,8 @@ function getMailingStats() {
     scheduleEnabled: mailingConfig?.scheduleEnabled || false,
     scheduleRemaining: mailingConfig?.scheduleRemaining || 0,
     scheduleCycles: mailingConfig?.scheduleCycles || 0,
-    blockActiveDialogue: mailingConfig?.blockActiveDialogue || false
+    blockActiveDialogue: mailingConfig?.blockActiveDialogue || false,
+    sendOnlyOver4Letters: mailingConfig?.sendOnlyOver4Letters || false
   };
 }
 
@@ -915,6 +932,7 @@ window._updateMailingStopOnBlacklist = updateMailingStopOnBlacklist;
 window._updateMailingSchedule = updateMailingSchedule;
 window._updateMailingTemplates = updateMailingTemplates;
 window._updateMailingBlockActiveDialogue = updateMailingBlockActiveDialogue;
+window._updateMailingSendOnlyOver4 = updateMailingSendOnlyOver4;
 window._setMailingState = setMailingState;
 window._executeMailingRound = executeMailingRound;
 window._abortMailingRound = abortMailingRound;
