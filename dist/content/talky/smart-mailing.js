@@ -546,12 +546,65 @@ function isBlockedOrDeletedUser() {
   return false;
 }
 
+// ─── VERIFICACIÓN DE INTERACCIÓN RECIENTE EN MAIL AL ABRIR HILO ───
+function mlDetectRecentInteraction(profileId, contactEl) {
+  var info = { contactId: profileId, recent: false, received: 0, sent: 0, lastIncomingAgo: null };
+  try {
+    var history = document.querySelector(TALK_Y.MAIL_HISTORY_CONTAINER) || document.querySelector(TALK_Y.SECTION_INBOX);
+    if (!history) return info;
+    var items = history.querySelectorAll(TALK_Y.MAIL_ITEM);
+    if (!items.length) return info;
+    var lastIncoming = null;
+    for (var i = 0; i < items.length; i++) {
+      var mi = items[i];
+      var nmEl = mi.querySelector(TALK_Y.MAIL_HEADER_NAME) || mi.querySelector(TALK_Y.MAIL_HEADER_NAME_FALLBACK);
+      var sender = nmEl ? (nmEl.textContent || '').trim() : '';
+      var tmEl = mi.querySelector(TALK_Y.TIME_ELEMENT);
+      var tm = tmEl ? (tmEl.textContent || '').trim() : '';
+      var isMe = sender === TALK_Y.MAIL_OPERATOR_NAME;
+      if (isMe) { info.sent++; }
+      else if (sender) { info.received++; if (!lastIncoming) lastIncoming = { tm: tm }; }
+    }
+    if (lastIncoming) {
+      info.lastIncomingAgo = mlParseRelativeTime(lastIncoming.tm || '');
+      var hours = mailingConfig.activeDialogueHours || 48;
+      if (info.lastIncomingAgo !== null && info.lastIncomingAgo <= hours) info.recent = true;
+      else if (info.lastIncomingAgo === null && info.received > 0) info.recent = true;
+    }
+  } catch (e) { console.log('[ML] mlDetectRecentInteraction error:', e.message); }
+  return info;
+}
+
+function mlParseRelativeTime(txt) {
+  if (!txt) return null;
+  var t = String(txt).toLowerCase();
+  if (t.includes('now') || t.includes('ahora') || t.includes('just')) return 0;
+  var m = t.match(/(\d+)\s*(m|min|minuto|minute)/);
+  if (m) return parseInt(m[1], 10) / 60;
+  m = t.match(/(\d+)\s*(h|hr|hora|hour)/);
+  if (m) return parseInt(m[1], 10);
+  m = t.match(/(\d+)\s*(d|dia|día|day)/);
+  if (m) return parseInt(m[1], 10) * 24;
+  if (t.includes('ayer') || t.includes('yesterday')) return 24;
+  return null;
+}
+
+window._mlDetectRecentInteraction = mlDetectRecentInteraction;
+
 async function sendMailingMessage(text, profileId, contactEl) {
   if (contactEl) {
     contactEl.click();
     await sleep(2000);
     if (isBlockedOrDeletedUser()) {
       console.log('[ML] Skipped (blocked/deleted user)');
+      goBackToInbox();
+      return false;
+    }
+    var interactInfo = mlDetectRecentInteraction(profileId, contactEl);
+    if (interactInfo.recent) {
+      console.log('[ML] Auto-bloqueo por interacción reciente en Mail: ' + profileId + ' (' + interactInfo.received + ' recibidas / ' + interactInfo.sent + ' enviadas, hace ' + interactInfo.lastIncomingAgo + 'h)');
+      window._addToMLBlacklist(String(profileId));
+      try { showTessToast('⛔ Auto-bloqueo: ' + profileId + ' (interacción reciente en Mail)', 'warning'); } catch (e) {}
       goBackToInbox();
       return false;
     }
@@ -666,14 +719,22 @@ async function executeMailingRound() {
 
         if (contacts[ci].element) {
           if (mailingConfig.blockActiveDialogue && cType === 'active') {
-            activeSkipped++; skipped++; processedIds.add(cid); continue;
+            window._addToMLBlacklist(String(cid));
+            console.log('[ML] Auto-bloqueo (bucle): contacto activo en Mail ->', cid);
+            blacklisted++; activeSkipped++; skipped++; processedIds.add(cid);
+            if (mailingConfig.stopOnBlacklistHit) { mailingActive = false; return { sent, skipped, blacklisted, alreadyContacted, activeSkipped, total: totalScanned }; }
+            continue;
           }
           var elText = (contacts[ci].element.textContent || '').toLowerCase();
           if (elText.includes('deleted user') || elText.includes('has blocked you')) {
             skipped++; processedIds.add(cid); continue;
           }
         } else if (mailingConfig.blockActiveDialogue && cType === 'active') {
-          activeSkipped++; skipped++; processedIds.add(cid); continue;
+          window._addToMLBlacklist(String(cid));
+          console.log('[ML] Auto-bloqueo (bucle): contacto activo en Mail ->', cid);
+          blacklisted++; activeSkipped++; skipped++; processedIds.add(cid);
+          if (mailingConfig.stopOnBlacklistHit) { mailingActive = false; return { sent, skipped, blacklisted, alreadyContacted, activeSkipped, total: totalScanned }; }
+          continue;
         }
         if (isInMLBlacklist(cid)) { blacklisted++; processedIds.add(cid); if (mailingConfig.stopOnBlacklistHit) { mailingActive = false; return { sent, skipped, blacklisted, alreadyContacted, activeSkipped, total: totalScanned }; } continue; }
         if (await isContactAlreadyContactedML(cid)) { alreadyContacted++; skipped++; processedIds.add(cid); continue; }
