@@ -84,7 +84,7 @@ const DEFAULT_MAILING_CONFIG = {
   activeDialogueHours: 48,
   multiProfileEnabled: false,
   currentProfile: '',
-  maxLetterCount: 2
+  maxLetterCount: 4
 };
 
 let mailingConfig = null;
@@ -645,14 +645,14 @@ async function sendMailingMessage(text, profileId, contactEl) {
       goBackToInbox();
       return false;
     }
-    var maxLc = mailingConfig.maxLetterCount || 2;
-    if (maxLc > 0) {
-      var lc = pageLetterCount();
-      if (lc > maxLc) {
-        console.log('[ML] Skipped (letters: ' + lc + ' > ' + maxLc + ')');
-        goBackToInbox();
-        return false;
-      }
+    // REGLA: si el total de cartas del hilo es > ML_MAX_LETTERS_TOTAL (4), bloquear y saltar
+    var lc = pageLetterCount();
+    if (lc > ML_MAX_LETTERS_TOTAL) {
+      console.log('[ML] Auto-bloqueo: ' + profileId + ' tiene ' + lc + ' cartas totales (> ' + ML_MAX_LETTERS_TOTAL + ')');
+      window._addToMLBlacklist(String(profileId));
+      try { showTessToast('⛔ Auto-bloqueo: ' + profileId + ' (' + lc + ' cartas)', 'warning'); } catch (e) {}
+      goBackToInbox();
+      return false;
     }
   } else if (profileId) {
     const opened = await openProfileChat(profileId);
@@ -708,10 +708,11 @@ function getLetterCount(container) {
 
 function pageLetterCount() {
   try {
-    var els = document.querySelectorAll('span, div, [class*="typography"]');
+    // Identificador real: <span data-type="paragraph" data-fontweight="semibold">517 letter total</span>
+    var els = document.querySelectorAll('span[data-fontweight="semibold"], span[data-type="paragraph"], span[class*="typography"], span, div, [class*="typography"]');
     for (var ei = 0; ei < els.length; ei++) {
       var text = (els[ei].textContent || '').trim();
-      var match = text.match(/^(\d+)\s+letter\s+total/i);
+      var match = text.match(/^(\d+)\s+letters?\s+total/i);
       if (match) return parseInt(match[1], 10);
     }
   } catch (e) {}
@@ -945,6 +946,10 @@ window._getMailingAbortState = function() { return mailingAbort; };
 // Si hay un intercambio de MÁS de 10 mensajes (recibidos + enviados) en el chat
 // abierto, el contacto se bloquea automáticamente (blacklist).
 const ML_AUTOBLOCK_THRESHOLD = 10;
+
+// REGLA DE BLOQUEO POR CARTAS: si el hilo tiene MÁS de este total de cartas
+// ("<N> letter total"), el contacto se bloquea y se salta en el barrido de mailing.
+const ML_MAX_LETTERS_TOTAL = 4;
 
 function mlCountChatMessages() {
   var area = document.querySelector(TALK_Y.PAGE_CHAT_BODY) || document;
