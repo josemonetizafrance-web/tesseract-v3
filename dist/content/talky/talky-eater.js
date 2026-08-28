@@ -919,33 +919,63 @@ async function generateWithAI(name, profile, accumulatedMsg) {
       confianza === 'media' ? 'BUENA VIBRA: sé cálido pero sin exagerar la confianza. Coqueteo sutil, juguetón y seguro. Genera atracción con tensión positiva sin apodos ni posesión. Sigue el tono positivo.' :
       'RECIÉN CONOCIENDO: sé serio, seguro, respetuoso y juguetón. Nada de apodos ni palabras de cariño. Construye rapport natural con coqueteo sutil que genere tensión atractiva sin presión.';
 
+    // Resolver el cliente actual para su estilo (misma logica que captureOperatorStyle)
+    var styleSourceId = window._lastCribsPid || '';
+    if (window._lastCribsPid) {
+      var _isOperatorStyle = window._cribsChatIds && window._cribsChatIds[0] && String(window._cribsChatIds[0]).replace(/^0+/, '') === String(window._lastCribsPid).replace(/^0+/, '');
+      if (_isOperatorStyle && window._cribsChatIds[1]) styleSourceId = String(window._cribsChatIds[1]).replace(/^0+/, '');
+    }
+    if (!styleSourceId) {
+      var _chatM = location.href.match(/\/chat\/(\d{6,15})_(\d{6,15})/);
+      if (_chatM) styleSourceId = _chatM[2].replace(/^0+/, '');
+    }
+
     var styleInjection = '';
-    var cribsEntry = cribFindEntry(window._lastCribsPid);
-    if (!(cribsEntry && cribsEntry.voice_style)) {
-      // Fallback: usar el estilo del operador mas reciente disponible en CRIBS
+    var cribsEntry = null;
+    // Asegurar que la cache de CRIBS este cargada antes de buscar el estilo capturado
+    if (typeof cribLoadOrRefresh === 'function') {
+      try { await cribLoadOrRefresh(false); } catch (se) {}
+    }
+    if (styleSourceId && typeof cribFindEntry === 'function') cribsEntry = cribFindEntry(styleSourceId);
+    var _styleFallback = false;
+    if (!(cribsEntry && cribsEntry.voice_style && String(cribsEntry.voice_style).trim().length > 5)) {
+      // Fallback: usar el estilo del operador mas reciente disponible en CRIBS (de otro perfil)
       try {
         if (typeof _cribsLocalCache !== 'undefined' && _cribsLocalCache && _cribsLocalCache.length) {
           for (var si = _cribsLocalCache.length - 1; si >= 0; si--) {
-            if (_cribsLocalCache[si].voice_style && String(_cribsLocalCache[si].voice_style).trim().length > 5) { cribsEntry = _cribsLocalCache[si]; break; }
+            if (_cribsLocalCache[si].voice_style && String(_cribsLocalCache[si].voice_style).trim().length > 5) { cribsEntry = _cribsLocalCache[si]; _styleFallback = true; break; }
           }
         }
-      } catch (se) {}
+      } catch (se2) {}
     }
-    if (cribsEntry && cribsEntry.voice_style) {
+    if (cribsEntry && cribsEntry.voice_style && String(cribsEntry.voice_style).trim().length > 5) {
       var examples = cribsEntry.voice_style.split('\n')
         .filter(function (l) { return l.trim().length > 5; })
         .map(function (l) { return '- "' + l.trim() + '"'; })
         .join('\n');
-      console.log('[EATER AI] Estilo del operador cargado (perfil ' + (cribsEntry.profile_id || '?') + ') -', cribsEntry.voice_style.split('\n').length, 'lineas');
+      console.log('[EATER AI] Estilo del operador cargado (perfil ' + (cribsEntry.profile_id || '?') + ( _styleFallback ? ', FALLBACK desde otro perfil' : ', cliente actual ' + styleSourceId) + ') -', cribsEntry.voice_style.split('\n').length, 'lineas');
       if (examples) {
-        styleInjection = '\n\n=== ESTILO DEL OPERADOR ===\nMensajes reales escritos por el operador:\n' + examples + '\nIMITA EXACTAMENTE esta forma de escribir: tono, vocabulario, uso de emojis, longitud y ritmo de las frases. Tus respuestas deben ser indistinguibles de estos ejemplos.\n=== FIN ESTILO ===\n';
+        styleInjection = '\n\n=== ESTILO DEL OPERADOR (' + (cribsEntry.profile_id || styleSourceId) + ') ===\nEstos son mensajes REALES que yo (el operador) le he escrito a ESTE cliente. Copia mi forma de escribir: tono, vocabulario, uso de emojis, longitud y ritmo de las frases. Tus respuestas deben ser indistinguibles de estos ejemplos, adaptadas al mensaje actual del cliente.\n' + examples + '\n=== FIN ESTILO ===\n';
       }
     } else {
-      console.log('[EATER AI] Sin estilo capturado en CRIBS para perfil', window._lastCribsPid);
+      console.log('[EATER AI] Sin estilo capturado en CRIBS para el cliente', styleSourceId || '?');
+    }
+
+    // Datos del perfil del cliente para personalizar la respuesta
+    var profileInfo = '';
+    if (profile) {
+      var _pi = [];
+      if (profile.age) _pi.push(profile.age + ' años');
+      if (profile.location) _pi.push('vive en ' + profile.location);
+      if (profile.interests && profile.interests.length) _pi.push('intereses: ' + profile.interests.join(', '));
+      if (profile.hobbies && profile.hobbies.length) _pi.push('hobbies: ' + profile.hobbies.join(', '));
+      if (profile.bio) _pi.push('bio: ' + String(profile.bio).substring(0, 120));
+      if (_pi.length) profileInfo = 'Datos del perfil de la clienta para personalizar (usa SOLO si encajan naturalmente en la respuesta): ' + _pi.join(' | ') + '.\n\n';
     }
 
     const maxLen = isMultiple ? 2000 : 500;
     const prompt = 'Último mensaje del cliente:\n\n"' + accumulatedMsg.substring(0, maxLen) + '"\n\n' +
+      (profileInfo ? profileInfo : '') +
       contextNote +
       'Nivel de confianza: ' + confianza + '. ' + confianzaHint + '\n\n' +
       'Escribe UNA respuesta natural, humana y magnetica. Sigue estas reglas:\n' +
