@@ -294,7 +294,6 @@ function createMainPanel() {
 #tabMain.tab-content{border-left:3px solid #7c3aed !important;}
 #tabStar.tab-content{border-left:3px solid #f59e0b !important;}
 #tabMailing.tab-content{border-left:3px solid #8b5cf6 !important;}
-#tabBlacklist.tab-content{border-left:3px solid #ef4444 !important;}
 #tabSoporte.tab-content{border-left:3px solid #22c55e !important;}
 </style>
 <div id="tess-mini-icon">🤖</div>
@@ -310,7 +309,6 @@ function createMainPanel() {
   <button class="tab-btn active" data-tab="main">🎮 BOT</button>
   <button class="tab-btn" data-tab="star">⭐ STAR TOOLS</button>
   <button class="tab-btn" data-tab="mailing">📬 MAILING</button>
-  <button class="tab-btn" data-tab="blacklist">🚫 BLACKLIST</button>
   <button class="tab-btn" data-tab="soporte">💬 MENSAJES</button>
 </div>
 
@@ -476,20 +474,6 @@ function createMainPanel() {
 </div>
 </div>
 
-<!-- PESTAÑA BLACKLIST -->
-<div id="tabBlacklist" class="tab-content">
-<div class="user-bar">🚫 BLACKLIST — <span id="blCount">0 contactos</span></div>
-<div style="padding:10px;">
-  <div class="inp-grp"><label class="inp-lbl">AGREGAR ID A BLACKLIST</label><input type="text" id="blInput" class="t-input" placeholder="ID del contacto" /></div>
-  <button class="btn-auth" id="btnBlAdd" style="margin-top:4px;">🚫 BLOQUEAR</button>
-  <div style="margin-top:10px;max-height:250px;overflow-y:auto;background:#0a0a0a;padding:8px;border:1px solid #333;border-radius:4px;">
-    <div id="blList" style="font-size:10px;color:#ccc;">
-      <p style="color:#666;text-align:center;">Cargando...</p>
-    </div>
-  </div>
-</div>
-</div>
-
 <!-- PESTAÑA MENSAJES (SOPORTE + CHAT PRIVADO ENTRE USUARIOS) -->
 <div id="tabSoporte" class="tab-content">
 <style>
@@ -584,12 +568,11 @@ function setupAllEvents() {
       mainPanel.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       this.classList.add('active');
       currentTab = Tesseract.set('currentTab', clickedTab);
-      const tabMap = { main: 'Main', star: 'Star', mailing: 'Mailing', blacklist: 'Blacklist', soporte: 'Soporte' };
+      const tabMap = { main: 'Main', star: 'Star', mailing: 'Mailing', soporte: 'Soporte' };
       mainPanel.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
       document.getElementById('tab' + (tabMap[currentTab] || 'Main')).classList.add('active');
       if (currentTab === 'star') renderStarIds();
       if (currentTab === 'mailing') updateMLTabUI();
-      if (currentTab === 'blacklist') { /* blacklist removed */ }
       if (currentTab === 'soporte' && typeof window._startSupportChat === 'function') window._startSupportChat();
     });
   });
@@ -781,9 +764,19 @@ function setupAllEvents() {
   document.getElementById('btnOpenMLConfig').addEventListener('click', () => {
     if (typeof openMLPanel === 'function') openMLPanel();
   });
-  document.getElementById('btnScrapeML').addEventListener('click', () => {
-    updateMLContactList();
-  });
+  document.getElementById('btnScrapeML').addEventListener('click', async () => {
+  const progressEl = document.getElementById('mlCartaProgress');
+  if (progressEl) { progressEl.style.display = 'block'; progressEl.textContent = '🔍 Verificando contador de cartas de cada contacto...'; }
+  try {
+    if (typeof window._verifyMailingLetterCounts === 'function') {
+      await window._verifyMailingLetterCounts();
+    }
+  } catch (e) {
+    console.error('[ML] Error en rastreo/verificación:', e);
+  }
+  if (progressEl) { progressEl.style.display = 'none'; }
+  updateMLContactList();
+});
   document.getElementById('btnStartCarta').addEventListener('click', function() {
     if (this._mailingActive) {
       if (typeof window._abortMailingRound === 'function') window._abortMailingRound();
@@ -1246,14 +1239,28 @@ function updateMLContactList() {
   const typeLabels = { active: '💬 ACTIVO', recurring: '🔄 RECURRENTE', new: '🆕 NUEVO' };
   const typeColors = { active: '#f59e0b', recurring: '#3b82f6', new: '#22c55e' };
   var isBlocked = typeof window._isInMLBlacklist === 'function' ? function(id) { return window._isInMLBlacklist(id); } : function(id) { return blacklist.includes(String(id)); };
-  let html = '<div style="font-size:9px;color:#888;padding:6px 8px;border-bottom:1px solid #e0e0e8;font-weight:600;">CONTACTOS (' + contacts.length + ')</div>';
+  var verRes = typeof window._getMLLetterVerification === 'function' ? window._getMLLetterVerification() : null;
+  let html = '<div style="font-size:9px;color:#888;padding:6px 8px;border-bottom:1px solid #e0e0e8;font-weight:600;">CONTACTOS (' + contacts.length + ')' + (verRes ? ' — verificación de cartas aplicada' : '') + '</div>';
   contacts.forEach(function (c) {
+    var vInfo = verRes ? verRes[c.id] : null;
     var blocked = isBlocked(c.id);
-    var label = blocked ? '🚫 BLOQUEADO' : (typeLabels[c.contactType] || '🆕 NUEVO');
-    var color = blocked ? '#dc2626' : (typeColors[c.contactType] || '#22c55e');
-    html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px;border-bottom:1px solid #f0f0f5;font-size:10px;' + (blocked ? 'opacity:0.5;text-decoration:line-through;' : '') + '">';
+    var label, color, strike = false;
+    if (vInfo) {
+      if (vInfo.approved) {
+        label = '✅ APROBADO (' + vInfo.letters + ' cartas)';
+        color = '#22c55e';
+      } else {
+        label = '🚫 ' + vInfo.letters + ' cartas';
+        color = '#dc2626';
+        strike = true;
+      }
+    } else {
+      label = blocked ? '🚫 BLOQUEADO' : (typeLabels[c.contactType] || '🆕 NUEVO');
+      color = blocked ? '#dc2626' : (typeColors[c.contactType] || '#22c55e');
+    }
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px;border-bottom:1px solid #f0f0f5;font-size:10px;' + ((blocked && !vInfo) || strike ? 'opacity:0.5;text-decoration:line-through;' : '') + '">';
     html += '<span style="color:#1a1a2e;font-weight:500;">#' + c.id + '</span>';
-    html += '<span style="font-size:8px;padding:2px 6px;border-radius:4px;background:' + color + '20;color:' + color + ';font-weight:600;">' + label + '</span>';
+    html += '<span style="font-size:8px;padding:2px 6px;border-radius:4px;background:' + color + '20;color:' + color + ';font-weight:600;border:1px solid ' + color + ';">' + label + '</span>';
     html += '</div>';
   });
   container.innerHTML = html;

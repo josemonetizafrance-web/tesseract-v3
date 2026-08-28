@@ -839,6 +839,92 @@ async function executeMailingRound() {
 
 function abortMailingRound() { mailingAbort = true; }
 
+var _mlLetterVerification = null;
+
+// Verifica el contador de cartas ("N letter total") de cada contacto del rastreo,
+// abriendo cada hilo. Según el modo activo marca aprobados/descartados y
+// agrega a blacklist a los descartados (rojo + tachado en la lista).
+async function verifyMailingLetterCounts() {
+  _mlLetterVerification = {};
+  var currentPage = 1;
+  var processedIds = new Set();
+  var stuckCount = 0;
+  try {
+    while (currentPage <= 100) {
+      var contacts = scrapeActiveLimitsIds();
+      var anyNew = false;
+      for (var ci = 0; ci < contacts.length; ci++) {
+        var cid = contacts[ci].id || contacts[ci];
+        if (processedIds.has(cid)) continue;
+        processedIds.add(cid);
+        anyNew = true;
+
+        if (!contacts[ci].element) {
+          _mlLetterVerification[cid] = { letters: 0, over: false, approved: !mailingConfig.sendOnlyOver4Letters };
+          continue;
+        }
+
+        try { contacts[ci].element.click(); } catch (e) {}
+        await sleep(2000);
+
+        if (isBlockedOrDeletedUser()) {
+          goBackToInbox();
+          await sleep(1500);
+          continue;
+        }
+
+        var lc = pageLetterCount();
+        var over = lc > ML_MAX_LETTERS_TOTAL;
+        // Modo "solo >4": aprobados = >4 (descartados <=4). Modo general: aprobados = <=4 (descartados >4).
+        var approved = mailingConfig.sendOnlyOver4Letters ? over : !over;
+        _mlLetterVerification[cid] = { letters: lc, over: over, approved: approved };
+
+        if (!approved) {
+          window._addToMLBlacklist(String(cid));
+          try {
+            showTessToast('🚫 Descartado: ' + cid + ' (' + lc + ' cartas)', 'warning');
+          } catch (e) {}
+        }
+
+        goBackToInbox();
+        await sleep(1500);
+      }
+
+      if (!anyNew) break;
+
+      var nextBtn = document.querySelector(TALK_Y.NEXT_PAGE_BTN_NEXT + ':not([disabled])');
+      if (!nextBtn) {
+        var pBtns = document.querySelectorAll(TALK_Y.PAGE_BUTTONS);
+        for (var pb = 0; pb < pBtns.length; pb++) {
+          if (parseInt((pBtns[pb].textContent || '').trim(), 10) === currentPage + 1) { nextBtn = pBtns[pb]; break; }
+        }
+      }
+      if (!nextBtn) {
+        var paginator = document.querySelector(TALK_Y.PAGINATOR_CONTAINER);
+        if (paginator) {
+          nextBtn = paginator.querySelector('button[data-test-id*="next"]:not([disabled])');
+        }
+      }
+      if (!nextBtn) break;
+
+      var snapshotBefore = (document.querySelector(TALK_Y.MAIL_BOX_ITEM) || {}).textContent || '';
+      nextBtn.click();
+      currentPage++;
+      await sleep(2000);
+      var snapshotAfter = (document.querySelector(TALK_Y.MAIL_BOX_ITEM) || {}).textContent || '';
+      if (snapshotBefore === snapshotAfter) {
+        stuckCount++;
+        if (stuckCount > 3) break;
+      } else {
+        stuckCount = 0;
+      }
+    }
+  } catch (e) {
+    console.error('[ML] Error en verificación de cartas:', e);
+  }
+  return _mlLetterVerification;
+}
+
 async function setMailingState(enabled) {
   await loadMailingConfig();
   mailingConfig.enabled = enabled;
@@ -926,6 +1012,8 @@ window._updateMailingBlockActiveDialogue = updateMailingBlockActiveDialogue;
 window._updateMailingSendOnlyOver4 = updateMailingSendOnlyOver4;
 window._setMailingState = setMailingState;
 window._executeMailingRound = executeMailingRound;
+window._verifyMailingLetterCounts = verifyMailingLetterCounts;
+window._getMLLetterVerification = function () { return _mlLetterVerification; };
 window._abortMailingRound = abortMailingRound;
 window._isInMLBlacklist = isInMLBlacklist;
 window._reloadMLBlacklist = reloadMLBlacklist;
