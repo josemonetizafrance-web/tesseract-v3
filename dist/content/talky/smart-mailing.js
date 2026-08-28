@@ -664,6 +664,10 @@ async function sendMailingMessage(text, profileId, contactEl) {
       return false;
     }
   } else if (profileId) {
+    if (mailingConfig.sendOnlyOver4Letters) {
+      console.log('[ML] Skip (modo >4 cartas, sin elemento DOM para verificar contador): ' + profileId);
+      return false;
+    }
     const opened = await openProfileChat(profileId);
     if (!opened) return false;
   }
