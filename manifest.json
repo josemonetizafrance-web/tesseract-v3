@@ -2,25 +2,12 @@
     "manifest_version": 3,
     "name": "TESSERACT",
     "version": "3.0.0",
-    "description": "TESSERACT - Sistema Operativo IA",
-    "permissions": ["storage", "tabs", "alarms", "webNavigation", "scripting"],
+    "description": "Asistente de productividad para chat en sitios de citas: redacción de mensajes y gestión del buzón con ayuda de IA.",
+    "permissions": ["storage", "tabs", "webNavigation"],
     "host_permissions": [
-        "https://api.groq.com/*",
-        "https://openrouter.ai/*",
-        "https://generativelanguage.googleapis.com/*",
         "https://tesseract-v3-production.up.railway.app/*",
         "https://talkytimes.com/*",
-        "https://www.talkytimes.com/*",
-        "https://amolatina.com/*",
-        "https://www.amolatina.com/*",
-        "https://dating.com/*",
-        "https://www.dating.com/*",
-        "https://yourtravelmates.com/*",
-        "https://www.yourtravelmates.com/*",
-        "https://arabiandate.com/*",
-        "https://www.arabiandate.com/*",
-        "https://luxee.io/*",
-        "https://www.luxee.io/*"
+        "https://www.talkytimes.com/*"
     ],
     "icons": {
         "16": "dist/assets/images/icon16.png",

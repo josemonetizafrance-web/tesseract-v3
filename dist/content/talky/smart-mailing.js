@@ -991,10 +991,15 @@ function getMailingStats() {
 
 async function initSmartMailing() {
   await loadMailingConfig();
+  // Hard-guard CWS: el envio masivo y el schedule arrancan SIEMPRE apagados en cada carga;
+  // hay que marcar el toggle manualmente en el panel tras abrirlo.
+  mailingConfig.enabled = false;
+  mailingConfig.scheduleEnabled = false;
+  saveMailingConfig();
   await loadMLBlacklist();
-  console.log('[ML] Module initialized, enabled:', mailingConfig.enabled, '| Blacklist:', mlBlacklist.length, 'contactos');
-  if (mailingConfig.scheduleEnabled && mailingConfig.scheduleRemaining > 0) {
-    console.log('[ML] Schedule: ' + mailingConfig.scheduleRemaining + '/' + mailingConfig.scheduleCycles + ' ciclos restantes (' + mailingConfig.scheduleFrequency + ')');
+  console.log('[ML] Module initialized, enabled: false (hard-guard) | Blacklist:', mlBlacklist.length, 'contactos');
+  if (mailingConfig.scheduleRemaining > 0) {
+    console.log('[ML] Schedule configurado, requiere arranque manual (' + mailingConfig.scheduleRemaining + '/' + mailingConfig.scheduleCycles + ' ciclos)');
   }
 }
 
