@@ -55,6 +55,11 @@ async function initTesseract() {
   } catch (e) {
     console.error('[TESSERACT] ⚠️ initSmartMailing fallo:', e.message);
   }
+  try {
+    if (typeof initImgGen1 === 'function') await initImgGen1();
+  } catch (e) {
+    console.error('[TESSERACT] ⚠️ initImgGen1 fallo:', e.message);
+  }
 
   // Recargar blacklists despues de init
   if (typeof reloadMLBlacklist === 'function') reloadMLBlacklist();

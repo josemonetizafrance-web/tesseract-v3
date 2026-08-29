@@ -44,6 +44,7 @@
                 "dist/content/talky/talky-saludo-push.js",
                 "dist/content/talky/talky-cribs.js",
                 "dist/content/talky/talky-mail-cribs.js",
+                "dist/content/talky/talky-img-gen.js",
                 "dist/content/talky/talky-panel.js",
                 "dist/content/talky/talky-bot-panel.js"
             ],

@@ -155,9 +155,18 @@ router.post('/api/chatgpt/chat', validateToken, async (req, res) => {
 // POST /api/chatgpt/image - Generación de imágenes (OpenRouter: Nano Banana 2 Lite)
 router.post('/api/chatgpt/image', validateToken, async (req, res) => {
   try {
-    const { prompt, model, size, preset } = req.body || {};
+    const { prompt, model, size, preset, references } = req.body || {};
     if (!prompt || !String(prompt).trim()) return res.status(400).json({ error: 'Prompt requerido' });
     if (String(prompt).trim().length > 2000) return res.status(400).json({ error: 'Prompt demasiado largo' });
+
+    // Imágenes de referencia opcionales (imagen-a-imagen). Data URLs o URLs HTTP(S), máx. 16.
+    let refs = [];
+    if (Array.isArray(references)) {
+      refs = references
+        .filter(r => typeof r === 'string' && /^(data:image\/[a-z0-9.+-]+;base64,|https?:\/\/)/i.test(String(r).trim()))
+        .slice(0, 16)
+        .map(r => ({ type: 'image_url', image_url: { url: String(r).trim() } }));
+    }
 
     // Preset 1 (default): Nano Banana Pro. Preset 2: Nano Banana 2 Lite (más barato).
     const useAlt = String(preset || '').toLowerCase() === '2';
@@ -172,8 +181,11 @@ router.post('/api/chatgpt/image', validateToken, async (req, res) => {
     if (!imageKey) return res.status(500).json({ error: 'OPENROUTER_IMAGE_API_KEY/OPENROUTER_API_KEY no configurada' });
 
     const targetModel = imageModel;
-    const payload = { model: targetModel, prompt: String(prompt).trim(), n: 1, response_format: 'b64_json' };
+    const payload = { model: targetModel, prompt: String(prompt).trim(), n: 1, output_format: 'png' };
     if (size) payload.size = String(size);
+    else if (process.env.IMAGE_SIZE && String(process.env.IMAGE_SIZE).trim()) payload.size = String(process.env.IMAGE_SIZE).trim();
+    else payload.size = '330x330';
+    if (refs.length) payload.input_references = refs;
 
     async function attempt(opts) {
       const resp = await fetch(OPENROUTER_IMAGE_API, {
@@ -186,8 +198,10 @@ router.post('/api/chatgpt/image', validateToken, async (req, res) => {
     }
 
     let out = await attempt(payload);
-    if (!out.ok && /response_format|b64_json/i.test(JSON.stringify(out.j))) {
-      delete payload.response_format;
+    if (!out.ok && /output_format|input_references|size|aspect|resolution/i.test(JSON.stringify(out.j))) {
+      delete payload.output_format;
+      delete payload.input_references;
+      delete payload.size;
       out = await attempt(payload);
     }
     if (!out.ok) {
@@ -199,6 +213,10 @@ router.post('/api/chatgpt/image', validateToken, async (req, res) => {
 
     let b64 = item.b64_json;
     let format = 'png';
+    const mt = String(item.media_type || '').toLowerCase();
+    if (mt.includes('jpeg') || mt.includes('jpg')) format = 'jpeg';
+    else if (mt.includes('webp')) format = 'webp';
+    else if (mt.includes('svg')) format = 'svg';
     if (!b64 && item.url) {
       const imgResp = await fetch(item.url);
       if (!imgResp.ok) return res.status(502).json({ error: 'No se pudo descargar la imagen generada' });
