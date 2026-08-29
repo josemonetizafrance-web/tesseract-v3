@@ -130,18 +130,23 @@ async function igPickRefs() {
 function igSaveToDownloads(b64, fmt) {
   try {
     var mime = igMimeFor(fmt);
-    var bin = atob(b64);
+    var raw = String(b64 || '').replace(/\s+/g, '');
+    if (raw.indexOf(',') >= 0 && /^data:/i.test(raw)) raw = raw.slice(raw.indexOf(',') + 1);
+    var bin = atob(raw);
     var u8 = new Uint8Array(bin.length);
     for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
     var blob = new Blob([u8], { type: mime });
+    var ext = (fmt === 'svg' ? 'svg' : fmt === 'jpeg' ? 'jpg' : fmt);
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     a.href = url;
-    a.download = 'tesseract-gen-' + Date.now() + '.' + (fmt === 'svg' ? 'svg' : fmt === 'jpeg' ? 'jpg' : fmt);
+    a.download = 'tesseract-gen-' + Date.now() + '.' + ext;
+    a.rel = 'noopener';
     document.body.appendChild(a);
     a.click();
     a.remove();
-    setTimeout(function () { URL.revokeObjectURL(url); }, 8000);
+    console.log('[IMG-GEN] descarga iniciada -> Downloads (' + a.download.replace('tesseract-gen-' + Date.now() + '.', '') + ', ' + Math.round(u8.length / 1024) + 'KB)');
+    setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
     return true;
   } catch (e) {
     console.error('[IMG-GEN] save download error:', e);
@@ -427,8 +432,12 @@ function mountImgGenTab() {
   _igEl('igDelBtn').addEventListener('click', igClearGen);
   _igEl('igSaveBtn').addEventListener('click', function () {
     if (!igState.lastBase64) return showTessToast('Primero genera una imagen', 'warning');
-    igSaveToDownloads(igState.lastBase64, igState.lastFormat);
-    showTessToast('Imagen guardada en Descargas', 'success');
+    if (igSaveToDownloads(igState.lastBase64, igState.lastFormat)) {
+      igSetStatus('Imagen guardada automaticamente en Descargas.', 'ok');
+      showTessToast('Imagen guardada en Descargas', 'success');
+    } else {
+      showTessToast('No se pudo iniciar la descarga. Mueve el mouse sobre la imagen y recarga.', 'error');
+    }
   });
   _igEl('igFixBtn').addEventListener('click', function () {
     if (!igState.lastBase64) return showTessToast('Primero genera una imagen', 'warning');
