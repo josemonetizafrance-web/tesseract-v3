@@ -237,48 +237,90 @@ function igClickManageMedia() {
   return true;
 }
 
-function igWaitForDropZone(timeoutMs) {
-  return new Promise(function (resolve) {
-    var start = Date.now();
-    (function poll() {
-      var z = document.querySelector('[data-test-id*="file:drop-zone"]');
-      if (z) return resolve(z);
-      if (Date.now() - start > timeoutMs) return resolve(null);
-      setTimeout(poll, 500);
-    })();
-  });
+function igDropTargetCandidates() {
+  return [
+    '[data-test-id*="drop"]',
+    '[data-test-id*="Drop"]',
+    '[data-test-id*="file-drop"]',
+    '[data-test-id*="upload"]',
+    '[data-test-id*="Upload"]',
+    '[data-test-id*="file"] input[type="file"]',
+    'input[type="file"][accept*="image"]',
+    '[role="dialog"] [class*="drop"]',
+    '[class*="drop-zone"]',
+    '[class*="dropZone"]',
+    '[class*="drop_zone"]',
+    '[class*="file-drop"]',
+    '[class*="FileDrop"]'
+  ];
 }
 
+// Simula arrastrar y soltar la imagen EN EL CENTRO DE LA PANTALLA de Manage Media.
 async function igDropFileIntoTalky(b64, fmt) {
+  var used = null;
   try {
     var mime = igMimeFor(fmt);
     var bin = atob(b64);
     var u8 = new Uint8Array(bin.length);
     for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
-    var file = new File([u8], 'tesseract-gen-' + Date.now() + '.png', { type: mime });
+    var file = new File([u8], 'upload-' + Date.now() + '.png', { type: mime });
     var dt = new DataTransfer();
     dt.items.add(file);
+    var cx = Math.round(window.innerWidth / 2);
+    var cy = Math.round(window.innerHeight / 2);
+    var go = function (el, type) {
+      try { el.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, composed: true, dataTransfer: dt, clientX: cx, clientY: cy, screenX: cx, screenY: cy })); } catch (e) { /* ignorar */ }
+    };
 
-    var zone = await igWaitForDropZone(15000);
-    if (zone) {
-      try {
-        zone.dispatchEvent(new DragEvent('dragenter', { bubbles: true, cancelable: true, dataTransfer: dt }));
-        zone.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }));
-        zone.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
-      } catch (e) {
-        console.warn('[IMG-GEN] synthetic drop fallo, intento input file:', e.message);
+    // 1) dragover globales -> la app muestra su overlay central de subida.
+    go(document.documentElement, 'dragenter');
+    go(document.documentElement, 'dragover');
+    go(document.body, 'dragenter');
+    go(document.body, 'dragover');
+    go(window, 'dragover');
+
+    // 2) Espera a que monten cualquier overlay de drop y acumula candidatos.
+    var zone = null;
+    var start = Date.now();
+    while (Date.now() - start < 12000) {
+      var sel = igDropTargetCandidates().join(',');
+      zone = document.querySelector(sel);
+      if (!zone) {
+        // Elemento justo en el centro de la pantalla (equivalente a soltar ahi).
+        var mid = document.elementFromPoint(cx, cy);
+        if (mid && mid !== document.body && mid !== document.documentElement) zone = mid;
       }
+      if (zone) break;
+      await new Promise(function (r) { setTimeout(r, 500); });
     }
-    var inp = zone ? zone.querySelector('input[type="file"]') : document.querySelector('[data-test-id*="file:"] input[type="file"], input[type="file"][accept*="image"]');
+
+    if (zone) {
+      go(zone, 'dragenter');
+      go(zone, 'dragover');
+      go(zone, 'drop');
+      used = 'drop-target-centro';
+      console.log('[IMG-GEN] drop sintetico sobre:', zone.tagName, zone.id, zone.className, zone.getAttribute && zone.getAttribute('data-test-id'));
+    }
+    // 3) Reintentos agnósticos: overlays con listener en window + body (final).
+    go(window, 'dragenter');
+    go(window, 'dragover');
+    go(window, 'drop');
+    go(document.body, 'drop');
+
+    // 4) Fallback input[type=file].
+    var inp = document.querySelector('input[type="file"][accept*="image"], [data-test-id*="file"] input[type="file"]');
     if (inp) {
       try {
         inp.files = dt.files;
         inp.dispatchEvent(new Event('change', { bubbles: true }));
+        used = used || 'input-file';
       } catch (e) {
         console.warn('[IMG-GEN] fallback input file fallo:', e.message);
       }
     }
-    showTessToast(zone ? 'Imagen soltada en Manage Media. Revisa que se subio.' : 'No encontre el area de subida. Sueltala tu manualmente.', zone ? 'success' : 'warning');
+    showTessToast(used
+      ? (used === 'input-file' ? 'Subido via input file. Revisa que la imagen entro.' : 'Imagen soltada en el centro de Manage Media. Revisa que se subio.')
+      : 'No encontre el area de subida. Arrastrala tu hacia el centro de la pantalla.', used ? 'success' : 'warning');
   } catch (err) {
     showTessToast('Error subiendo la imagen: ' + ((err && err.message) || err), 'error');
   }
