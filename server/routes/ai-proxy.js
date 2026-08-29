@@ -7,10 +7,12 @@ const GROQ_API = 'https://api.groq.com/openai/v1/chat/completions';
 const OPENAI_API = 'https://api.openai.com/v1/chat/completions';
 const OPENROUTER_API = 'https://openrouter.ai/api/v1/chat/completions';
 const GEMINI_API = 'https://generativelanguage.googleapis.com/v1beta/models';
+const OPENROUTER_IMAGE_API = 'https://openrouter.ai/api/v1/images/generations';
 const GROQ_MODEL = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
 const GROQ_MODEL_FALLBACK = process.env.GROQ_MODEL_FALLBACK || 'qwen/qwen3.6-27b';
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.7-flash';
+const IMAGE_MODEL = process.env.IMAGE_MODEL || 'google/gemini-3.1-flash-lite-image';
 
 // Reintenta con modelo alternativo si el primario no existe (404)
 async function tryGroqWithFallback(messages, model, maxTokens) {
@@ -147,6 +149,70 @@ router.post('/api/chatgpt/chat', validateToken, async (req, res) => {
   } catch (err) {
     console.error('[AI-PROXY] chat error:', err.message);
     res.status(500).json({ error: err.message, fallback: true });
+  }
+});
+
+// POST /api/chatgpt/image - Generación de imágenes (OpenRouter: Nano Banana 2 Lite)
+router.post('/api/chatgpt/image', validateToken, async (req, res) => {
+  try {
+    const { prompt, model, size, preset } = req.body || {};
+    if (!prompt || !String(prompt).trim()) return res.status(400).json({ error: 'Prompt requerido' });
+    if (String(prompt).trim().length > 2000) return res.status(400).json({ error: 'Prompt demasiado largo' });
+
+    // Preset 1 (default): Nano Banana Pro. Preset 2: Nano Banana 2 Lite (más barato).
+    const useAlt = String(preset || '').toLowerCase() === '2';
+    let imageKey, imageModel;
+    if (useAlt) {
+      imageKey = process.env.OPENROUTER_IMAGE_API_KEY_2 || process.env.OPENROUTER_IMAGE_API_KEY || process.env.OPENROUTER_API_KEY;
+      imageModel = (model && String(model).trim()) || process.env.IMAGE_MODEL_2_2 || process.env.IMAGE_MODEL_2 || 'google/gemini-3.1-flash-lite-image';
+    } else {
+      imageKey = process.env.OPENROUTER_IMAGE_API_KEY || process.env.OPENROUTER_API_KEY;
+      imageModel = (model && String(model).trim()) || process.env.IMAGE_MODEL || 'google/gemini-3-pro-image';
+    }
+    if (!imageKey) return res.status(500).json({ error: 'OPENROUTER_IMAGE_API_KEY/OPENROUTER_API_KEY no configurada' });
+
+    const targetModel = imageModel;
+    const payload = { model: targetModel, prompt: String(prompt).trim(), n: 1, response_format: 'b64_json' };
+    if (size) payload.size = String(size);
+
+    async function attempt(opts) {
+      const resp = await fetch(OPENROUTER_IMAGE_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${imageKey}` },
+        body: JSON.stringify(opts)
+      });
+      const j = await resp.json().catch(() => ({}));
+      return { ok: resp.ok, status: resp.status, j };
+    }
+
+    let out = await attempt(payload);
+    if (!out.ok && /response_format|b64_json/i.test(JSON.stringify(out.j))) {
+      delete payload.response_format;
+      out = await attempt(payload);
+    }
+    if (!out.ok) {
+      return res.status(out.status || 502).json({ error: (out.j && (out.j.error?.message || out.j.error)) || 'Error generando imagen' });
+    }
+
+    const item = out.j?.data?.[0];
+    if (!item) return res.status(502).json({ error: 'OpenRouter no devolvió imagen' });
+
+    let b64 = item.b64_json;
+    let format = 'png';
+    if (!b64 && item.url) {
+      const imgResp = await fetch(item.url);
+      if (!imgResp.ok) return res.status(502).json({ error: 'No se pudo descargar la imagen generada' });
+      b64 = Buffer.from(await imgResp.arrayBuffer()).toString('base64');
+      const ct = (imgResp.headers.get('content-type') || '').toLowerCase();
+      if (ct.includes('jpeg')) format = 'jpeg';
+      else if (ct.includes('webp')) format = 'webp';
+    }
+    if (!b64) return res.status(502).json({ error: 'Respuesta de imagen vacía' });
+
+    res.json({ success: true, provider: 'OpenRouter', model: targetModel, format, base64: b64 });
+  } catch (err) {
+    console.error('[AI-PROXY] image error:', err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
