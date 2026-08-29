@@ -159,12 +159,12 @@ router.post('/api/chatgpt/image', validateToken, async (req, res) => {
     if (!prompt || !String(prompt).trim()) return res.status(400).json({ error: 'Prompt requerido' });
     if (String(prompt).trim().length > 2000) return res.status(400).json({ error: 'Prompt demasiado largo' });
 
-    // Imágenes de referencia opcionales (imagen-a-imagen). Data URLs o URLs HTTP(S), máx. 16.
+    // Imágenes de referencia opcionales (imagen-a-imagen). Data URLs o URLs HTTP(S), máx. 14 (límite Gemini).
     let refs = [];
     if (Array.isArray(references)) {
       refs = references
         .filter(r => typeof r === 'string' && /^(data:image\/[a-z0-9.+-]+;base64,|https?:\/\/)/i.test(String(r).trim()))
-        .slice(0, 16)
+        .slice(0, 14)
         .map(r => ({ type: 'image_url', image_url: { url: String(r).trim() } }));
     }
 
@@ -181,10 +181,9 @@ router.post('/api/chatgpt/image', validateToken, async (req, res) => {
     if (!imageKey) return res.status(500).json({ error: 'OPENROUTER_IMAGE_API_KEY/OPENROUTER_API_KEY no configurada' });
 
     const targetModel = imageModel;
-    const payload = { model: targetModel, prompt: String(prompt).trim(), n: 1, output_format: 'png' };
-    if (size) payload.size = String(size);
-    else if (process.env.IMAGE_SIZE && String(process.env.IMAGE_SIZE).trim()) payload.size = String(process.env.IMAGE_SIZE).trim();
-    else payload.size = '330x330';
+    // Nota: los modelos Gemini-image NO aceptan {size} ('330x330' -> 400 "Request contains an invalid argument").
+    // Se usa resolution (tier normalizado) + aspect_ratio. Por defecto 1K cuadrado (~1024x1024).
+    const payload = { model: targetModel, prompt: String(prompt).trim(), n: 1, output_format: 'png', resolution: String(req.body.resolution || process.env.IMAGE_RESOLUTION || (useAlt ? '512' : '1K')), aspect_ratio: String(req.body.aspect_ratio || '1:1') };
     if (refs.length) payload.input_references = refs;
 
     async function attempt(opts) {
@@ -198,10 +197,11 @@ router.post('/api/chatgpt/image', validateToken, async (req, res) => {
     }
 
     let out = await attempt(payload);
-    if (!out.ok && /output_format|input_references|size|aspect|resolution/i.test(JSON.stringify(out.j))) {
+    if (!out.ok && /output_format|input_references|size|aspect|resolution|invalid argument|not supported|unknown field|parameter/i.test(JSON.stringify(out.j))) {
       delete payload.output_format;
       delete payload.input_references;
-      delete payload.size;
+      delete payload.resolution;
+      delete payload.aspect_ratio;
       out = await attempt(payload);
     }
     if (!out.ok) {

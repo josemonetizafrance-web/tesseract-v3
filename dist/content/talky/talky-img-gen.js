@@ -203,7 +203,7 @@ async function igGenerate() {
     imgEl.src = 'data:' + igMimeFor(igState.lastFormat) + ';base64,' + igState.lastBase64;
     imgEl.title = 'Generada con ' + (json.model || 'IA') + ' (' + (preset === '2' ? 'Lite' : 'Pro') + ')';
     _igEl('igPreview').style.display = 'block';
-    _igEl('igModelTag').textContent = (json.model || '') + (preset === '2' ? '  [LITE]' : '  [PRO]') + '  |  330x330';
+    _igEl('igModelTag').textContent = (json.model || '') + (preset === '2' ? '  [LITE]' : '  [PRO]') + '  |  ~' + (preset === '2' ? '512x512' : '1024x1024');
 
     var saved = igSaveToDownloads(igState.lastBase64, igState.lastFormat);
     igSetStatus(saved ? 'Imagen generada y guardada en Descargas. UPLOAD para subirla a Manage Media.' : 'Imagen generada.', 'ok');
@@ -364,7 +364,7 @@ function mountImgGenTab() {
         <option value="2">Nano Banana 2 Lite (rapido y barato)</option>
       </select>
     </div>
-    <div class="ig-count">Resolucion 330x330 (por defecto)</div>
+    <div class="ig-count">Resolucion cuadrada por defecto (Pro ~1024px, Lite ~512px)</div>
   </div>
   <button class="ig-gen-btn" id="igGenBtn">GENERAR IMAGEN</button>
   <div class="ig-status" id="igStatus"></div>
