@@ -1,5 +1,5 @@
 (function () {
-  var TESSERACT_API = 'https://tesseract-v3-production.up.railway.app';
+  var TESSERACT_API = (typeof TESSERACT_API_OVERRIDE !== 'undefined') ? TESSERACT_API_OVERRIDE : 'https://tesseract-v3-production.up.railway.app';
   var storedToken = '';
 
   function formatTime(ms) {
@@ -41,9 +41,10 @@
     });
     var adminBtn = document.getElementById('btn-admin');
     if (adminBtn) adminBtn.addEventListener('click', function () {
-      var url = chrome.runtime.getURL('dist/pages/admin/admin.html');
-      if (storedToken) url += '?token=' + encodeURIComponent(storedToken);
-      window.open(url, '_blank');
+      (async function () {
+        try { if (storedToken) await chrome.storage.session.set({ adminToken: storedToken }); } catch (e) {}
+        window.open(chrome.runtime.getURL('dist/pages/admin/admin.html'), '_blank');
+      })();
     });
     document.getElementById('btn-cribs-book').addEventListener('click', function () {
       window.open(chrome.runtime.getURL('dist/pages/cribs-book/cribs-book.html'), '_blank');

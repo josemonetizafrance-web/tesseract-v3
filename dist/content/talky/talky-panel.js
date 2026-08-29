@@ -415,6 +415,7 @@ function createMainPanel() {
 <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap;">
 <label style="display:flex;align-items:center;gap:4px;font-size:9px;color:#ccc;cursor:pointer;"><input type="checkbox" id="spTraducir" style="accent-color:#8b5cf6;" checked> Traducir a ingl\u00E9s</label>
 <label style="display:flex;align-items:center;gap:4px;font-size:9px;color:#ccc;">L\u00EDmite: <input type="number" id="spMaxDaily" value="30" min="0" style="width:50px;padding:3px 4px;background:#000;border:1px solid #10b981;border-radius:4px;color:#e0e0e0;font-size:9px;"></label>
+<label style="display:flex;align-items:center;gap:4px;font-size:9px;color:#ccc;">Ventana reciente (h): <input type="number" id="spRecentHours" value="48" min="0" style="width:46px;padding:3px 4px;background:#000;border:1px solid #10b981;border-radius:4px;color:#e0e0e0;font-size:9px;"></label>
 <span style="font-size:9px;color:#888;">Enviados hoy: <strong id="spSentToday" style="color:#10b981;">0</strong></span>
 </div>
 <button id="btnSPToggle" style="width:100%;margin-top:8px;padding:12px 8px;border:2px solid #10b981;border-radius:8px;background:linear-gradient(135deg,#10b981,#059669);color:#fff;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:14px;font-weight:700;letter-spacing:2px;text-transform:uppercase;transition:all 0.3s;text-shadow:0 0 10px rgba(16,185,129,0.5);">SAY HI!</button>
@@ -600,43 +601,49 @@ function setupAllEvents() {
     });
   });
   
-  // Botones de barrido
-  document.getElementById('btnLFPToggle').addEventListener('click', function() { if (typeof executeLFP === 'function') executeLFP(); });
-  document.getElementById('btnLFPPause').addEventListener('click', function() { if (typeof lfpTogglePause === 'function') lfpTogglePause(); });
-  document.getElementById('btnLFPMessages').addEventListener('click', function() { if (typeof executeLFPMessages === 'function') executeLFPMessages(); });
-  document.getElementById('btnLFPMsgStop').addEventListener('click', function() {
-    if (typeof window._stopLFPMessages === 'function') window._stopLFPMessages();
-  });
+  // Botones de barrido (por si el sitio no tiene algún elemento, no abortar el resto)
+  try {
+    document.getElementById('btnLFPToggle').addEventListener('click', function() { if (typeof executeLFP === 'function') executeLFP(); });
+    document.getElementById('btnLFPPause').addEventListener('click', function() { if (typeof lfpTogglePause === 'function') lfpTogglePause(); });
+    document.getElementById('btnLFPMessages').addEventListener('click', function() { if (typeof executeLFPMessages === 'function') executeLFPMessages(); });
+    document.getElementById('btnLFPMsgStop').addEventListener('click', function() {
+      if (typeof window._stopLFPMessages === 'function') window._stopLFPMessages();
+    });
+  } catch (e) { console.warn('[TESSERACT] LFP buttons:', e.message); }
   
   // Eater
-  document.getElementById('btnEaterToggle').addEventListener('click', function() { if (typeof toggleEater === 'function') toggleEater(); });
-  document.getElementById('btnStopClone').addEventListener('click', function() { if (typeof toggleClonacion === 'function') toggleClonacion(); });
-  document.getElementById('btnCopyEaterResponse').addEventListener('click', function() { if (typeof copyEaterResponseToChat === 'function') copyEaterResponseToChat(); });
-  document.getElementById('btnRefreshEater2').addEventListener('click', function() { if (typeof refreshEaterSuggestions === 'function') refreshEaterSuggestions(); });
-  document.getElementById('btnEaterMulti').addEventListener('click', function() {
-    if (typeof _toggleEaterMultiMode === 'function') _toggleEaterMultiMode();
-  });
-  document.getElementById('btnTranslate2').addEventListener('change', function () {
-    selectedLangCode = Tesseract.set('selectedLangCode', this.value);
-    translateEaterResponse();
-  });
-  document.getElementById('btnTranslateClient').addEventListener('click', function() { if (typeof translateEaterToClientLang === 'function') translateEaterToClientLang(); });
+  try {
+    document.getElementById('btnEaterToggle').addEventListener('click', function() { if (typeof toggleEater === 'function') toggleEater(); });
+    document.getElementById('btnStopClone').addEventListener('click', function() { if (typeof toggleClonacion === 'function') toggleClonacion(); });
+    document.getElementById('btnCopyEaterResponse').addEventListener('click', function() { if (typeof copyEaterResponseToChat === 'function') copyEaterResponseToChat(); });
+    document.getElementById('btnRefreshEater2').addEventListener('click', function() { if (typeof refreshEaterSuggestions === 'function') refreshEaterSuggestions(); });
+    document.getElementById('btnEaterMulti').addEventListener('click', function() {
+      if (typeof _toggleEaterMultiMode === 'function') _toggleEaterMultiMode();
+    });
+    document.getElementById('btnTranslate2').addEventListener('change', function () {
+      selectedLangCode = Tesseract.set('selectedLangCode', this.value);
+      translateEaterResponse();
+    });
+    document.getElementById('btnTranslateClient').addEventListener('click', function() { if (typeof translateEaterToClientLang === 'function') translateEaterToClientLang(); });
+  } catch (e) { console.warn('[TESSERACT] Eater buttons:', e.message); }
 
   // Saludo Push (Say Hi!)
-  document.getElementById('btnSPToggle').addEventListener('click', function() {
-    if (typeof window._executeSaludoPush === 'function' && typeof window._abortSaludoPush === 'function') {
-      if (document.getElementById('spStatus').textContent === 'ACTIVO') {
-        window._abortSaludoPush();
-      } else {
-        window._executeSaludoPush();
+  try {
+    document.getElementById('btnSPToggle').addEventListener('click', function() {
+      if (typeof window._executeSaludoPush === 'function' && typeof window._abortSaludoPush === 'function') {
+        if (document.getElementById('spStatus').textContent === 'ACTIVO') {
+          window._abortSaludoPush();
+        } else {
+          window._executeSaludoPush();
+        }
       }
-    }
-  });
-  ['spTraducir','spMaxDaily'].forEach(function(id) {
-    document.getElementById(id).addEventListener('change', function() {
-      if (typeof window._saveSPPanelConfig === 'function') window._saveSPPanelConfig();
     });
-  });
+    ['spTraducir','spMaxDaily'].forEach(function(id) {
+      document.getElementById(id).addEventListener('change', function() {
+        if (typeof window._saveSPPanelConfig === 'function') window._saveSPPanelConfig();
+      });
+    });
+  } catch (e) { console.warn('[TESSERACT] Saludo buttons:', e.message); }
   var btnIBGen = document.getElementById('btnIBGenerate');
   if (btnIBGen) btnIBGen.addEventListener('click', function() {
     if (typeof window._generateIcebreakers === 'function') window._generateIcebreakers();
@@ -712,10 +719,8 @@ function setupAllEvents() {
   document.getElementById('btnAdminPanel').addEventListener('click', async () => {
     try {
       const data = await chrome.storage.local.get(['tess_jwt']);
-      const url = data.tess_jwt
-        ? chrome.runtime.getURL('dist/pages/admin/admin.html') + '?token=' + encodeURIComponent(data.tess_jwt)
-        : chrome.runtime.getURL('dist/pages/admin/admin.html');
-      window.open(url, '_blank');
+      try { if (data.tess_jwt) await chrome.storage.session.set({ adminToken: data.tess_jwt }); } catch (e) {}
+      window.open(chrome.runtime.getURL('dist/pages/admin/admin.html'), '_blank');
     } catch (e) {
       window.open(chrome.runtime.getURL('dist/pages/admin/admin.html'), '_blank');
     }
@@ -1298,7 +1303,8 @@ async function loadAllStates() {
       eaterActive = Tesseract.set('eaterActive', true);
       const btn = document.getElementById('btnEaterToggle');
       if (btn) { btn.textContent = '🧠 EATER: ON'; btn.className = 'eater-btn on'; }
-      document.getElementById('eaterSuggestions').style.display = 'block';
+      var sugEl = document.getElementById('eaterSuggestions');
+      if (sugEl) sugEl.style.display = 'block';
     }
     if (r.tess_ids) { collectedIds = Tesseract.get('collectedIds'); Object.keys(collectedIds).forEach(function (k) { delete collectedIds[k]; }); Object.assign(collectedIds, r.tess_ids); }
     if (r.tess_stats) { Object.assign(botStats, r.tess_stats); }
@@ -1422,7 +1428,7 @@ if (document.readyState === 'loading') {
 // ============ MENSAJES v3: ESTILO WHATSAPP (SOPORTE + CHAT PRIVADO) ============
 (function initSupportChat() {
   console.log('[TESSERACT] Chat v3.2 cargado');
-  const TAPI = 'https://tesseract-v3-production.up.railway.app';
+  const TAPI = (typeof TESSERACT_API_OVERRIDE !== 'undefined') ? TESSERACT_API_OVERRIDE : 'https://tesseract-v3-production.up.railway.app';
   const ADMIN_PEER = 'ADMIN';
   const EMOJIS = ['😀','😁','😂','🤣','😊','😍','😘','😜','😎','🤩','😏','🙂','🙃','😉','😇','🥰','😭','😅','🥺','😢','😡','🤔','🤗','🤫','🙌','👏','👍','👎','💪','🙏','💯','🔥','✨','⭐','❤️','💔','🌹','🌸','🍀','🎉','☕','🍕','⚽','🚀','💤','🤑','👀'];
   let myEmail = '';
@@ -1556,7 +1562,11 @@ if (document.readyState === 'loading') {
     function wireOpen(i) {
       i.onclick = () => {
         const w = window.open();
-        if (w && i.src) w.document.write('<img src="' + i.src + '" style="max-width:100%">');
+        if (!w || !i.src) return;
+        const el = w.document.createElement('img');
+        el.src = i.src;
+        el.style.maxWidth = '100%';
+        w.document.body.appendChild(el);
       };
     }
   }

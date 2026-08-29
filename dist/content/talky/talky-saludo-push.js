@@ -9,19 +9,131 @@ const SP_SEP = '\n|||SP|||\n';
 let spConfig = {
   maxDaily: 30,
   sentToday: 0,
-  traducir: true
+  traducir: true,
+  recentHours: 48
 };
 let spActive = false;
 let spProcessedIds = new Set();
 let spLastSequence = null;
 
-// Auto-bloqueo: si hay 3+ mensajes enviados Y 3+ recibidos recientes, hay conversación activa
+// ─── AUTO-BLOQUEO DE CONVERSACIÓN ACTIVA/RECIENTE ───
+// Convierte la hora del DOM ("8:06 am", "May 28, 12:28 am", "48 minutes ago") a horas transcurridas
+function spParseTimeHoursAgo(txt) {
+  if (!txt) return null;
+  var t = String(txt).trim().toLowerCase();
+  if (t.includes('now') || t.includes('ahora') || t.includes('just')) return 0;
+
+  var m = t.match(/(\d+)\s*(m|min|minuto|minute)s?\b/);
+  if (m) return parseInt(m[1], 10) / 60;
+  m = t.match(/(\d+)\s*(h|hr|hora|hour)s?\b/);
+  if (m) return parseInt(m[1], 10);
+  m = t.match(/(\d+)\s*(d|dia|día|day)s?\b/);
+  if (m) return parseInt(m[1], 10) * 24;
+  if (t.includes('ayer') || t.includes('yesterday')) return 24;
+
+  m = t.match(/(\d{1,2}):(\d{2})\s*(am|pm)?/);
+  if (m) {
+    var hh = parseInt(m[1], 10);
+    var mm = parseInt(m[2], 10);
+    var ap = (m[3] || '').toLowerCase();
+    if (ap === 'pm' && hh < 12) hh += 12;
+    if (ap === 'am' && hh === 12) hh = 0;
+    if (!ap && hh < 8) hh += 12;
+    var now = new Date();
+    var d = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh, mm, 0, 0);
+    if (d.getTime() > now.getTime()) d = new Date(now.getTime() - 24 * 3600 * 1000);
+    return (now.getTime() - d.getTime()) / 3600000;
+  }
+
+  var months = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
+  var md = t.match(/([a-z]{3,9})\s+(\d{1,2}),?\s+(\d{1,2}):(\d{2})\s*(am|pm)?/);
+  if (md) {
+    var mon = months[String(md[1]).toLowerCase().substring(0, 3)];
+    if (mon !== undefined) {
+      var hh2 = parseInt(md[3], 10);
+      var mm2 = parseInt(md[4], 10);
+      var ap2 = (md[5] || '').toLowerCase();
+      if (ap2 === 'pm' && hh2 < 12) hh2 += 12;
+      if (ap2 === 'am' && hh2 === 12) hh2 = 0;
+      var now2 = new Date();
+      var y = now2.getFullYear();
+      var dd = new Date(y, mon, parseInt(md[2], 10), hh2, mm2, 0, 0);
+      if (dd.getTime() > now2.getTime()) dd = new Date(y - 1, mon, parseInt(md[2], 10), hh2, mm2, 0, 0);
+      return (now2.getTime() - dd.getTime()) / 3600000;
+    }
+  }
+  return null;
+}
+
+// Escanea el chat YA abierto: recuento de recibidos/enviados y antigüedad del último recibido
+// (nivel document para no perder mensajes si el contenedor del chat no coincide con los selectores)
+function spScanOpenChat() {
+  var info = { received: 0, sent: 0, lastIncomingAgo: null };
+  var wrappers = document.querySelectorAll('.tu-message-wrapper');
+  for (var i = 0; i < wrappers.length; i++) {
+    var wCls = wrappers[i].className || '';
+    if (/my-tu-message-wrapper/.test(wCls)) { info.sent++; continue; }
+    info.received++;
+    if (info.lastIncomingAgo === null) {
+      var tEl = wrappers[i].querySelector(TALK_Y.TIME_ELEMENT) || wrappers[i].querySelector('[class*="time"],[class*="date"],[data-test-id*="time"]');
+      var hrs = spParseTimeHoursAgo(tEl ? (tEl.textContent || '') : '');
+      if (hrs !== null) info.lastIncomingAgo = hrs;
+    }
+  }
+  return info;
+}
+
+// Espera a que el chat termine de renderizar los mensajes (evita falsos negativos por carga async)
+async function spWaitChatSettled(timeoutMs) {
+  var start = Date.now();
+  var last = -1;
+  var stable = 0;
+  while (Date.now() - start < timeoutMs) {
+    var n = document.querySelectorAll('.tu-message-wrapper').length;
+    if (n > 0) {
+      if (n === last) { stable++; if (stable >= 2) return true; }
+      else { stable = 0; last = n; }
+    }
+    await sleep(300);
+  }
+  return true;
+}
+
+// Veredicto de conversación activa/reciente:
+// - Si hay mensajes recibidos cuya antigüedad NO se puede confirmar como mayor a la ventana → bloquea.
+// - Si la antigüedad del último recibido ES mayor a la ventana → permite (reactivación de cliente frío).
+function spHasActiveConversation() {
+  var info = spScanOpenChat();
+  var w = (spConfig && spConfig.recentHours > 0) ? spConfig.recentHours : 48;
+  if (info.received > 0) {
+    if (info.lastIncomingAgo !== null && info.lastIncomingAgo > w) return { active: false, info: info };
+    return { active: true, info: info };
+  }
+  return { active: false, info: info };
+}
+
+// ¿Llegaron respuestas nuevas mientras se enviaba la secuencia?
+function spChatGotLiveReplies(baseRecv) {
+  try {
+    return document.querySelectorAll('.tu-message-wrapper:not(.my-tu-message-wrapper)').length > baseRecv;
+  } catch (e) { return false; }
+}
+
+// Antigüedad de la última actividad visible en el item de la lista (best-effort, antes de abrir)
+function spItemRecentHours(item) {
+  try {
+    var tEl = item.querySelector(TALK_Y.TIME_ELEMENT) || item.querySelector('[class*="time"],[class*="date"],[data-test-id*="time"]');
+    if (!tEl) return null;
+    return spParseTimeHoursAgo((tEl.textContent || '').trim());
+  } catch (e) { return null; }
+}
+
 window._mlAutoBlockIfInteraction = function (profileId) {
   try {
-    var sent = document.querySelectorAll('.my-tu-message-wrapper').length;
-    var recv = document.querySelectorAll('.tu-message-wrapper:not(.my-tu-message-wrapper)').length;
-    if (sent >= 3 && recv >= 3) {
-      console.log('[SP] AutoBlock: conversación activa detectada (' + sent + ' env, ' + recv + ' rec). Saltando:', profileId);
+    var r = spHasActiveConversation();
+    if (r.active) {
+      console.log('[SP] AutoBlock: conversación activa/reciente (' + r.info.received + ' recibidos, último hace '
+        + (r.info.lastIncomingAgo === null ? 'desconocido' : r.info.lastIncomingAgo.toFixed(1) + 'h') + '). Saltando:', profileId);
       return true;
     }
   } catch (e) {}
@@ -79,7 +191,7 @@ async function spGenerateSequence() {
   try {
     var data = await Tesseract.callGroq(
       [{ role: 'system', content: system }, { role: 'user', content: user }],
-      'openai/gpt-oss-120b',
+      undefined,
       1200
     );
     var seq = spParseSequence(data?.choices?.[0]?.message?.content);
@@ -97,7 +209,7 @@ async function spTranslate(text) {
   try {
     var groqData = await Tesseract.callGroq(
       [{ role: 'system', content: (typeof TESS_TRANSLATOR_POLICY!=='undefined'?TESS_TRANSLATOR_POLICY+' ':'') + 'Traduce el siguiente texto del español al inglés. Responde SOLO con la traducción, sin explicaciones ni notas.' }, { role: 'user', content: text }],
-      'openai/gpt-oss-120b',
+      undefined,
       300
     );
     var translatedText = groqData?.choices?.[0]?.message?.content;
@@ -116,7 +228,7 @@ async function spTranslateBatch(msgs) {
     var joined = msgs.join(' ||| ');
     var data = await Tesseract.callGroq(
       [{ role: 'system', content: (typeof TESS_TRANSLATOR_POLICY!=='undefined'?TESS_TRANSLATOR_POLICY+' ':'') + 'Traduce al inglés cada mensaje separado por |||. Mantén EXACTAMENTE los separadores ||| entre mensajes. Responde solo con la traducción.' }, { role: 'user', content: joined }],
-      'openai/gpt-oss-120b',
+      undefined,
       900
     );
     var out = data?.choices?.[0]?.message?.content;
@@ -378,6 +490,14 @@ async function executeSaludoPush() {
       continue;
     }
 
+    // Guardia pre-apertura: actividad reciente visible en el item de la lista (best-effort)
+    var itemHrs = spItemRecentHours(item);
+    if (itemHrs !== null && itemHrs <= (spConfig.recentHours || 48)) {
+      console.log('[SP] Actividad reciente en la lista (' + itemHrs.toFixed(1) + 'h), saltando:', profileId);
+      await spMarkProfileContacted(profileId);
+      continue;
+    }
+
     // Abrir chat
     var clickTarget = item.querySelector(TALK_Y.DIALOG_GO_TO_CHAT);
     if (!clickTarget) continue;
@@ -390,9 +510,15 @@ async function executeSaludoPush() {
       continue;
     }
 
-    // Auto-bloqueo: intercambio previo de mas de 10 mensajes (recibidos + enviados)
+    // Esperar a que el chat termine de renderizar los mensajes antes de evaluar el auto-bloqueo
+    await spWaitChatSettled(4000);
+    var openScan = spScanOpenChat();
+    var liveRecvBase = openScan.received;
+
+    // Auto-bloqueo: conversación activa o reciente (cualquier respuesta no confirmada como vieja)
     if (typeof window._mlAutoBlockIfInteraction === 'function' && window._mlAutoBlockIfInteraction(profileId)) {
-      console.log('[SP] Contacto auto-bloqueado por interaccion previa:', profileId);
+      console.log('[SP] Contacto auto-bloqueado por conversacion activa/reciente:', profileId);
+      await spMarkProfileContacted(profileId);
       continue;
     }
 
@@ -427,6 +553,13 @@ async function executeSaludoPush() {
     for (var mi = 0; mi < msgsToSend; mi++) {
       if (!spActive) break;
       if (spConfig.maxDaily > 0 && spConfig.sentToday >= spConfig.maxDaily) break;
+
+      // Si el cliente respondió en vivo mientras enviábamos, detener para este contacto
+      if (spChatGotLiveReplies(liveRecvBase)) {
+        console.log('[SP] Respuesta en vivo detectada, deteniendo envio para:', profileId);
+        await spMarkProfileContacted(profileId);
+        break;
+      }
 
       if (sentSeq.indexOf(mi) !== -1) {
         console.log('[SP] Mensaje ' + (mi + 1) + '/5 ya enviado antes a', profileId);
@@ -514,6 +647,8 @@ async function openSPPanel() {
   if (tr) tr.checked = spConfig.traducir !== false;
   var md = document.getElementById('spMaxDaily');
   if (md) md.value = spConfig.maxDaily || 30;
+  var rh = document.getElementById('spRecentHours');
+  if (rh) rh.value = spConfig.recentHours || 48;
   var st = document.getElementById('spSentToday');
   if (st) st.textContent = spConfig.sentToday || 0;
   updateSPUI();
@@ -524,6 +659,8 @@ async function saveSPPanelConfig() {
   if (tr) spConfig.traducir = tr.checked;
   var md = document.getElementById('spMaxDaily');
   if (md) spConfig.maxDaily = parseInt(md.value) || 30;
+  var rh = document.getElementById('spRecentHours');
+  if (rh) spConfig.recentHours = parseInt(rh.value) || 48;
   await saveSPConfig();
   showMLSavedFeedback();
 }

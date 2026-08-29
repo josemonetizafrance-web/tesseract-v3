@@ -1,5 +1,5 @@
 (function () {
-  var TESSERACT_API = 'https://tesseract-v3-production.up.railway.app';
+  var TESSERACT_API = (typeof TESSERACT_API_OVERRIDE !== 'undefined') ? TESSERACT_API_OVERRIDE : 'https://tesseract-v3-production.up.railway.app';
   var currentJwt = null;
 
   function formatTime(ms) {
@@ -277,11 +277,10 @@
     });
     document.getElementById('btn-admin').addEventListener('click', function () {
       var token = data.tess_jwt;
-      if (token) {
-        window.open(chrome.runtime.getURL('dist/pages/admin/admin.html') + '?token=' + encodeURIComponent(token), '_blank');
-      } else {
+      (async function () {
+        try { if (token) await chrome.storage.session.set({ adminToken: token }); } catch (e) {}
         window.open(chrome.runtime.getURL('dist/pages/admin/admin.html'), '_blank');
-      }
+      })();
     });
     document.getElementById('btn-logout').addEventListener('click', function () {
       chrome.storage.local.clear();

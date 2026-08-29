@@ -24,7 +24,8 @@ function toggleEater() {
   if (!btn) return;
   btn.textContent = '🧠 EATER: ' + (eaterActive ? 'ON' : 'OFF');
   btn.className = 'eater-btn' + (eaterActive ? ' on' : '');
-  document.getElementById('eaterSuggestions').style.display = eaterActive ? 'block' : 'none';
+  var sug = document.getElementById('eaterSuggestions');
+  if (sug) sug.style.display = eaterActive ? 'block' : 'none';
   if (eaterActive) { _processedTexts.clear(); setTimeout(scanAllIncomingMessages, 500); }
   Tesseract.broadcast('STATE_SYNC', { eaterActive: Tesseract.get('eaterActive'), clonacionActiva: Tesseract.get('clonacionActiva') });
 }
@@ -133,6 +134,15 @@ function startResponseTimer(convEl, clientName, afterEl) {
 
     if (remaining <= 0) {
       clearInterval(timerId);
+      if (_responseTimers.has(clientName)) {
+        _responseTimers.delete(clientName);
+        bumpRespStat('repliesResponded');
+        bumpRespStat('respLate');
+      }
+      if (item) {
+        const td = item.querySelector(TALK_Y.TIMER_ELEMENT);
+        if (td) td.remove();
+      }
     }
   };
 
@@ -1114,7 +1124,7 @@ async function translateEaterText(text) {
     var sysMsg = (typeof TESS_TRANSLATOR_POLICY!=='undefined'?TESS_TRANSLATOR_POLICY+' ':'') + 'Traduce el siguiente texto del español al ' + targetLang.name + ' (' + targetLang.code + '). Responde SOLO con la traducción, sin explicaciones ni notas.';
     var groqData = await Tesseract.callGroq(
       [{ role: 'system', content: sysMsg }, { role: 'user', content: text }],
-      'openai/gpt-oss-120b',
+      undefined,
       300
     );
     var translated = groqData?.choices?.[0]?.message?.content;
@@ -1146,7 +1156,7 @@ async function translateEaterResponse() {
     var sysMsg = (typeof TESS_TRANSLATOR_POLICY!=='undefined'?TESS_TRANSLATOR_POLICY+' ':'') + 'Traduce el siguiente texto del español al ' + targetLang.name + ' (' + targetLang.code + '). Responde SOLO con la traducción, sin explicaciones ni notas.';
     var groqData = await Tesseract.callGroq(
       [{ role: 'system', content: sysMsg }, { role: 'user', content: sourceText }],
-      'openai/gpt-oss-120b',
+      undefined,
       300
     );
     var translated = groqData?.choices?.[0]?.message?.content;
@@ -1188,7 +1198,7 @@ async function translateEaterToClientLang() {
       'Texto de respuesta a traducir:\n\n"' + sourceText.substring(0, 1800) + '"';
     var groqData = await Tesseract.callGroq(
       [{ role: 'system', content: sysMsg }, { role: 'user', content: userMsg }],
-      'openai/gpt-oss-120b',
+      undefined,
       400
     );
     var translated = groqData?.choices?.[0]?.message?.content;
@@ -1281,7 +1291,7 @@ async function translateText(text, targetCode, targetName) {
     var sysMsg = (typeof TESS_TRANSLATOR_POLICY!=='undefined'?TESS_TRANSLATOR_POLICY+' ':'') + 'Traduce el siguiente texto del español al ' + name + ' (' + code + '). Responde SOLO con la traducción, sin explicaciones ni notas.';
     var groqData = await Tesseract.callGroq(
       [{ role: 'system', content: sysMsg }, { role: 'user', content: text }],
-      'openai/gpt-oss-120b',
+      undefined,
       300
     );
     var translated = groqData?.choices?.[0]?.message?.content;

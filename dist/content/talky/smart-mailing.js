@@ -1,6 +1,8 @@
 const MAILING_STORAGE_KEY = 'tess_mailing_config';
 const ML_CONTACTED_HISTORY_KEY = 'tess_ml_contacted_history';
 var TESSERACT_API = window.TESSERACT_API || 'https://tesseract-v3-production.up.railway.app';
+const ML_AUTOBLOCK_THRESHOLD = 10;
+const ML_MAX_LETTERS_TOTAL = 4;
 
 // Silenciar error de MessagePort cerrado por wake-up del service worker
 window.addEventListener('unhandledrejection', function(e) {
@@ -166,7 +168,8 @@ function hasActiveDialogue(contactEl) {
       'conversación activa', 'active conversation', 'chat activo', 'active chat',
       'respondio a tu carta', 'replied to your letter', 'respondió a tu carta',
       'te respondió', 'has responded', 'nueva carta', 'new letter',
-      'intercambio de cartas', 'letter exchange'
+      'intercambio de cartas', 'letter exchange',
+      'now', 'ahora', 'just now', 'ayer', 'yesterday', 'hoy', 'today'
     ];
     for (const s of signals) {
       if (text.includes(s)) return true;
@@ -380,7 +383,7 @@ function scrapeActiveLimitsIds() {
   return ids;
 }
 
-function findChatInput() {
+function findMLChatInput() {
   const selectors = [
     'textarea[class*="chat"]', 'textarea[class*="message"]', 'textarea[placeholder*="message"]',
     'textarea[placeholder*="escribe"]', 'textarea[placeholder*="type"]', 'textarea[placeholder*="Write"]',
@@ -497,7 +500,7 @@ function waitForElement(sel, maxMs) {
 function findAnyInput() {
   var emailInput = findEmailInput();
   if (emailInput) return emailInput;
-  var chatInput = findChatInput();
+  var chatInput = findMLChatInput();
   if (chatInput) return chatInput;
   var allTextareas = document.querySelectorAll('textarea');
   for (var ti = 0; ti < allTextareas.length; ti++) {
@@ -554,17 +557,23 @@ function mlDetectRecentInteraction(profileId, contactEl) {
     var history = document.querySelector(TALK_Y.MAIL_HISTORY_CONTAINER) || document.querySelector(TALK_Y.SECTION_INBOX);
     if (!history) return info;
     var items = history.querySelectorAll(TALK_Y.MAIL_ITEM);
+    if (!items.length) items = history.querySelectorAll('[class*="message-item"], [class*="thread-item"], [data-test-id*="letter"], [data-test-id*="mail-item"], [class*="mail-history-item"]');
     if (!items.length) return info;
     var lastIncoming = null;
     for (var i = 0; i < items.length; i++) {
       var mi = items[i];
-      var nmEl = mi.querySelector(TALK_Y.MAIL_HEADER_NAME) || mi.querySelector(TALK_Y.MAIL_HEADER_NAME_FALLBACK);
-      var sender = nmEl ? (nmEl.textContent || '').trim() : '';
+      var cls = mi.className || '';
+      var isMe = /(^|\s)(my|mine|owner|operator|outgoing|sent|from-me)(\s|$)/i.test(cls);
+      var sender = '';
+      if (!isMe) {
+        var nmEl = mi.querySelector(TALK_Y.MAIL_HEADER_NAME) || mi.querySelector(TALK_Y.MAIL_HEADER_NAME_FALLBACK);
+        sender = nmEl ? (nmEl.textContent || '').trim() : '';
+        if (/^(me|you|yo|tú|tu|mine)$/i.test(sender)) isMe = true;
+      }
       var tmEl = mi.querySelector(TALK_Y.TIME_ELEMENT) || mi.querySelector('p[data-type="caption"]') || mi.querySelector('[class*="time"], [class*="date"]');
       var tm = tmEl ? (tmEl.textContent || '').trim() : '';
-      var isMe = sender === TALK_Y.MAIL_OPERATOR_NAME;
       if (isMe) { info.sent++; }
-      else if (sender) { info.received++; if (!lastIncoming) lastIncoming = { tm: tm }; }
+      else { info.received++; if (!lastIncoming) lastIncoming = { tm: tm }; }
     }
     if (lastIncoming) {
       info.lastIncomingAgo = mlParseMailTimeHoursAgo(lastIncoming.tm || '');
@@ -572,6 +581,8 @@ function mlDetectRecentInteraction(profileId, contactEl) {
       if (info.lastIncomingAgo !== null && info.lastIncomingAgo <= hours) info.recent = true;
       else if (info.lastIncomingAgo === null && info.received > 0) info.recent = true;
     }
+    console.log('[ML] Hilo ' + profileId + ':', items.length, 'items |', info.received, 'recv /', info.sent, 'sent | último recibido hace '
+      + (info.lastIncomingAgo === null ? 'desconocido' : info.lastIncomingAgo.toFixed(1) + 'h') + ' | recent=' + info.recent);
   } catch (e) { console.log('[ML] mlDetectRecentInteraction error:', e.message); }
   return info;
 }
@@ -758,7 +769,7 @@ async function executeMailingRound() {
         if (contacts[ci].element) {
           if (mailingConfig.blockActiveDialogue && !mailingConfig.sendOnlyOver4Letters && cType === 'active') {
             window._addToMLBlacklist(String(cid));
-            console.log('[ML] Auto-bloqueo (bucle): contacto activo en Mail ->', cid);
+            console.log('[ML] Auto-bloqueo (bucle): contacto activo en Mail ->', cid, '| tipo:', cType);
             blacklisted++; activeSkipped++; skipped++; processedIds.add(cid);
             if (mailingConfig.stopOnBlacklistHit) { mailingActive = false; return { sent, skipped, blacklisted, alreadyContacted, activeSkipped, total: totalScanned }; }
             continue;
@@ -774,8 +785,8 @@ async function executeMailingRound() {
           if (mailingConfig.stopOnBlacklistHit) { mailingActive = false; return { sent, skipped, blacklisted, alreadyContacted, activeSkipped, total: totalScanned }; }
           continue;
         }
-        if (!mailingConfig.sendOnlyOver4Letters && isInMLBlacklist(cid)) { blacklisted++; processedIds.add(cid); if (mailingConfig.stopOnBlacklistHit) { mailingActive = false; return { sent, skipped, blacklisted, alreadyContacted, activeSkipped, total: totalScanned }; } continue; }
-        if (!mailingConfig.sendOnlyOver4Letters && await isContactAlreadyContactedML(cid)) { alreadyContacted++; skipped++; processedIds.add(cid); continue; }
+        if (!mailingConfig.sendOnlyOver4Letters && isInMLBlacklist(cid)) { console.log('[ML] Skip (blacklist):', cid); blacklisted++; processedIds.add(cid); if (mailingConfig.stopOnBlacklistHit) { mailingActive = false; return { sent, skipped, blacklisted, alreadyContacted, activeSkipped, total: totalScanned }; } continue; }
+        if (!mailingConfig.sendOnlyOver4Letters && await isContactAlreadyContactedML(cid)) { console.log('[ML] Skip (ya contactado):', cid); alreadyContacted++; skipped++; processedIds.add(cid); continue; }
 
         contact = contacts[ci];
         break;
@@ -1033,11 +1044,7 @@ window._getMailingAbortState = function() { return mailingAbort; };
 // ─── AUTO-BLOQUEO POR INTERACCIÓN PREVIA ───
 // Si hay un intercambio de MÁS de 10 mensajes (recibidos + enviados) en el chat
 // abierto, el contacto se bloquea automáticamente (blacklist).
-const ML_AUTOBLOCK_THRESHOLD = 10;
-
-// REGLA DE BLOQUEO POR CARTAS: si el hilo tiene MÁS de este total de cartas
-// ("<N> letter total"), el contacto se bloquea y se salta en el barrido de mailing.
-const ML_MAX_LETTERS_TOTAL = 4;
+// (ML_AUTOBLOCK_THRESHOLD y ML_MAX_LETTERS_TOTAL se declaran arriba del archivo.)
 
 function mlCountChatMessages() {
   var area = document.querySelector(TALK_Y.PAGE_CHAT_BODY) || document;

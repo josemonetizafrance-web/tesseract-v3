@@ -1,5 +1,5 @@
 // login.js - TESSERACT v24.0 (Login System)
-var TESSERACT_API = 'https://tesseract-v3-production.up.railway.app';
+var TESSERACT_API = (typeof TESSERACT_API_OVERRIDE !== 'undefined') ? TESSERACT_API_OVERRIDE : 'https://tesseract-v3-production.up.railway.app';
 
 const loginName = document.getElementById('login-name');
 const loginEmail = document.getElementById('login-email');

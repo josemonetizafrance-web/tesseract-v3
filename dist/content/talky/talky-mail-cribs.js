@@ -371,7 +371,7 @@ async function generateMailResponse(msgText, _unused, profileId, senderName) {
     var maxTokensNeeded = Math.min(Math.max(2000, Math.round(targetLen * 1.8)), 12000);
     const groqData = await Tesseract.callGroq(
       [{ role: 'system', content: systemMsg }, { role: 'user', content: userMsg }],
-      'openai/gpt-oss-120b',
+      undefined,
       maxTokensNeeded
     );
     if (!groqData) { showTessToast('⚠ Error de API Groq', 'error'); return; }
@@ -439,7 +439,7 @@ async function sendLetterStyleToCribs(profileId, text, profileName) {
 
   // 2. Check if text already saved (server-side dedup)
   const existing = entry.letter_style || '';
-  const lines = existing ? existing.split('\n').filter(function (l) { return l.trim(); }) : [];
+  let lines = existing ? existing.split('\n').filter(function (l) { return l.trim(); }) : [];
   var textTrimmed = text.trim();
   var alreadyExists = false;
   for (var li = 0; li < lines.length; li++) {

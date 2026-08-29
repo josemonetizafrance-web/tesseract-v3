@@ -3,7 +3,7 @@
     "name": "TESSERACT",
     "version": "3.0.0",
     "description": "TESSERACT - Sistema Operativo IA",
-    "permissions": ["storage", "tabs", "alarms", "webNavigation", "scripting", "webRequest"],
+    "permissions": ["storage", "tabs", "alarms", "webNavigation", "scripting"],
     "host_permissions": [
         "https://api.groq.com/*",
         "https://openrouter.ai/*",
@@ -61,24 +61,6 @@
                 "dist/content/talky/talky-bot-panel.js"
             ],
             "run_at": "document_end"
-        }
-    ],
-    "web_accessible_resources": [
-        {
-            "resources": [
-                "dist/pages/login/*",
-                "dist/pages/dashboard/*",
-                "dist/pages/admin/*",
-                "dist/pages/popup/*",
-                "dist/pages/cribs-book/*",
-                "dist/modules/*",
-                "dist/content/talky/*",
-                "dist/assets/*"
-            ],
-            "matches": [
-                "https://talkytimes.com/*",
-                "https://www.talkytimes.com/*"
-            ]
         }
     ]
 }

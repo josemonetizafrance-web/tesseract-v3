@@ -1,6 +1,8 @@
 // admin.js - TESSERACT v3 Panel Admin (usuarios, estadisticas, chat)
-var TESSERACT_API = 'https://tesseract-v3-production.up.railway.app';
-var ONLINE_WINDOW_MS = 5 * 60 * 1000;
+const TESSERACT_API = (typeof TESSERACT_API_OVERRIDE !== 'undefined') ? TESSERACT_API_OVERRIDE : 'https://tesseract-v3-production.up.railway.app';
+const ONLINE_WINDOW_MS = 5 * 60 * 1000;
+const ROOT_EMAIL = 'chevyadmin@tesseract.com';
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 let currentToken = '';
 let cachedUsers = [];
@@ -12,12 +14,15 @@ let timers = [];
 
 function apiFetch(endpoint, options = {}) {
   const headers = { 'Authorization': `Bearer ${currentToken}`, 'Content-Type': 'application/json' };
-  return fetch(`${TESSERACT_API}${endpoint}`, { method: options.method || 'GET', headers, body: options.body ? JSON.stringify(options.body) : undefined })
+  const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timer = ctrl ? setTimeout(() => ctrl.abort(), 20000) : null;
+  return fetch(`${TESSERACT_API}${endpoint}`, { method: options.method || 'GET', headers, body: options.body ? JSON.stringify(options.body) : undefined, signal: ctrl ? ctrl.signal : undefined })
     .then(async res => {
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || `Error ${res.status}`);
       return body;
-    });
+    })
+    .finally(() => { if (timer) clearTimeout(timer); });
 }
 
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
@@ -32,14 +37,25 @@ function timeAgo(ts) {
 
 // ============ INICIO ============
 document.addEventListener('DOMContentLoaded', async () => {
-  const params = new URLSearchParams(window.location.search);
-  currentToken = params.get('token') ? decodeURIComponent(params.get('token')) : '';
+  let sessionToken = '';
+  try { const s = await chrome.storage.session.get('adminToken'); sessionToken = s.adminToken || ''; } catch (e) {}
+  if (!sessionToken) {
+    const params = new URLSearchParams(window.location.search);
+    sessionToken = params.get('token') || '';
+  }
+  if (sessionToken) {
+    try { await chrome.storage.session.remove('adminToken'); } catch (e) {}
+    if (window.history && window.history.replaceState) {
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+  }
+  currentToken = sessionToken;
   if (!currentToken) { renderDenied('Sesión no encontrada. Entra desde el Dashboard.'); return; }
   try {
     const me = await apiFetch('/api/tess/auth/verify');
     if (!(me.isAdmin || me.isDeveloper)) { renderDenied('No tienes permisos de administrador.'); return; }
     document.getElementById('admin-email').textContent = me.email;
-    const isRoot = (me.email || '').toLowerCase() === 'chevyadmin@tesseract.com';
+    const isRoot = (me.email || '').toLowerCase() === ROOT_EMAIL;
     if (isRoot) {
       document.getElementById('btn-tab-staff').style.display = '';
       initStaffUI();
@@ -50,7 +66,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     initChatUI();
     await loadUsers();
     timers.push(setInterval(() => { if (activeTab === 'users') loadUsers(true); }, 20000));
-    timers.push(setInterval(() => { if (activeTab === 'chat') refreshThreads(); }, 5000));
   } catch (e) {
     renderDenied('Error verificando sesión: ' + e.message);
   }
@@ -65,7 +80,8 @@ function renderDenied(msg) {
 
 document.getElementById('btn-logout').addEventListener('click', async () => {
   timers.forEach(clearInterval);
-  try { await chrome.storage.local.clear(); } catch (e) {}
+  try { await chrome.storage.local.remove(['tess_jwt', 'tess_refresh', 'user_email', 'isAdmin', 'isDeveloper', 'session']); } catch (e) {}
+  try { await chrome.storage.session.remove('adminToken'); } catch (e) {}
   window.close();
 });
 
@@ -105,7 +121,7 @@ function userStatus(u) {
 
 function renderUsers() {
   const tbody = document.getElementById('user-table-body');
-  const masterEmail = 'chevyadmin@tesseract.com';
+  const masterEmail = ROOT_EMAIL;
   if (!cachedUsers.length) {
     tbody.innerHTML = '<tr><td colspan="4" class="placeholder">Sin usuarios registrados</td></tr>';
     return;
@@ -135,16 +151,20 @@ document.getElementById('user-table-body').addEventListener('click', async e => 
   if (!btn) return;
   const act = btn.dataset.act, email = btn.dataset.email;
   try {
-    if (act === 'premium') { await apiFetch('/api/tess/admin/premium', { method: 'POST', body: { email } }); loadUsers(); }
+    if (act === 'premium') { if (!confirm('¿Dar PREMIUM a ' + email + '?')) return; await apiFetch('/api/tess/admin/premium', { method: 'POST', body: { email } }); loadUsers(); }
     if (act === 'ban') {
       const u = cachedUsers.find(x => x.email === email);
+      const verb = (u && u.is_banned) ? 'desbanear' : 'banear';
+      if (!confirm('¿' + verb.toUpperCase() + ' a ' + email + '?')) return;
       await apiFetch('/api/tess/admin/' + (u && u.is_banned ? 'unban' : 'ban'), { method: 'POST', body: { email } });
       loadUsers();
     }
     if (act === 'email') {
       const ne = prompt('Nuevo correo para ' + email + ':', email);
       if (!ne || ne === email) return;
-      await apiFetch('/api/tess/admin/set-email', { method: 'POST', body: { email, newEmail: ne.trim().toLowerCase() } });
+      const newEmail = ne.trim().toLowerCase();
+      if (!EMAIL_RE.test(newEmail)) return alert('Correo inválido.');
+      await apiFetch('/api/tess/admin/set-email', { method: 'POST', body: { email, newEmail } });
       alert('Correo actualizado.');
       loadUsers();
     }
@@ -206,7 +226,7 @@ async function loadOperatorStats() {
       ? '<span style="color:#22c55e;font-size:11px;font-weight:700;">● ONLINE AHORA</span>'
       : `<span style="color:#666;font-size:11px;">visto ${timeAgo(d.lastActivity)}</span>`;
     box.innerHTML =
-      `<div style="margin-bottom:16px;">${onlineTag} · <span style="color:#555;font-size:11px;">rango: ${d.start} → hoy · ${d.loginCount} inicios totales</span></div>` +
+      `<div style="margin-bottom:16px;">${onlineTag} · <span style="color:#555;font-size:11px;">rango: ${esc(d.start)} → hoy · ${d.loginCount} inicios totales</span></div>` +
       `<div class="cards">` +
       `<div class="card"><div class="lbl">BARRIDOS DE CARTAS</div><div class="val">${s.barridosCartas}</div><div class="sub">${s.cartasEnviadas} cartas enviadas</div></div>` +
       `<div class="card"><div class="lbl">LFP (LIKES + FOLLOWS)</div><div class="val">${s.lfp}</div><div class="sub">${s.likes} likes · ${s.follows} follows</div></div>` +
@@ -233,7 +253,7 @@ function appendChatImg(div, m) {
   img.className = 'wa-img';
   div.appendChild(img);
   const mid = String(m.mediaId);
-  const wire = () => { img.onclick = () => { const w = window.open(); if (w && img.src) w.document.write('<img src="' + img.src + '" style="max-width:100%">'); }; };
+  const wire = () => { img.onclick = () => { const w = window.open(); if (!w) return; const i = w.document.createElement('img'); i.src = img.src; i.style.maxWidth = '100%'; w.document.body.appendChild(i); }; };
   if (chatMediaCache[mid]) { img.src = chatMediaCache[mid]; wire(); return; }
   apiFetch('/api/tess/chat/media/' + mid).then(d => {
     const url = 'data:' + d.mime + ';base64,' + d.data;
@@ -370,13 +390,9 @@ function initChatUI() {
     } catch (e) { alert('No se pudo eliminar: ' + e.message); }
   });
   document.getElementById('btn-attach').addEventListener('click', () => document.getElementById('chat-file').click());
-  document.getElementById('chat-file').addEventListener('change', async e => {
-    const files = Array.from(e.target.files || []);
+  document.getElementById('chat-file').addEventListener('change', e => {
+    if (e.target.files[0]) sendChatImage(e.target.files[0]);
     e.target.value = '';
-    for (let i = 0; i < files.length; i++) {
-      showTmpStatus('Enviando imagen ' + (i + 1) + '/' + files.length + '…');
-      await sendChatImage(files[i]);
-    }
   });
   document.getElementById('btn-emoji').addEventListener('click', () => {
     buildAdminEmojiBar();
@@ -398,7 +414,7 @@ async function refreshThreads() {
     cachedUsers.forEach(u => { names[u.email] = u.display_name; });
     side.innerHTML = threads.map(t =>
       `<div class="thread${t.email === chatWith ? ' active' : ''}" data-email="${esc(t.email)}">` +
-      `<div class="t-name"><span>${esc(names[t.email] || t.email)}</span>${t.unread ? `<span class="unread">${t.unread}</span>` : ''}</div>` +
+      `<div class="t-name"><span>${esc(names[t.email] || t.email)}</span>${t.unread ? `<span class="unread">${esc(t.unread)}</span>` : ''}</div>` +
       `<div class="t-last">${esc(String(t.lastText).slice(0, 60))}</div></div>`).join('');
   } catch (e) { /* silencioso */ }
 }
@@ -493,6 +509,7 @@ async function createStaff() {
   const role = document.getElementById('staff-role').value;
   const office = document.getElementById('staff-office').value.trim();
   if (!name || !email || !pass) return alert('Completa nombre, correo y clave.');
+  if (!EMAIL_RE.test(email)) return alert('Correo inválido: ' + email);
   if (!pass.endsWith('*+') || pass.length < 8) return alert('La clave debe tener mínimo 8 caracteres y terminar en *+');
   if (role === 'office' && !office) return alert('Indica la oficina para un admin de oficina.');
   try {

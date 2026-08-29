@@ -927,10 +927,11 @@ function renderCribsOverlay(data) {
     if (f.key === 'last_contact' && val) {
       try { displayVal = new Date(val).toLocaleDateString(); } catch (e) {}
     }
+    displayVal = escapeHtml(displayVal);
     if (f.key === 'profile_id' && val) {
       displayVal = '<span style="font-weight:600;color:#c4b5fd;">' + displayVal + '</span>';
     }
-    html += '<div class="cr-row"><span class="cr-label">' + f.label + '</span><span class="cr-value' + (val === null ? ' cr-empty' : '') + '">' + displayVal + '</span></div>';
+    html += '<div class="cr-row"><span class="cr-label">' + escapeHtml(f.label) + '</span><span class="cr-value' + (val === null ? ' cr-empty' : '') + '">' + displayVal + '</span></div>';
   });
   body.innerHTML = html;
 }

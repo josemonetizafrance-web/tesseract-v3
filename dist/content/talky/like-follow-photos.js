@@ -10,6 +10,7 @@ var lfpBlacklist = [];
 var lfpBlacklistLoaded = false;
 var lfpBlacklistLoadPromise = null;
 var lfpSearchUrl = '';
+var lfpOpCancelled = false;
 
 async function lfpLoadBlacklist() {
   if (lfpBlacklistLoadPromise) return lfpBlacklistLoadPromise;
@@ -153,7 +154,7 @@ async function lfpDoPhotos() {
 
   var limit = Date.now() + 8000;
   var idx = 0;
-  while (idx < 5 && lfpActive && Date.now() < limit) {
+  while (idx < 5 && lfpActive && !lfpOpCancelled && Date.now() < limit) {
     var btn = document.querySelector('button.gallery-footer__like_narrow') || document.querySelector('button[data-test-id*="set-like"]') || document.querySelector('button:has(svg[id="ThumbUp"])') || document.querySelector(TALK_Y.LIKE_BTN) || document.querySelector('.gallery-footer button:not([aria-label*="Next"]):not([aria-label*="next"]):not([aria-label*="Close"]):not([aria-label*="close"])') || (function() { var s = document.querySelector('svg[id="ThumbUp"]'); return s ? s.closest('button') : null; })() || (function() { var s = document.querySelector('svg[id="Heart"]'); return s ? s.closest('button') : null; })() || (function() { return Array.from(document.querySelectorAll('button, [role="button"]')).find(function(b) { return /\bLike\b/i.test(b.textContent) && !/\bNext\b/i.test(b.textContent) && !/\bClose\b/i.test(b.textContent); }); })();
     if (btn && btn.getAttribute('aria-pressed') !== 'true' && !btn.matches('[data-type="filled"],[data-type="solid"]')) {
       try { btn.click(); lfpStats.photoLikes++; } catch (e) {}
@@ -185,7 +186,7 @@ async function lfpProcessOne() {
     if (bt) break;
     await lfpSleep(150);
   }
-  if (!lfpActive) return;
+  if (!lfpActive || lfpOpCancelled) return;
   lfpStats.processed++;
   if (typeof updateStats === 'function') updateStats();
 
@@ -199,7 +200,7 @@ async function lfpProcessOne() {
       await lfpSleep(120);
     }
   }
-  if (!lfpActive) return;
+  if (!lfpActive || lfpOpCancelled) return;
 
   // Follow
   var fb = document.querySelector(TALK_Y.FOLLOW_BTN);
@@ -210,11 +211,11 @@ async function lfpProcessOne() {
       await lfpSleep(120);
     }
   }
-  if (!lfpActive) return;
+  if (!lfpActive || lfpOpCancelled) return;
 
   // Photos (with timeout)
   var hasPhoto = document.querySelector('[data-test-id*="photo-view"]') || document.querySelector('.profile-photo-wrap img');
-  if (hasPhoto && lfpActive) {
+  if (hasPhoto && lfpActive && !lfpOpCancelled) {
     try { await Promise.race([lfpDoPhotos(), new Promise(function (r) { setTimeout(r, 12000); })]); } catch (e) {}
   } else { await lfpSleep(100); }
   if (!lfpActive) return;
@@ -366,7 +367,8 @@ executeLFP = window.executeLFP = async function () {
     // Extract numeric ID from profile URL after navigation (more reliable than card data)
     var urlId = (window.location.href.match(/\/(\d{6,15})(?:[/?#]|$)/) || [])[1];
     if (urlId) profileId = urlId;
-    try { await Promise.race([lfpProcessOne(), new Promise(function (_, rj) { setTimeout(function () { rj(new Error('T')); }, 35000); })]); } catch (e) { lfpToast('\u23ED\uFE0F Timeout', 'info'); }
+    lfpOpCancelled = false;
+    try { await Promise.race([lfpProcessOne(), new Promise(function (_, rj) { setTimeout(function () { lfpOpCancelled = true; rj(new Error('T')); }, 35000); })]); } catch (e) { lfpToast('\u23ED\uFE0F Timeout', 'info'); }
     if (!lfpActive) break;
     lfpVisited.push(profileId);
     if (typeof registerIdInStarTools === 'function') registerIdInStarTools(profileId, 'LFP');

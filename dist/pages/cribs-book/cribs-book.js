@@ -55,7 +55,7 @@
       var hasLetter = letterLines > 0;
 
       html += '<div class="profile-card" data-idx="' + i + '">';
-      html += '<div class="profile-card-header" onclick="toggleCard(this)">';
+      html += '<div class="profile-card-header card-toggle">';
       html += '<div><span class="name">' + escapeHtml(c.profile_name || 'Sin nombre') + '</span> <span class="badge">ID: <span>' + escapeHtml(String(c.profile_id || '—')) + '</span></span></div>';
       html += '<div><span class="badge">' + (c.country || '') + (c.age ? ' · ' + c.age + ' años' : '') + '</span>';
       if (hasVoice || hasLetter) {
@@ -113,7 +113,7 @@
       }
 
       html += '<div class="card-actions">';
-      html += '<button class="delete-btn" onclick="deleteEntry(\'' + escapeHtml(String(c.profile_id || c._id || '')) + '\')">🗑 ELIMINAR</button>';
+      html += '<button class="delete-btn" data-profile="' + escapeHtml(String(c.profile_id || c._id || '')) + '">🗑 ELIMINAR</button>';
       html += '</div></div></div>';
     }
     content.innerHTML = html;
@@ -155,6 +155,18 @@
     });
   }
 
+  function bindCardDelegation() {
+    if (bindCardDelegation._bound) return;
+    bindCardDelegation._bound = true;
+    var content = document.getElementById('content');
+    content.addEventListener('click', function (e) {
+      var toggle = e.target.closest('.card-toggle');
+      if (toggle) { window.toggleCard(toggle); return; }
+      var del = e.target.closest('.delete-btn');
+      if (del) { window.deleteEntry(del.getAttribute('data-profile')); }
+    });
+  }
+
   document.getElementById('searchInput').addEventListener('input', render);
 
   document.getElementById('btnExport').addEventListener('click', function () {
@@ -177,5 +189,6 @@
     if (e.key === 'Escape') window.close();
   });
 
+  bindCardDelegation();
   loadCribs();
 })();

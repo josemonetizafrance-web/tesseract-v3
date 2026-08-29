@@ -2,6 +2,14 @@
 // API URL: defined in dist/modules/config.js, loaded via service worker registration
 var TESSERACT_API = (typeof TESSERACT_API_OVERRIDE !== 'undefined') ? TESSERACT_API_OVERRIDE : 'https://tesseract-v3-production.up.railway.app';
 
+// El token del panel admin se pasa por chrome.storage.session (no por la URL).
+// setAccessLevel permite que los content scripts (talkytimes) escriban/lean ese token.
+try { chrome.storage.session.setAccessLevel({ accessLevel: 'TRUSTED_AND_UNTRUSTED_CONTEXTS' }); } catch (e) {}
+
+chrome.runtime.onInstalled.addListener(() => {
+  console.log('TESSERACT v24.0 installed');
+});
+
 // Toda la IA pasa por el proxy del servidor (cascada OpenRouter -> Gemini -> Groq -> OpenAI).
 // Las claves viven como variables de entorno en Railway; la extension no guarda ninguna.
 
@@ -73,7 +81,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           },
           body: JSON.stringify({
             messages: message.messages,
-            model: message.model || 'openai/gpt-oss-120b',
+            model: message.model,
             max_tokens: message.maxTokens || 500
           })
         });
