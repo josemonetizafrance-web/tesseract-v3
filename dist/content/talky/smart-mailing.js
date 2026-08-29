@@ -691,15 +691,39 @@ async function sendMailingMessage(text, profileId, contactEl) {
   }
   if (!emailInput || !emailSendBtn) return false;
   if (!typeIntoInput(emailInput, text)) return false;
-  const beforeVal = emailInput.value || emailInput.textContent || '';
-  await sleep(1500);
-  emailSendBtn.click();
+  // Priming del framework (React) igual que Saludo Push: native value + InputEvent + keyup
+  emailInput.removeAttribute('disabled');
+  emailInput.disabled = false;
+  emailInput.focus();
+  emailInput.value = text;
+  emailInput.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
+  emailInput.dispatchEvent(new Event('change', { bubbles: true }));
+  emailInput.dispatchEvent(new Event('keyup', { bubbles: true }));
+  await sleep(400);
+
+  // Esperar a que el boton de envio este habilitado antes de pulsarlo
+  var sendBtn = emailSendBtn;
+  for (var sw2 = 0; sw2 < 12; sw2++) {
+    if (sendBtn && !sendBtn.disabled && sendBtn.getAttribute('aria-disabled') !== 'true') break;
+    await sleep(250);
+    sendBtn = findEmailSendButton() || findSendButton() || emailSendBtn;
+  }
+  if (sendBtn) {
+    sendBtn.removeAttribute('disabled');
+    sendBtn.disabled = false;
+    sendBtn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+    sendBtn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true }));
+    sendBtn.click();
+  }
   await sleep(1500);
   const afterVal = emailInput.value || emailInput.textContent || '';
-  if (afterVal === beforeVal && beforeVal !== '') {
+  if (afterVal === text && text !== '') {
     var altBtn = findEmailSendButton() || findSendButton();
-    if (altBtn && altBtn !== emailSendBtn) { altBtn.click(); await sleep(1500); }
-    else return false;
+    if (altBtn && altBtn !== sendBtn) { altBtn.click(); await sleep(1500); }
+    else {
+      emailInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+      await sleep(1000);
+    }
   }
   if (contactEl) {
     goBackToInbox();
@@ -989,13 +1013,18 @@ function getMailingStats() {
   };
 }
 
+let mlPageGuardDone = false;
+
 async function initSmartMailing() {
   await loadMailingConfig();
-  // Hard-guard CWS: el envio masivo y el schedule arrancan SIEMPRE apagados en cada carga;
-  // hay que marcar el toggle manualmente en el panel tras abrirlo.
-  mailingConfig.enabled = false;
-  mailingConfig.scheduleEnabled = false;
-  saveMailingConfig();
+  // Hard-guard CWS: el envio masivo y el schedule arrancan apagados al cargar la pagina
+  // (una sola vez por sesion); despues los toggles del panel no se resetean solos.
+  if (!mlPageGuardDone) {
+    mlPageGuardDone = true;
+    mailingConfig.enabled = false;
+    mailingConfig.scheduleEnabled = false;
+    saveMailingConfig();
+  }
   await loadMLBlacklist();
   console.log('[ML] Module initialized, enabled: false (hard-guard) | Blacklist:', mlBlacklist.length, 'contactos');
   if (mailingConfig.scheduleRemaining > 0) {

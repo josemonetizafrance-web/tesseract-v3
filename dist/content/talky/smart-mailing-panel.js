@@ -107,21 +107,23 @@ function createMailingPanel() {
   document.getElementById('mlEnabledToggle').addEventListener('change', async function (e) {
     updateMLStatusBar(e.target.checked);
     try {
-      const cfg = mlCfgCache || {};
+      const cfg = (await _loadMLCfg()) || {};
+      mlCfgCache = cfg;
       cfg.enabled = e.target.checked;
       if (typeof window._getMailingConfigDirect === 'function') Object.assign(window._getMailingConfigDirect(), { enabled: cfg.enabled });
-      if (typeof window._saveMailingConfigDirect === 'function') { mlCfgCache = cfg; await window._saveMailingConfigDirect(); }
-      else { await chrome.storage.local.set({ tess_mailing_config: cfg }); }
+      if (typeof window._saveMailingConfigDirect === 'function') await window._saveMailingConfigDirect();
+      await chrome.storage.local.set({ tess_mailing_config: cfg });
       if (typeof window._updateMLTabUI === 'function') window._updateMLTabUI();
     } catch (err) { console.error('[ML] Error al activar multimailing:', err); }
   });
   document.getElementById('mlSendOnlyOver4').addEventListener('change', async function (e) {
     try {
-      const cfg = mlCfgCache || {};
+      const cfg = (await _loadMLCfg()) || {};
+      mlCfgCache = cfg;
       cfg.sendOnlyOver4Letters = e.target.checked;
       if (typeof window._getMailingConfigDirect === 'function') Object.assign(window._getMailingConfigDirect(), { sendOnlyOver4Letters: cfg.sendOnlyOver4Letters });
-      if (typeof window._saveMailingConfigDirect === 'function') { mlCfgCache = cfg; await window._saveMailingConfigDirect(); }
-      else { await chrome.storage.local.set({ tess_mailing_config: cfg }); }
+      if (typeof window._saveMailingConfigDirect === 'function') await window._saveMailingConfigDirect();
+      await chrome.storage.local.set({ tess_mailing_config: cfg });
       if (typeof window._updateMLTabUI === 'function') window._updateMLTabUI();
     } catch (err) { console.error('[ML] Error al cambiar modo de envio:', err); }
   });
@@ -170,7 +172,8 @@ async function saveMLPanelConfigWrapper() {
   const errEl = document.getElementById('mlErrorMsg');
   errEl.style.display = 'none';
   try {
-    const cfg = mlCfgCache || {};
+    const cfg = (await _loadMLCfg()) || {};
+    mlCfgCache = cfg;
     cfg.enabled = !!document.getElementById('mlEnabledToggle').checked;
     cfg.templatesNew = document.getElementById('mlTemplateNew').value;
     cfg.messageTemplate = document.getElementById('mlTemplateNew').value;
