@@ -299,6 +299,7 @@ function createMainPanel() {
 #tabMain.tab-content{border-left:3px solid #7c3aed !important;}
 #tabStar.tab-content{border-left:3px solid #f59e0b !important;}
 #tabMailing.tab-content{border-left:3px solid #8b5cf6 !important;}
+#tabImgGen.tab-content{border-left:3px solid #06b6d4 !important;}
 #tabSoporte.tab-content{border-left:3px solid #22c55e !important;}
 </style>
 <div id="tess-mini-icon">🤖</div>
@@ -314,8 +315,12 @@ function createMainPanel() {
   <button class="tab-btn active" data-tab="main">🎮 BOT</button>
   <button class="tab-btn" data-tab="star">⭐ STAR TOOLS</button>
   <button class="tab-btn" data-tab="mailing">📬 MAILING</button>
+  <button class="tab-btn" data-tab="imggen">🖼️ IMG GEN</button>
   <button class="tab-btn" data-tab="soporte">💬 MENSAJES</button>
 </div>
+
+<!-- PESTAÑA IMG GEN (contenido montado por talky-img-gen.js) -->
+<div id="tabImgGen" class="tab-content"></div>
 
 <!-- PESTAÑA BOT -->
 <div id="tabMain" class="tab-content active">
@@ -574,7 +579,7 @@ function setupAllEvents() {
       mainPanel.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       this.classList.add('active');
       currentTab = Tesseract.set('currentTab', clickedTab);
-      const tabMap = { main: 'Main', star: 'Star', mailing: 'Mailing', soporte: 'Soporte' };
+      const tabMap = { main: 'Main', star: 'Star', mailing: 'Mailing', imggen: 'ImgGen', soporte: 'Soporte' };
       mainPanel.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
       document.getElementById('tab' + (tabMap[currentTab] || 'Main')).classList.add('active');
       if (currentTab === 'star') renderStarIds();
