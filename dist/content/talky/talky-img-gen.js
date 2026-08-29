@@ -6,6 +6,8 @@ var IG_API = (typeof Tesseract !== 'undefined' && Tesseract && Tesseract.API) ||
 
 var igState = {
   refs: [],
+  images: [],
+  activeIdx: -1,
   lastBase64: null,
   lastFormat: 'png',
   lastPrompt: '',
@@ -201,61 +203,120 @@ async function igGenerate() {
     return;
   }
 
-  igSetBusy(true);
-  igSetStatus('Generando imagen...', '');
-  showTessToast('Generando imagen, esto puede tardar 30-90s...', 'warning');
-
+  var quantity = parseInt((_igEl('igQuantity') && _igEl('igQuantity').value) || '1', 10) || 1;
   var preset = (_igEl('igPreset') && _igEl('igPreset').value) || '1';
   var refs = igState.refs.map(function (r) { return r.dataUrl; });
   var body = { prompt: prompt, preset: preset };
   if (refs.length) body.references = refs;
 
-  var ctrl = new AbortController();
-  var tmr = setTimeout(function () { ctrl.abort(); }, 180000);
-  try {
-    var resp = await fetch(IG_API + '/api/chatgpt/image', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-      body: JSON.stringify(body),
-      signal: ctrl.signal
-    });
-    var json = await resp.json().catch(function () { return {}; });
-    if (!resp.ok) {
+  igSetBusy(true);
+  igState.images = [];
+  igState.activeIdx = -1;
+  igRenderGallery();
+  igSetStatus((quantity > 1 ? 'Generando ' + quantity + ' imagenes...' : 'Generando imagen...') + ' (esto puede tardar)', '');
+
+  var okCount = 0;
+  var lastModel = '';
+  var firstErr = null;
+  for (var q = 0; q < quantity; q++) {
+    if (q > 0) { igSetStatus('Generando ' + (q + 1) + '/' + quantity + '...', ''); await new Promise(function (r) { setTimeout(r, 300); }); }
+    var ctrl = new AbortController();
+    var tmr = setTimeout(function () { ctrl.abort(); }, 180000);
+    try {
+      var resp = await fetch(IG_API + '/api/chatgpt/image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify(body),
+        signal: ctrl.signal
+      });
+      var json = await resp.json().catch(function () { return {}; });
+      if (!resp.ok) {
+        clearTimeout(tmr);
+        if (!firstErr && (!q || !json.error || !/499|429|500|503/i.test(String(resp.status)))) {
+          firstErr = (json && json.error) || ('Error HTTP ' + resp.status);
+          if (/401/i.test(String(resp.status))) firstErr = 'Sesion expirada. Vuelve a iniciar sesion.';
+        }
+        if (q + 1 === quantity) {
+          igSetStatus(firstErr || 'Error generando', 'err');
+          showTessToast(firstErr || 'Error generando', 'error');
+        }
+        continue;
+      }
+      if (!json.base64) {
+        if (q + 1 === quantity) igSetStatus('El servidor no devolvio imagen', 'err');
+        continue;
+      }
+      var fmt = json.format || 'png';
+      var mime = igMimeFor(fmt);
+      igState.images.push({ base64: json.base64, format: fmt, model: json.model || '' });
+      igState.activeIdx = igState.images.length - 1;
+      igState.lastBase64 = json.base64;
+      igState.lastFormat = fmt;
+      igState.lastPrompt = prompt;
+      lastModel = json.model || lastModel;
+
+      var imgEl = _igEl('igPreviewImg');
+      imgEl.src = 'data:' + mime + ';base64,' + json.base64;
+      imgEl.title = 'Generada con ' + (json.model || 'IA') + ' (' + (preset === '2' ? 'Lite' : 'Pro') + ')';
+      _igEl('igPreview').style.display = 'block';
+      _igEl('igModelTag').textContent = (json.model || '') + (preset === '2' ? '  [LITE]' : '  [PRO]') + '  |  ~' + (preset === '2' ? '512x512' : '1024x1024') + (quantity > 1 ? '  |  ' + (igState.activeIdx + 1) + '/' + quantity : '');
+
+      await igSaveToDownloads(json.base64, fmt);
+      igRenderGallery();
+      okCount++;
+      igSetStatus((quantity > 1 ? 'Generadas ' + okCount + '/' + quantity + '. ' : 'Imagen generada. ') + 'Guardada en Descargas.' + (quantity > 1 && okCount < quantity ? ' Generando el resto...' : ''), 'ok');
+    } catch (err) {
       clearTimeout(tmr);
-      var msg = (json && json.error) || ('Error HTTP ' + resp.status);
-      if (/401/i.test(String(resp.status))) msg = 'Sesion expirada. Vuelve a iniciar sesion.';
-      igSetStatus(msg, 'err');
-      showTessToast(msg, 'error');
-      return;
+      var m = (err && err.name === 'AbortError') ? 'Tiempo de espera agotado (180s).' : ((err && err.message) || String(err));
+      if (/Failed to fetch|NetworkError/i.test(m)) m = 'Sin conexion o servidor no disponible.';
+      if (!firstErr) firstErr = m;
+    } finally {
+      clearTimeout(tmr);
     }
-    if (!json.base64) {
-      igSetStatus('El servidor no devolvio imagen', 'err');
-      return;
-    }
-    igState.lastBase64 = json.base64;
-    igState.lastFormat = json.format || 'png';
-    igState.lastPrompt = prompt;
-
-    var imgEl = _igEl('igPreviewImg');
-    imgEl.src = 'data:' + igMimeFor(igState.lastFormat) + ';base64,' + igState.lastBase64;
-    imgEl.title = 'Generada con ' + (json.model || 'IA') + ' (' + (preset === '2' ? 'Lite' : 'Pro') + ')';
-    _igEl('igPreview').style.display = 'block';
-    _igEl('igModelTag').textContent = (json.model || '') + (preset === '2' ? '  [LITE]' : '  [PRO]') + '  |  ~' + (preset === '2' ? '512x512' : '1024x1024');
-
-    var saved = await igSaveToDownloads(igState.lastBase64, igState.lastFormat);
-    igSetStatus(saved ? 'Imagen generada y guardada en Descargas. UPLOAD para subirla a Manage Media.' : 'Imagen generada.', 'ok');
-    if (saved) showTessToast('Imagen guardada en Descargas', 'success');
-    else showTessToast('Generada. Usa GUARDAR si la descarga no inicio.', 'warning');
-  } catch (err) {
-    clearTimeout(tmr);
-    var m = (err && err.name === 'AbortError') ? 'Tiempo de espera agotado (180s). Reintenta.' : ((err && err.message) || String(err));
-    if (/Failed to fetch|NetworkError/i.test(m)) m = 'Sin conexion o servidor no disponible.';
-    igSetStatus(m, 'err');
-    showTessToast(m, 'error');
-  } finally {
-    clearTimeout(tmr);
-    igSetBusy(false);
   }
+  igSetBusy(false);
+  if (okCount > 0) {
+    igSetStatus(quantity > 1 ? (okCount === quantity ? 'Listo: ' + okCount + ' imagenes generadas y guardadas en Descargas.' : okCount + '/' + quantity + ' generadas' + (firstErr ? ' (error en alguna: ' + firstErr + ')' : '')).slice(0, 90) : 'Imagen generada y guardada en Descargas. UPLOAD para subirla.', 'ok');
+    showTessToast(okCount === quantity ? okCount + ' imagenes guardadas en Descargas' : okCount + ' de ' + quantity + ' generadas', okCount === quantity ? 'success' : 'warning');
+  } else if (firstErr) {
+    igSetStatus(firstErr, 'err');
+    showTessToast(firstErr, 'error');
+  }
+}
+
+function igSetActiveImage(idx) {
+  var it = igState.images[idx];
+  if (!it) return;
+  igState.activeIdx = idx;
+  igState.lastBase64 = it.base64;
+  igState.lastFormat = it.format;
+  var imgEl = _igEl('igPreviewImg');
+  imgEl.src = 'data:' + igMimeFor(it.format) + ';base64,' + it.base64;
+  _igEl('igModelTag').textContent = (it.model || '') + '  |  seleccion ' + (idx + 1) + '/' + igState.images.length;
+  igRenderGallery();
+  igSetStatus('Seleccionada imagen ' + (idx + 1) + ' de ' + igState.images.length + '. UPLOAD la sube, GUARDAR la descarga, CORREGIR la usa como base.', '');
+}
+
+function igRenderGallery() {
+  var g = _igEl('igGallery');
+  if (!g) return;
+  g.innerHTML = '';
+  g.style.display = igState.images.length ? 'flex' : 'none';
+  igState.images.forEach(function (it, i) {
+    var t = document.createElement('div');
+    t.title = 'Imagen ' + (i + 1) + ' - click para seleccionar';
+    t.style.cssText = 'position:relative;width:56px;height:56px;flex-shrink:0;border-radius:6px;overflow:hidden;border:2px solid ' + (i === igState.activeIdx ? '#facc15' : '#1e293b') + ';cursor:pointer;background:#000;';
+    var img = document.createElement('img');
+    img.src = 'data:' + igMimeFor(it.format) + ';base64,' + it.base64;
+    img.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;';
+    var n = document.createElement('span');
+    n.textContent = (i + 1);
+    n.style.cssText = 'position:absolute;top:1px;left:1px;background:rgba(0,0,0,0.7);color:#facc15;font-size:8px;padding:0 3px;border-radius:3px;';
+    t.appendChild(img);
+    t.appendChild(n);
+    t.addEventListener('click', function () { igSetActiveImage(i); });
+    g.appendChild(t);
+  });
 }
 
 function igClickManageMedia() {
@@ -407,14 +468,18 @@ async function igUpload() {
 function igClearGen() {
   igState.lastBase64 = null;
   igState.lastFormat = 'png';
+  igState.lastPrompt = '';
+  igState.images = [];
+  igState.activeIdx = -1;
   var prev = _igEl('igPreview');
   if (prev) prev.style.display = 'none';
   var img = _igEl('igPreviewImg');
   if (img) img.removeAttribute('src');
   var tag = _igEl('igModelTag');
   if (tag) tag.textContent = '';
+  igRenderGallery();
   igSetStatus('', '');
-  showTessToast('Imagen eliminada del panel (el archivo en Descargas sigue ahi).', 'success');
+  showTessToast('Imagen(es) eliminada(s) del panel (los archivos en Descargas siguen ahi).', 'success');
 }
 
 function mountImgGenTab() {
@@ -449,7 +514,11 @@ function mountImgGenTab() {
 #igWrap .ig-pbtns button.ig-upload{background:#14532d;border-color:#22c55e;}
 #igWrap .ig-pbtns button.ig-upload:hover{background:#15803d;}
 #igWrap .ig-pbtns button.ig-del{background:rgba(220,38,38,0.25);border-color:#ef4444;color:#fecaca;}
-#igWrap .ig-pbtns button.ig-del:hover{background:#b91c1c;color:#fff;}`;
+#igWrap .ig-pbtns button.ig-del:hover{background:#b91c1c;color:#fff;}
+#igWrap .ig-qrow{display:flex;align-items:center;gap:8px;margin-top:6px;}
+#igWrap #igQuantity{flex:1;background:#000;color:#e0e0e0;border:1px solid #22d3ee;border-radius:4px;font-size:10px;padding:4px;}
+#igWrap .ig-gallery{display:none;flex-wrap:wrap;gap:6px;margin-top:10px;padding-top:8px;border-top:1px dashed #155e75;}
+#igWrap .ig-glabel{font-size:8px;letter-spacing:1px;color:#67e8f9;margin-top:8px;text-transform:uppercase;}`;
   document.head.appendChild(style);
 
   var wrap = document.createElement('div');
@@ -458,6 +527,15 @@ function mountImgGenTab() {
   <div class="ig-sec">
     <h4>PROMPT</h4>
     <textarea id="igPrompt" placeholder="Describe la imagen que quieres generar..."></textarea>
+    <div class="ig-qrow">
+      <label style="font-size:9px;color:#888;white-space:nowrap;">¿Cuántas imágenes?</label>
+      <select id="igQuantity" title="Genera varias versiones con el mismo prompt (el proveedor acepta 1 imagen por llamada, se generan de a una)">
+        <option value="1">1 imagen</option>
+        <option value="3">3 imágenes</option>
+        <option value="5">5 imágenes</option>
+        <option value="10" selected>10 imágenes</option>
+      </select>
+    </div>
   </div>
   <div class="ig-sec">
     <h4>REFERENCIAS (opcional)</h4>
@@ -481,6 +559,8 @@ function mountImgGenTab() {
   <div class="ig-preview" id="igPreview">
     <img id="igPreviewImg" alt="Imagen generada">
     <div class="ig-model" id="igModelTag"></div>
+    <div class="ig-glabel" id="igGalleryLabel">TODAS LAS GENERADAS (click para seleccionar)</div>
+    <div class="ig-gallery" id="igGallery"></div>
     <div class="ig-pbtns">
       <button class="ig-upload" id="igUploadBtn">UPLOAD</button>
       <button id="igFixBtn">CORREGIR</button>
