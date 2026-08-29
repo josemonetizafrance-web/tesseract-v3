@@ -295,6 +295,7 @@ function igDropTargetCandidates() {
 // Simula arrastrar y soltar la imagen EN EL CENTRO DE LA PANTALLA de Manage Media.
 async function igDropFileIntoTalky(b64, fmt) {
   var used = null;
+  var diag = [];
   try {
     var mime = igMimeFor(fmt);
     var bin = atob(b64);
@@ -308,6 +309,12 @@ async function igDropFileIntoTalky(b64, fmt) {
     var go = function (el, type) {
       try { el.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, composed: true, dataTransfer: dt, clientX: cx, clientY: cy, screenX: cx, screenY: cy })); } catch (e) { /* ignorar */ }
     };
+    var snap = function (zone) {
+      try {
+        var r = zone.getBoundingClientRect();
+        diag.push('target=' + zone.tagName + ' | id=' + (zone.id || '') + ' | cls=' + String(zone.className || '').slice(0, 120) + ' | testid=' + (zone.getAttribute && zone.getAttribute('data-test-id') || '') + ' | rect=' + Math.round(r.x) + ',' + Math.round(r.y) + ' ' + Math.round(r.width) + 'x' + Math.round(r.height));
+      } catch (e) { /* ignorar */ }
+    };
 
     // 1) dragover globales -> la app muestra su overlay central de subida.
     go(document.documentElement, 'dragenter');
@@ -316,35 +323,59 @@ async function igDropFileIntoTalky(b64, fmt) {
     go(document.body, 'dragover');
     go(window, 'dragover');
 
-    // 2) Espera a que monten cualquier overlay de drop y acumula candidatos.
+    console.log('[IMG-GEN] ** DIAGNOSTICO UPLOAD **');
+    // Lista de contendientes tipo drop en la pagina.
+    document.querySelectorAll(igDropTargetCandidates().join(',')).forEach(function (c) { diag.push('candidato ' + (c.tagName || '?') + ' | id=' + (c.id || '') + ' | cls=' + String(c.className || '').slice(0, 80) + ' | testid=' + (c.getAttribute && c.getAttribute('data-test-id') || '')); });
+    if (!igDropTargetCandidates().some(function (s) { return document.querySelector(s); })) diag.push('NO hay elementos con testid/class de drop; centro por defecto sera el objetivo.');
+
+    // 2) Espera a que monten cualquier overlay/candidato manteniendo el dragover vivo
+    //    (como un usuario con el archivo sostenido sobre la pagina).
     var zone = null;
     var start = Date.now();
+    var hold = setInterval(function () { go(window, 'dragover'); go(document.body, 'dragover'); }, 250);
     while (Date.now() - start < 12000) {
       var sel = igDropTargetCandidates().join(',');
       zone = document.querySelector(sel);
       if (!zone) {
-        // Elemento justo en el centro de la pantalla (equivalente a soltar ahi).
         var mid = document.elementFromPoint(cx, cy);
         if (mid && mid !== document.body && mid !== document.documentElement) zone = mid;
       }
-      if (zone) break;
-      await new Promise(function (r) { setTimeout(r, 500); });
+      if (zone) { snap(zone); break; }
+      await new Promise(function (r) { setTimeout(r, 300); });
+    }
+    clearInterval(hold);
+
+    if (!zone) {
+      diag.push('sin candidatos detectados; se tomo el elemento central por defecto.');
+      var fell = document.elementFromPoint(cx, cy);
+      if (fell && fell !== document.body && fell !== document.documentElement) { zone = fell; snap(zone); }
     }
 
+    // 3) Soltar sobre el candidato central elegido (es el equivalente a soltar en el centro).
     if (zone) {
       go(zone, 'dragenter');
       go(zone, 'dragover');
       go(zone, 'drop');
-      used = 'drop-target-centro';
-      console.log('[IMG-GEN] drop sintetico sobre:', zone.tagName, zone.id, zone.className, zone.getAttribute && zone.getAttribute('data-test-id'));
+      used = 'drop-' + zone.tagName;
     }
-    // 3) Reintentos agnósticos: overlays con listener en window + body (final).
+    // 4) Retry amplio: todos los dropable + window + body.
+    document.querySelectorAll(igDropTargetCandidates().join(',')).forEach(function (cand) {
+      try {
+        go(cand, 'dragenter');
+        go(cand, 'dragover');
+        go(cand, 'drop');
+        if (!used) used = 'drop-' + cand.tagName;
+      } catch (e) { /* ignorar */ }
+    });
     go(window, 'dragenter');
     go(window, 'dragover');
     go(window, 'drop');
     go(document.body, 'drop');
 
-    // 4) Fallback input[type=file].
+    diag.forEach(function (l) { console.log('[IMG-GEN]', l); });
+    if (used) console.log('[IMG-GEN] result: drop intentado sobre ->', used);
+
+    // 5) Fallback input[type=file].
     var inp = document.querySelector('input[type="file"][accept*="image"], [data-test-id*="file"] input[type="file"]');
     if (inp) {
       try {
@@ -356,8 +387,8 @@ async function igDropFileIntoTalky(b64, fmt) {
       }
     }
     showTessToast(used
-      ? (used === 'input-file' ? 'Subido via input file. Revisa que la imagen entro.' : 'Imagen soltada en el centro de Manage Media. Revisa que se subio.')
-      : 'No encontre el area de subida. Arrastrala tu hacia el centro de la pantalla.', used ? 'success' : 'warning');
+      ? (used === 'input-file' ? 'Subido via input file. Revisa que la imagen entro.' : 'Imagen soltada en ' + (zone ? zone.tagName + '/' + (zone.id || zone.className || '?') : 'la pantalla') + '. Revisa que se subio.')
+      : 'No encuentro el area de subida. Arrastrala tu hacia el centro de la pantalla.', used ? 'success' : 'warning');
   } catch (err) {
     showTessToast('Error subiendo la imagen: ' + ((err && err.message) || err), 'error');
   }
