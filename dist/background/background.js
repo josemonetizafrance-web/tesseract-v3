@@ -98,6 +98,32 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
     })();
     return true;
+  } else if (message.action === 'TESS_DOWNLOAD') {
+    // Guardado automatico en la carpeta Descargas de la PC via chrome.downloads.
+    (async () => {
+      try {
+        const raw = String(message.base64 || '').replace(/\s+/g, '');
+        const bin = atob(raw);
+        const u8 = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+        const blob = new Blob([u8], { type: message.mime || 'image/png' });
+        const url = URL.createObjectURL(blob);
+        const filename = String(message.filename || ('tesseract-gen-' + Date.now())).replace(/^[\/\\]+/, '');
+        const id = await chrome.downloads.download({
+          url: url,
+          filename: filename,
+          saveAs: false,
+          conflictAction: 'uniquify'
+        });
+        setTimeout(() => { try { URL.revokeObjectURL(url); } catch (e) {} }, 60000);
+        console.log('[BG] Descarga a Downloads iniciada:', filename, '(', Math.round(u8.length / 1024), 'KB )');
+        sendResponse({ success: true, downloadId: id });
+      } catch (e) {
+        console.warn('[BG] TESS_DOWNLOAD fallo:', e.message);
+        sendResponse({ success: false, error: e.message });
+      }
+    })();
+    return true;
   }
   return true;
 });

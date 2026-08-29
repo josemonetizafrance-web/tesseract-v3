@@ -128,24 +128,56 @@ async function igPickRefs() {
 }
 
 function igSaveToDownloads(b64, fmt) {
+  var mime = igMimeFor(fmt);
+  var raw = String(b64 || '').replace(/\s+/g, '');
+  if (raw.indexOf(',') >= 0 && /^data:/i.test(raw)) raw = raw.slice(raw.indexOf(',') + 1);
+  var ext = (fmt === 'svg' ? 'svg' : fmt === 'jpeg' ? 'jpg' : fmt);
+  var filename = 'tesseract-gen-' + Date.now() + '.' + ext;
+
+  // 1) VIA chrome.downloads (siempre guarda en la carpeta Descargas de la PC).
   try {
-    var mime = igMimeFor(fmt);
-    var raw = String(b64 || '').replace(/\s+/g, '');
-    if (raw.indexOf(',') >= 0 && /^data:/i.test(raw)) raw = raw.slice(raw.indexOf(',') + 1);
-    var bin = atob(raw);
+    if (chrome.runtime && chrome.runtime.sendMessage) {
+      return new Promise(function (resolve) {
+        try {
+          chrome.runtime.sendMessage({ action: 'TESS_DOWNLOAD', base64: raw, mime: mime, filename: filename }, function (resp) {
+            if (chrome.runtime.lastError) {
+              console.warn('[IMG-GEN] bg download msg error:', chrome.runtime.lastError.message);
+              return resolve(igAnchorDownload(raw, mime, filename));
+            }
+            if (resp && resp.success) {
+              console.log('[IMG-GEN] guardado en Downloads via chrome.downloads:', filename);
+              return resolve(true);
+            }
+            console.warn('[IMG-GEN] bg download fallo:', resp && resp.error);
+            resolve(igAnchorDownload(raw, mime, filename));
+          });
+        } catch (e) {
+          resolve(igAnchorDownload(raw, mime, filename));
+        }
+      });
+    }
+  } catch (e) {
+    console.warn('[IMG-GEN] chrome.downloads no disponible:', e.message);
+  }
+  // 2) FALLBACK: blob + anchor (requiere gesto de usuario).
+  return Promise.resolve(igAnchorDownload(raw, mime, filename));
+}
+
+function igAnchorDownload(b64, mime, filename) {
+  try {
+    var bin = atob(b64);
     var u8 = new Uint8Array(bin.length);
     for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
     var blob = new Blob([u8], { type: mime });
-    var ext = (fmt === 'svg' ? 'svg' : fmt === 'jpeg' ? 'jpg' : fmt);
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     a.href = url;
-    a.download = 'tesseract-gen-' + Date.now() + '.' + ext;
+    a.download = filename;
     a.rel = 'noopener';
     document.body.appendChild(a);
     a.click();
     a.remove();
-    console.log('[IMG-GEN] descarga iniciada -> Downloads (' + a.download.replace('tesseract-gen-' + Date.now() + '.', '') + ', ' + Math.round(u8.length / 1024) + 'KB)');
+    console.log('[IMG-GEN] descarga (fallback) -> ' + filename + ' (' + Math.round(u8.length / 1024) + 'KB)');
     setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
     return true;
   } catch (e) {
@@ -210,7 +242,7 @@ async function igGenerate() {
     _igEl('igPreview').style.display = 'block';
     _igEl('igModelTag').textContent = (json.model || '') + (preset === '2' ? '  [LITE]' : '  [PRO]') + '  |  ~' + (preset === '2' ? '512x512' : '1024x1024');
 
-    var saved = igSaveToDownloads(igState.lastBase64, igState.lastFormat);
+    var saved = await igSaveToDownloads(igState.lastBase64, igState.lastFormat);
     igSetStatus(saved ? 'Imagen generada y guardada en Descargas. UPLOAD para subirla a Manage Media.' : 'Imagen generada.', 'ok');
     if (saved) showTessToast('Imagen guardada en Descargas', 'success');
     else showTessToast('Generada. Usa GUARDAR si la descarga no inicio.', 'warning');
@@ -430,13 +462,13 @@ function mountImgGenTab() {
   _igEl('igGenBtn').addEventListener('click', igGenerate);
   _igEl('igUploadBtn').addEventListener('click', igUpload);
   _igEl('igDelBtn').addEventListener('click', igClearGen);
-  _igEl('igSaveBtn').addEventListener('click', function () {
+  _igEl('igSaveBtn').addEventListener('click', async function () {
     if (!igState.lastBase64) return showTessToast('Primero genera una imagen', 'warning');
-    if (igSaveToDownloads(igState.lastBase64, igState.lastFormat)) {
+    if (await igSaveToDownloads(igState.lastBase64, igState.lastFormat)) {
       igSetStatus('Imagen guardada automaticamente en Descargas.', 'ok');
       showTessToast('Imagen guardada en Descargas', 'success');
     } else {
-      showTessToast('No se pudo iniciar la descarga. Mueve el mouse sobre la imagen y recarga.', 'error');
+      showTessToast('No se pudo iniciar la descarga.', 'error');
     }
   });
   _igEl('igFixBtn').addEventListener('click', function () {
