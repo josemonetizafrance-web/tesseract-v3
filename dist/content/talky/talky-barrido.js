@@ -150,24 +150,45 @@ async function brGenerarMensajes(contacto) {
   }
   var content = json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content;
   if (!content) throw new Error('La IA no devolvio mensajes');
-  // Parsear: lineas con [N] prefijo
-  var msgs = [];
-  var re = /\[\s*([1-5])\s*\]\s*(.+)/i;
-  content.split(/\n+/).forEach(function (linea) {
-    var l = linea.trim();
-    if (!l) return;
-    var m = l.match(re);
-    if (m) {
-      msgs[parseInt(m[1], 10) - 1] = m[2].trim();
-    } else if (msgs.length < 5 && !/^\d+$/.test(l)) {
-      // adjuntar lineas sueltas utiles
-      if (msgs.length === 0) msgs.push(l);
-      else if (msgs[msgs.length - 1]) msgs[msgs.length - 1] += ' ' + l;
-    }
-  });
-  msgs = msgs.filter(Boolean).slice(0, 5);
-  if (!msgs.length) throw new Error('No se pudieron extraer los 5 mensajes');
+  brLog('IA respondio (preview): ' + String(content).slice(0, 160));
+  var msgs = brParsearMensajes(content);
+  if (!msgs.length) throw new Error('No se pudieron extraer mensajes de la IA');
+  brLog('Parseados ' + msgs.length + ' mensajes.');
   return msgs;
+}
+
+// Parseo robusto: acepta [1]-[5] con identificadores, numeros sueltos, bullets, o lineas en blanco.
+function brParsearMensajes(content) {
+  var out = [];
+  // caso 1: marcadores [N] o "N)" o "1."
+  var reMark = /(?:^|\n)\s*(?:\[\s*([1-5])\s*\]|[-\*]?\s*\(?([1-5])\)?[\.:\)]\s*)(.+)/i;
+  try {
+    var lines = String(content).replace(/\r/g, '').split('\n');
+    var cur = -1;
+    for (var i = 0; i < lines.length; i++) {
+      var l = lines[i].trim();
+      if (!l) continue;
+      var m = l.match(/^\s*(?:\[\s*([1-5])\s*\]|[-\*]\s*)?\(?([1-5])\)?[\.:]\s*(.+)$/i);
+      if (m && (m[1] || m[2])) {
+        cur = parseInt(m[1] || m[2], 10) - 1;
+        out[cur] = m[3].trim();
+      } else if (/^\s*\[\s*[1-5]\s*\]\s*$/i.test(l) || /^\(\s*[1-5]\s*\)\s*$/i.test(l)) {
+        cur = parseInt(l.match(/\d+/)[0], 10) - 1;
+        out[cur] = '';
+      } else if (cur >= 0) {
+        if (out[cur] == null) out[cur] = '';
+        out[cur] = (out[cur] ? out[cur] + ' ' : '') + l;
+      }
+    }
+  } catch (e) { /* ignore */ }
+  out = out.slice(0, 5).map(function (s) { return (s || '').trim(); }).filter(Boolean);
+  if (out.length) return out;
+  // caso 2: separar por linea en blanco
+  var chunks = String(content).replace(/\r/g, '').split(/\n\s*\n/).map(function (c) { return c.trim(); }).filter(Boolean);
+  if (chunks.length) return chunks.slice(0, 5);
+  // caso 3: todo el texto como un solo mensaje
+  var t = String(content).trim();
+  return t ? [t] : [];
 }
 
 // ===== Inyeccion y envio en textarea =====
@@ -291,18 +312,44 @@ function brLeerEditados() {
   return out.filter(Boolean).slice(0, 5);
 }
 
+// Traduce un mensaje al ingles usando el proxy del server (fallback: texto original)
+async function brTraducir(texto) {
+  var token;
+  try { token = await tessStorageGet('tess_jwt'); } catch (e) { token = null; }
+  if (!token) return texto;
+  try {
+    var resp = await fetch(BR_API + '/api/openai/translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ text: texto, targetLang: 'en', targetName: 'inglés' })
+    });
+    var json = await resp.json().catch(function () { return {}; });
+    var t = json && json.data && json.data.translations && json.data.translations[0] && json.data.translations[0].text;
+    return (t && String(t).trim()) ? String(t).trim() : texto;
+  } catch (e) {
+    brLogE('brTraducir error:', e.message);
+    return texto;
+  }
+}
+
 // ===== Confirmacion y continuacion de cola =====
 async function brConfirmarEnvio() {
   if (!brState.current) return;
   var msgs = brLeerEditados();
   if (!msgs.length) { showTessToast('No hay mensajes editados', 'error'); return; }
   var c = brState.current;
-  var res = await brEnviarSecuencia(c, msgs);
+  brStatus('Traduciendo al ingles...', '');
+  var en = [];
+  for (var i = 0; i < msgs.length; i++) {
+    en.push(await brTraducir(msgs[i]));
+    if (brState.stop) { brStatus('Barrido detenido.', 'warn'); return; }
+  }
+  brLog('Enviando en ingles: ' + JSON.stringify(en));
+  var res = await brEnviarSecuencia(c, en);
   brState.stats.procesados++;
   brRenderStats();
   if (res !== 'stop') {
-    // continuar con el resto de la cola
-    brQueue.shift();
+    // continuar con el resto de la cola (el actual ya fue quitado por brContinuarCola)
     await brContinuarCola();
   } else {
     brStatus('Barrido detenido.', 'warn');
