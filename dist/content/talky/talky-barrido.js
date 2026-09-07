@@ -119,8 +119,19 @@ function brCapturarActive() {
   filas.forEach(function (fila) {
     try {
       var nombre = '';
-      var nm = fila.querySelector('[class*="title"], [class*="name"], [class*="dialog-item__title"], [class*="description"]');
-      if (nm) nombre = (nm.textContent || '').trim();
+      var nmT = fila.querySelector('[class*="dialog-item__title"], [class*="dialog-item"] [class*="name"], [class*="dialog"] [class*="user-name"], [class*="dialog"] [class*="member-name"]');
+      var nmD = fila.querySelector('[class*="description"]');
+      var nm = nmT || nmD;
+      if (nm) {
+        var txtt = (nmT ? (nmT.textContent || '') : '').trim();
+        if (txtt) {
+          nombre = txtt;
+        } else {
+          var tx = (nm.textContent || '').trim();
+          // quitar fragmentos externos tipo " , 45" (edad) o preview
+          nombre = tx.split(/\s*,\s*\d{1,3}\s*$/)[0].split('\n')[0].trim() || tx;
+        }
+      }
       if (!nombre) {
         nombre = (fila.textContent || '').split('\n').map(function (s) { return s.trim(); }).filter(Boolean).slice(0, 1).join(' ') || '';
       }
@@ -150,50 +161,38 @@ function brCapturarActive() {
   return out;
 }
 
-// Sube desde el item hasta el contenedor que incluye fecha, iconos y acciones.
-function brExpandirFila(bandeja, item) {
-  var el = item;
-  var guard = 0;
-  while (el && el !== bandeja && el !== document.body && guard++ < 6) {
-    if (el.querySelector('.dialog-item__date-row, .dialog-item__icons, .dialog-item__actions, [class*="chat-actions"]')) break;
-    el = el.parentElement;
+// Obtiene las filas reales de la bandeja.
+// Estructura real: ... > .dialogs__scroll-infinite-list > div > div > div > div > .virtualizer > div > div (cada uno es una fila).
+function brObtenerFilas(bandeja) {
+  var out = [];
+  var vistos = new Set();
+  function add(el) { if (el && el.nodeType === 1 && !vistos.has(el)) { vistos.add(el); out.push(el); } }
+  // 1) virtualizer: cada hijo de .virtualizer > div es una fila de dialogo
+  try {
+    var rows = bandeja.querySelectorAll('.virtualizer > div > div, [class*="virtualizer"] > div > div');
+    rows.forEach(function (r) { if (brEsFila(r)) add(r); });
+  } catch (e) { brLogE('virtualizer:', e.message); }
+  // 2) fallback: subir desde cada item a su fila individual
+  if (!out.length) {
+    bandeja.querySelectorAll(BR_SEL.items.join(', ')).forEach(function (n) {
+      if (!n || n.nodeType !== 1) return;
+      var fila = n;
+      try {
+        var cl = n.closest('.virtualizer > div > div, [class*="dialog-item"]');
+        if (cl && cl !== document) fila = cl;
+      } catch (e) { /* closest fallback */ }
+      add(fila);
+    });
   }
-  return el || item;
+  brLog('brObtenerFilas -> ' + out.length + ' filas (hijos directos de la bandeja: ' + bandeja.children.length + ')');
+  return out;
 }
 
 // Detecta si un elemento parece una fila de dialogo (contiene contenido o marcadores).
 function brEsFila(el) {
   if (!el || el.nodeType !== 1) return false;
-  if (el.querySelector('.dialog-item__date-row, .dialog-item__icons, .chat-actions-button, .dialog-item-content')) return true;
+  if (el.querySelector('.dialog-item-content, .dialog-item__date-row, .dialog-item__icons, .chat-actions-button')) return true;
   return /^dialog[-_]item(\s|$)/.test(String(el.className || '').trim());
-}
-
-// Obtiene las filas reales de la bandeja.
-function brObtenerFilas(bandeja) {
-  var out = [];
-  // prueba hijos directos y nietos, usa cualquiera que contenga filas de dialogo
-  try {
-    if (bandeja !== document) {
-      Array.prototype.forEach.call(bandeja.children, function (el) { if (brEsFila(el)) out.push(el); });
-      bandeja.querySelectorAll(':scope > div > div').forEach(function (el) { if (brEsFila(el)) out.push(el); });
-    }
-  } catch (e) {}
-  // fallback: selectores profundos
-  if (!out.length) {
-    BR_SEL.items.forEach(function (it) {
-      bandeja.querySelectorAll(it).forEach(function (n) {
-        if (n.nodeType === 1) out.push(brExpandirFila(bandeja, n));
-      });
-    });
-  }
-  brLog('brObtenerFilas -> ' + out.length + ' filas (hijos directos de la bandeja: ' + bandeja.children.length + ')');
-  if (!out.length && bandeja.children.length) {
-    var primerHijo = bandeja.children[0];
-    brLog('  primer hijo: tag=' + primerHijo.tagName + ' class=' + String(primerHijo.className).slice(0, 60) + ' esFila=' + brEsFila(primerHijo));
-    var nieto0 = primerHijo.children[0];
-    if (nieto0) brLog('  primer nieto: tag=' + nieto0.tagName + ' class=' + String(nieto0.className).slice(0, 60) + ' esFila=' + brEsFila(nieto0));
-  }
-  return out.filter(function (el, i) { return out.indexOf(el) === i; });
 }
 
 // ===== Salto de contactos Pinned/Saved (no reciben mensajes) =====
