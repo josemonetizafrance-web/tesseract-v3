@@ -17,14 +17,32 @@ var brState = {
 
 // ===== SELECTORES TALKYTIMES =====
 var BR_SEL = {
-  bandeja: '#active > div',
-  items: '.dialog-item-content',
+  bandejas: ['#active > div', '#active', '#app [class*="dialogs__scroll-infinite-list"]', '#app [class*="dialogs__list"]', 'main [class*="dialog-item"]'],
+  items: ['.dialog-item-content', '[class*="dialog-item__content"]', '.dialog-item', '[class*="dialog-item"]', '.item-content', '[class*="dialogs__item"]'],
   fecha: '.dialog-item__date-row, [class*="date"]',
   pinned: '.dialog-item__description > .dialog-item__icons, .dialog-item__icons',
   saved: '.chat-actions-button.dialog-item__actions',
   textarea: 'textarea#form-textarea[data-test-id*="type-your-message"], textarea#form-textarea.ui-textarea_control',
   send: '.add-message .send-button-wrapper, .send-button-wrapper'
 };
+
+// Devuelve el primer contenedor candidato que contenga filas de dialogo.
+function brBuscarBandeja() {
+  for (var s = 0; s < BR_SEL.bandejas.length; s++) {
+    var el = document.querySelector(BR_SEL.bandejas[s]);
+    if (!el) { brLog('Bandeja candidata NO encontrada: ' + BR_SEL.bandejas[s]); continue; }
+    var n = BR_SEL.items.reduce(function (acc, it) { return acc + el.querySelectorAll(it).length; }, 0);
+    if (n) {
+      brLog('Bandeja encontrada: ' + BR_SEL.bandejas[s] + ' (' + n + ' filas detectadas)');
+      return el;
+    }
+  }
+  for (var i = 0; i < BR_SEL.items.length; i++) {
+    var many = document.querySelectorAll(BR_SEL.items[i]);
+    if (many.length) { brLog('Sin bandeja concreta; usando fallback global (' + BR_SEL.items[i] + ', ' + many.length + ' filas)'); return document; }
+  }
+  return null;
+}
 
 // Prompt maestro de reenganche (genera 5 mensajes).
 function brPrompt() {
@@ -90,18 +108,28 @@ function brOrdenarAsc(a, b) { return (a.fechaTs || Infinity) - (b.fechaTs || Inf
 
 // ===== Captura de la bandeja Active =====
 function brCapturarActive() {
-  var bandeja = document.querySelector(BR_SEL.bandeja);
+  var bandeja = brBuscarBandeja();
   if (!bandeja) {
-    brLog('No se encontro la bandeja Active (' + BR_SEL.bandeja + ')');
+    brLog('No se encontro ninguna bandeja. Debes estar en el apartado Active de Talkytimes.');
     return [];
   }
-  var filas = bandeja.querySelectorAll(BR_SEL.items);
+  var filas = [];
+  BR_SEL.items.forEach(function (it) {
+    bandeja.querySelectorAll(it).forEach(function (n) {
+      if (n && n.nodeType === 1) filas.push(n);
+    });
+  });
+  // evita duplicados reales (mismo elemento capturado por dos selectores)
+  filas = filas.filter(function (el, idx) { return filas.indexOf(el) === idx; });
   var out = [];
   filas.forEach(function (fila) {
     try {
       var nombre = '';
       var nm = fila.querySelector('[class*="title"], [class*="name"], [class*="dialog-item__title"], [class*="description"]');
       if (nm) nombre = (nm.textContent || '').trim();
+      if (!nombre) {
+        nombre = (fila.textContent || '').split('\n').map(function (s) { return s.trim(); }).filter(Boolean).slice(0, 1).join(' ') || '';
+      }
       var fechaRaw = '';
       var fFecha = fila.querySelector(BR_SEL.fecha);
       if (fFecha) fechaRaw = (fFecha.textContent || '').trim();
