@@ -23,7 +23,8 @@ var BR_SEL = {
   pinned: '.dialog-item__description > .dialog-item__icons, .dialog-item__icons',
   saved: '.chat-actions-button.dialog-item__actions',
   textarea: 'textarea#form-textarea[data-test-id*="type-your-message"], textarea#form-textarea.ui-textarea_control',
-  send: '.add-message .send-button-wrapper, .send-button-wrapper'
+  send: '.add-message .send-button-wrapper, .send-button-wrapper',
+  restriccion: ['.restriction-limits-wrapper .v-popper span > div', '.restriction-limits-wrapper [class*="tooltip"] span > div', '.restriction-limits-wrapper [class*="popper"] span > div', '[class*="restriction-limits"] [class*="tooltip"] span > div']
 };
 
 // Devuelve el primer contenedor candidato que contenga filas de dialogo.
@@ -365,6 +366,24 @@ async function brTraducir(texto) {
   }
 }
 
+// Lee el limite de mensajes disponibles del tooltip de restricciones del cliente.
+// Devuelve null si no aplica, o un numero entre 1 y 5 con el maximo de mensajes a enviar.
+function brLimiteMensajes() {
+  var el = null;
+  for (var i = 0; i < BR_SEL.restriccion.length; i++) {
+    el = document.querySelector(BR_SEL.restriccion[i]);
+    if (el) break;
+  }
+  if (!el) return null;
+  var txt = String(el.textContent || '').trim();
+  var nums = String(txt).match(/\d+/g);
+  brLog('Restriccion detectada: "' + txt + '"');
+  if (!nums || !nums.length) return null;
+  var lim = parseInt(nums[0], 10);
+  if (isNaN(lim)) return null;
+  return Math.max(1, Math.min(5, lim));
+}
+
 // ===== Confirmacion y continuacion de cola =====
 async function brConfirmarEnvio() {
   if (!brState.current) return;
@@ -376,6 +395,12 @@ async function brConfirmarEnvio() {
   for (var i = 0; i < msgs.length; i++) {
     en.push(await brTraducir(msgs[i]));
     if (brState.stop) { brStatus('Barrido detenido.', 'warn'); return; }
+  }
+  var lim = brLimiteMensajes();
+  if (lim != null && lim < en.length) {
+    brLog('Cliente con limite de ' + lim + ' mensajes; se enviaran solo ' + lim + ' de ' + en.length + '.');
+    showTessToast('Límite: solo ' + lim + ' mensajes disponibles', 'warning');
+    en = en.slice(0, lim);
   }
   brLog('Enviando en ingles: ' + JSON.stringify(en));
   var res = await brEnviarSecuencia(c, en);
