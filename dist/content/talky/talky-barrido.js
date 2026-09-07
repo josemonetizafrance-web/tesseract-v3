@@ -124,33 +124,12 @@ function brCapturarActive() {
   return out;
 }
 
-// ===== Bloqueo =====
-async function brBloquear(contacto) {
-  try {
-    var fila = contacto.fila;
-    var btns = fila.querySelectorAll(BR_SEL.block);
-    var clicked = false;
-    btns.forEach(function (b) {
-      if (clicked) return;
-      if (/block|bloquear/i.test((b.getAttribute && (b.getAttribute('data-test-id') || '')) || (b.textContent || ''))) {
-        b.click(); clicked = true;
-      }
-    });
-    if (!clicked && btns.length) { btns[0].click(); clicked = true; }
-    if (clicked) {
-      contacto.bloqueado = true;
-      brState.stats.bloqueados++;
-      brRenderStats();
-      brLog('Bloqueado: ' + (contacto.nombre || '(sin nombre)') + ' [Pinned:' + contacto.esPinned + ' Saved:' + contacto.esSaved + ']');
-      showTessToast('Bloqueado: ' + (contacto.nombre || '(contacto)'), 'info');
-      return true;
-    }
-    brLog('No se encontro boton bloquear para: ' + (contacto.nombre || '(sin nombre)'));
-    return false;
-  } catch (e) {
-    brLogE('brBloquear error:', e.message);
-    return false;
-  }
+// ===== Salto de contactos Pinned/Saved (no reciben mensajes) =====
+function brSaltar(contacto) {
+  contacto.bloqueado = true;
+  brState.stats.bloqueados++;
+  brRenderStats();
+  brLog('Saltado (Pinned/Saved, sin mensajes): ' + (contacto.nombre || '(sin nombre)') + ' [Pinned:' + contacto.esPinned + ' Saved:' + contacto.esSaved + ']');
 }
 
 // ===== Generacion IA de los 5 mensajes =====
@@ -330,7 +309,7 @@ async function brEjecutar() {
       var c = brQueue[i];
       brStatus('Procesando (' + (i + 1) + '/' + brQueue.length + '): ' + (c.nombre || '(sin nombre)') + (c.fechaRaw ? ' [' + c.fechaRaw + ']' : ''), '');
       if (c.esPinned || c.esSaved) {
-        await brBloquear(c);
+        brSaltar(c);
       } else {
         // generar los 5 mensajes y dejar editables para confirmar envio
         brStatus('Generando 5 mensajes para ' + (c.nombre || '(contacto)') + '...', '');
@@ -386,7 +365,7 @@ async function brContinuarCola() {
     var c = brQueue.shift();
     brState.current = c;
     if (c.esPinned || c.esSaved) {
-      await brBloquear(c);
+      brSaltar(c);
       brState.stats.procesados++;
       brRenderStats();
       await brEsperaPausaContactos();
