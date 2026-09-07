@@ -59,7 +59,7 @@ function brPrompt() {
     'REGLAS DE TONO: Seductor, elegante, natural y ligeramente misterioso. Intriga sutil, nunca manipulación. Confianza moderada. Cercano, pero sin exceso de confianza. Lenguaje cotidiano y humano. Evitar frases demasiado románticas o intensas. Mantener "me llamaste la atención, pero todavía estoy descubriendo quién eres". Push and pull MODERADO. Cada mensaje debe conectar con el anterior como si hubiera sido escrito por la misma persona en momentos consecutivos.\n' +
     'RESTRICCIONES: NO mencionar vínculo afectivo. NO asumir relación. NO usar "mi amor", "cariño", "mi vida", "te extraño", "te necesito". NO hablar de encuentros físicos reales. NO mencionar besos, abrazos, contacto físico, citas presenciales o planes para verse. NO referencias a experiencias compartidas que nunca ocurrieron. Plano intangible: conversación, curiosidad, pensamientos, personalidad, palabras e impresiones. NO reclamar "¿por qué no me escribiste?". NO frustración. NO exagerar la importancia de una conversación breve. NO clichés ("conexión real", "sin filtros", "sin máscaras", "sin prisa"). NO repetir estructuras o palabras innecesariamente. Que no parezca automatizado.\n' +
     'LONGITUD: cada mensaje breve, de 15 a 35 palabras.\n' +
-    'RESULTADO: Entrega únicamente los 5 mensajes, cada uno precedido EXACTAMENTE por su identificador en su propia línea de esta forma: [1], [2], [3], [4], [5] seguido del contenido del mensaje. Sin números sueltos, sin títulos, sin explicaciones, sin comentarios antes ni después.';
+    'RESULTADO: Responde ÚNICAMENTE con un bloque JSON válido y NADA más (sin markdown, sin títulos, sin explicaciones, sin comentarios antes ni después), con exactamente esta estructura y en este orden: {"1":"texto del saludo","2":"texto del interrogante","3":"texto del complemento","4":"texto de la intriga","5":"texto del cierre"}. Usa comillas dobles y respeta cada clave del 1 al 5.';
 }
 
 // ===== Utilidades =====
@@ -180,10 +180,27 @@ async function brGenerarMensajes(contacto) {
   var content = json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content;
   if (!content) throw new Error('La IA no devolvio mensajes');
   brLog('IA respondio (preview): ' + String(content).slice(0, 160));
-  var msgs = brParsearMensajes(content);
-  if (!msgs.length) throw new Error('No se pudieron extraer mensajes de la IA');
+  var msgs = brExtraerJsonMensajes(content);
+  if (!msgs) msgs = brParsearMensajes(content);
+  if (!msgs || !msgs.length) throw new Error('No se pudieron extraer mensajes de la IA');
   brLog('Parseados ' + msgs.length + ' mensajes.');
   return msgs;
+}
+
+// Extraer mensajes desde JSON estricto {"1":...,"2":...,...}
+function brExtraerJsonMensajes(content) {
+  try {
+    var m = String(content).match(/\{[\s\S]*\}/);
+    if (!m) return null;
+    var obj = JSON.parse(m[0]);
+    if (!obj || typeof obj !== 'object') return null;
+    var out = [];
+    for (var k = 1; k <= 5; k++) {
+      var v = obj[String(k)];
+      if (typeof v === 'string' && v.trim()) out.push(v.trim());
+    }
+    return out.length ? out : null;
+  } catch (e) { return null; }
 }
 
 // Parseo robusto: acepta [1]-[5] con identificadores, numeros sueltos, bullets, o lineas en blanco.
