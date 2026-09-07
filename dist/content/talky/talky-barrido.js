@@ -168,23 +168,30 @@ function brEsFila(el) {
   return /^dialog[-_]item(\s|$)/.test(String(el.className || '').trim());
 }
 
-// Obtiene las filas reales de la bandeja (estructura scroll list > div > div).
+// Obtiene las filas reales de la bandeja.
 function brObtenerFilas(bandeja) {
   var out = [];
+  // prueba hijos directos y nietos, usa cualquiera que contenga filas de dialogo
   try {
     if (bandeja !== document) {
+      Array.prototype.forEach.call(bandeja.children, function (el) { if (brEsFila(el)) out.push(el); });
       bandeja.querySelectorAll(':scope > div > div').forEach(function (el) { if (brEsFila(el)) out.push(el); });
     }
-  } catch (e) { /* :scope no soportado */ }
-  if (!out.length) {
-    Array.prototype.forEach.call(bandeja.children, function (el) { if (brEsFila(el)) out.push(el); });
-  }
+  } catch (e) {}
+  // fallback: selectores profundos
   if (!out.length) {
     BR_SEL.items.forEach(function (it) {
       bandeja.querySelectorAll(it).forEach(function (n) {
         if (n.nodeType === 1) out.push(brExpandirFila(bandeja, n));
       });
     });
+  }
+  brLog('brObtenerFilas -> ' + out.length + ' filas (hijos directos de la bandeja: ' + bandeja.children.length + ')');
+  if (!out.length && bandeja.children.length) {
+    var primerHijo = bandeja.children[0];
+    brLog('  primer hijo: tag=' + primerHijo.tagName + ' class=' + String(primerHijo.className).slice(0, 60) + ' esFila=' + brEsFila(primerHijo));
+    var nieto0 = primerHijo.children[0];
+    if (nieto0) brLog('  primer nieto: tag=' + nieto0.tagName + ' class=' + String(nieto0.className).slice(0, 60) + ' esFila=' + brEsFila(nieto0));
   }
   return out.filter(function (el, i) { return out.indexOf(el) === i; });
 }
