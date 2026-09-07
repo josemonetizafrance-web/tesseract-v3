@@ -60,6 +60,11 @@ async function initTesseract() {
   } catch (e) {
     console.error('[TESSERACT] ⚠️ initImgGen1 fallo:', e.message);
   }
+  try {
+    if (typeof initBarrido === 'function') await initBarrido();
+  } catch (e) {
+    console.error('[TESSERACT] ⚠️ initBarrido fallo:', e.message);
+  }
 
   // Recargar blacklists despues de init
   if (typeof reloadMLBlacklist === 'function') reloadMLBlacklist();
@@ -300,6 +305,7 @@ function createMainPanel() {
 #tabStar.tab-content{border-left:3px solid #f59e0b !important;}
 #tabMailing.tab-content{border-left:3px solid #8b5cf6 !important;}
 #tabImgGen.tab-content{border-left:3px solid #06b6d4 !important;}
+#tabBarrido.tab-content{border-left:3px solid #8b5cf6 !important;}
 #tabSoporte.tab-content{border-left:3px solid #22c55e !important;}
 </style>
 <div id="tess-mini-icon">🤖</div>
@@ -316,8 +322,12 @@ function createMainPanel() {
   <button class="tab-btn" data-tab="star">⭐ STAR TOOLS</button>
   <button class="tab-btn" data-tab="mailing">📬 MAILING</button>
   <button class="tab-btn" data-tab="imggen">🖼️ IMG GEN</button>
+  <button class="tab-btn" data-tab="barrido">🧹 BARRIDO</button>
   <button class="tab-btn" data-tab="soporte">💬 MENSAJES</button>
 </div>
+
+<!-- PESTAÑA BARRIDO (contenido montado por talky-barrido.js) -->
+<div id="tabBarrido" class="tab-content"></div>
 
 <!-- PESTAÑA IMG GEN (contenido montado por talky-img-gen.js) -->
 <div id="tabImgGen" class="tab-content"></div>
@@ -579,7 +589,7 @@ function setupAllEvents() {
       mainPanel.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       this.classList.add('active');
       currentTab = Tesseract.set('currentTab', clickedTab);
-      const tabMap = { main: 'Main', star: 'Star', mailing: 'Mailing', imggen: 'ImgGen', soporte: 'Soporte' };
+      const tabMap = { main: 'Main', star: 'Star', mailing: 'Mailing', imggen: 'ImgGen', barrido: 'Barrido', soporte: 'Soporte' };
       mainPanel.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
       document.getElementById('tab' + (tabMap[currentTab] || 'Main')).classList.add('active');
       if (currentTab === 'star') renderStarIds();
