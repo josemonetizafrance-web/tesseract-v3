@@ -281,6 +281,11 @@ function brMostrarEdicion(msgs) {
   var box = brEl('brEditBox');
   if (!box) return;
   box.style.display = 'block';
+  var nameEl = brEl('brEditName');
+  if (nameEl) {
+    var c = brState.current;
+    nameEl.textContent = 'PARA: ' + ((c && c.nombre) || '(contacto)');
+  }
   var cont = brEl('brEditMsgs');
   cont.innerHTML = '';
   var labels = ['1 - SALUDO', '2 - INTERROGANTE', '3 - COMPLEMENTO', '4 - INTRIGA', '5 - CIERRE'];
