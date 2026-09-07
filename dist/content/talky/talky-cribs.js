@@ -89,6 +89,7 @@ function cribScrapeViaAPI(profileId) {
   });
 }
 
+if (_cribsStorageAlive()) {
 chrome.runtime.onMessage.addListener((req, sender, res) => {
   if (req.action === 'toggle_eater') { toggleEater(); res({ success: true }); }
   if (req.action === 'TESSERACT_TRACK_ACTION') {
@@ -128,7 +129,9 @@ chrome.runtime.onMessage.addListener((req, sender, res) => {
   }
   return true;
 });
+}
 
+if (_cribsStorageAlive()) {
 chrome.storage.onChanged.addListener(function (changes, namespace) {
   if (namespace !== 'local') return;
   if (changes._tess_pending_scrape && changes._tess_pending_scrape.newValue) {
@@ -152,8 +155,10 @@ chrome.storage.onChanged.addListener(function (changes, namespace) {
     });
   }
 });
+}
 
 (function checkPendingScrapes() {
+  if (!_cribsStorageAlive()) return;
   chrome.storage.local.get('_tess_pending_scrape', function (data) {
     if (data._tess_pending_scrape) {
       var scrape = data._tess_pending_scrape;
