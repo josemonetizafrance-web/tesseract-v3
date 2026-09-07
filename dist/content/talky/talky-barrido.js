@@ -114,14 +114,7 @@ function brCapturarActive() {
     brLog('No se encontro ninguna bandeja. Debes estar en el apartado Active de Talkytimes.');
     return [];
   }
-  var filas = [];
-  BR_SEL.items.forEach(function (it) {
-    bandeja.querySelectorAll(it).forEach(function (n) {
-      if (n && n.nodeType === 1) filas.push(n);
-    });
-  });
-  // evita duplicados reales (mismo elemento capturado por dos selectores)
-  filas = filas.filter(function (el, idx) { return filas.indexOf(el) === idx; });
+  var filas = brObtenerFilas(bandeja);
   var out = [];
   filas.forEach(function (fila) {
     try {
@@ -148,8 +141,52 @@ function brCapturarActive() {
     } catch (e) { brLogE('fila skip:', e.message); }
   });
   out.sort(brOrdenarAsc);
-  brLog('Capturados ' + out.length + ' contactos en Active. Ordenados por fecha ascendente.');
+  brLog('Capturados ' + out.length + ' contactos en Active. Ordenados por fecha ascendente (mas antigua primero).');
+  var pin = out.filter(function (c) { return c.esPinned || c.esSaved; }).length;
+  brLog('De los ' + out.length + ', ' + pin + ' son Pinned/Saved (se saltan).');
+  out.slice(0, 3).forEach(function (c) {
+    brLog('  # ' + (c.nombre || '(sin nombre)') + ' | fecha: ' + (c.fechaRaw || '(sin fecha)') + ' | Pinned:' + c.esPinned + ' Saved:' + c.esSaved);
+  });
   return out;
+}
+
+// Sube desde el item hasta el contenedor que incluye fecha, iconos y acciones.
+function brExpandirFila(bandeja, item) {
+  var el = item;
+  var guard = 0;
+  while (el && el !== bandeja && el !== document.body && guard++ < 6) {
+    if (el.querySelector('.dialog-item__date-row, .dialog-item__icons, .dialog-item__actions, [class*="chat-actions"]')) break;
+    el = el.parentElement;
+  }
+  return el || item;
+}
+
+// Detecta si un elemento parece una fila de dialogo (contiene contenido o marcadores).
+function brEsFila(el) {
+  if (!el || el.nodeType !== 1) return false;
+  if (el.querySelector('.dialog-item__date-row, .dialog-item__icons, .chat-actions-button, .dialog-item-content')) return true;
+  return /^dialog[-_]item(\s|$)/.test(String(el.className || '').trim());
+}
+
+// Obtiene las filas reales de la bandeja (estructura scroll list > div > div).
+function brObtenerFilas(bandeja) {
+  var out = [];
+  try {
+    if (bandeja !== document) {
+      bandeja.querySelectorAll(':scope > div > div').forEach(function (el) { if (brEsFila(el)) out.push(el); });
+    }
+  } catch (e) { /* :scope no soportado */ }
+  if (!out.length) {
+    Array.prototype.forEach.call(bandeja.children, function (el) { if (brEsFila(el)) out.push(el); });
+  }
+  if (!out.length) {
+    BR_SEL.items.forEach(function (it) {
+      bandeja.querySelectorAll(it).forEach(function (n) {
+        if (n.nodeType === 1) out.push(brExpandirFila(bandeja, n));
+      });
+    });
+  }
+  return out.filter(function (el, i) { return out.indexOf(el) === i; });
 }
 
 // ===== Salto de contactos Pinned/Saved (no reciben mensajes) =====
