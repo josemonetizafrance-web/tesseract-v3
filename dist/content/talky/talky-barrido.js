@@ -23,8 +23,7 @@ var BR_SEL = {
   pinned: '.dialog-item__description > .dialog-item__icons, .dialog-item__icons',
   saved: '.chat-actions-button.dialog-item__actions',
   textarea: 'textarea#form-textarea[data-test-id*="type-your-message"], textarea#form-textarea.ui-textarea_control',
-  send: '.add-message .send-button-wrapper, .send-button-wrapper',
-  block: '.dialog-item__actions, [class*="action"] [class*="block"], [data-test-id*="block"]'
+  send: '.add-message .send-button-wrapper, .send-button-wrapper'
 };
 
 // Prompt maestro de reenganche (genera 5 mensajes).
@@ -292,50 +291,7 @@ function brLeerEditados() {
   return out.filter(Boolean).slice(0, 5);
 }
 
-// ===== Motor principal =====
-async function brEjecutar() {
-  brState.running = true;
-  brState.stop = false;
-  brState.paused = false;
-  try {
-    brQueue = brCapturarActive();
-    if (!brQueue.length) { brStatus('No hay contactos en Active para barrer.', 'warn'); brState.running = false; return; }
-    brStatus('Barriendo ' + brQueue.length + ' contactos...', '');
-    for (var i = 0; i < brQueue.length; i++) {
-      if (brState.stop) { brStatus('Barrido detenido.', 'warn'); break; }
-      while (brState.paused && !brState.stop) { await new Promise(function (r) { setTimeout(r, 500); }); }
-      if (brState.stop) break;
-      brState.current = brQueue[i];
-      var c = brQueue[i];
-      brStatus('Procesando (' + (i + 1) + '/' + brQueue.length + '): ' + (c.nombre || '(sin nombre)') + (c.fechaRaw ? ' [' + c.fechaRaw + ']' : ''), '');
-      if (c.esPinned || c.esSaved) {
-        brSaltar(c);
-      } else {
-        // generar los 5 mensajes y dejar editables para confirmar envio
-        brStatus('Generando 5 mensajes para ' + (c.nombre || '(contacto)') + '...', '');
-        try {
-          var msgs = await brGenerarMensajes(c);
-          brMostrarEdicion(msgs);
-          brStatus('5 mensajes generados para ' + (c.nombre || '(contacto)') + '. Revisalos y pulsa CONFIRMAR ENVIAR.', 'ok');
-          showTessToast('Mensajes generados. Revisalos en el panel.', 'success');
-          return; // espera confirmacion del usuario en la UI
-        } catch (e) {
-          brState.stats.errores++;
-          brRenderStats();
-          brStatus('Error generando para ' + (c.nombre || '(contacto)') + ': ' + e.message, 'err');
-          brLogE(e.message);
-        }
-      }
-      brState.stats.procesados++;
-      brRenderStats();
-      if (i < brQueue.length - 1) { await brEsperaPausaContactos(); }
-    }
-    brStatus('Barrido completado. Bloqueados: ' + brState.stats.bloqueados + ' | Mensajes: ' + brState.stats.mensajes, 'ok');
-  } finally {
-    brState.running = false;
-  }
-}
-
+// ===== Confirmacion y continuacion de cola =====
 async function brConfirmarEnvio() {
   if (!brState.current) return;
   var msgs = brLeerEditados();
