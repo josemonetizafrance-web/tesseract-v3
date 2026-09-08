@@ -238,6 +238,25 @@ async function brAbrirChat(c) {
   return true;
 }
 
+// Verifica que el chat abierto corresponde al contacto destino:
+// coincide el data-id de la fila seleccionada y el nombre de esa fila con c.nombre.
+function brVerificarDestino(c) {
+  var filaSel = document.querySelector('.dialog-item[data-isselected="true"]');
+  var v = { ok: false, nombreVisto: '', idOk: false, nombreOk: false };
+  if (filaSel) {
+    var nm = filaSel.querySelector('.dialog-item__name, [class*="dialog-item__title"]');
+    v.nombreVisto = nm ? String(nm.textContent || '').trim().replace(/\s*,\s*\d{1,3}\s*$/, '') : '';
+    v.idOk = !!(filaSel.closest && filaSel.closest('.virtualized-item[data-id="' + c.id + '"]'));
+    v.nombreOk = !!c.nombre && v.nombreVisto.toLowerCase() === String(c.nombre).trim().toLowerCase();
+    v.ok = v.idOk || v.nombreOk;
+  } else {
+    // sin fila marcada como seleccionada: verificar solo que exista la fila con el id
+    v.idOk = !!document.querySelector('.virtualized-item[data-id="' + c.id + '"]');
+    v.ok = v.idOk;
+  }
+  return v;
+}
+
 // Obtiene las filas reales de la bandeja.
 // Estructura real: ... > .dialogs__scroll-infinite-list > div > div > div > div > .virtualizer > div > div (cada uno es una fila).
 function brObtenerFilas(bandeja) {
@@ -554,6 +573,21 @@ async function brConfirmarEnvio() {
       await brContinuarCola();
       return;
     }
+    var v = brVerificarDestino(c);
+    if (!v.ok && !brState.stop) {
+      brLog('Destino NO concuerda (manual): esperado ' + (c.nombre || c.id) + ', vista "' + v.nombreVisto + '". Reintento.');
+      await brAbrirChat(c);
+      v = brVerificarDestino(c);
+    }
+    if (!v.ok && !brState.stop) {
+      brState.stats.errores++;
+      brRenderStats();
+      brStatus('🛡 Se omite ' + (c.nombre || '(contacto)') + ': no concuerda el destino.', 'err');
+      await brEsperaPausaContactos();
+      await brContinuarCola();
+      return;
+    }
+    brLog('Destino verificado (manual): ' + (c.nombre || c.id) + ' (fila: "' + v.nombreVisto + '")');
     var res = await brEnviarSecuencia(c, en);
     brState.stats.procesados++;
     brRenderStats();
@@ -593,6 +627,22 @@ async function brProcesarContacto(c, msgs) {
     brStatus('No se pudo reabrir el chat de ' + (c.nombre || '(contacto)') + '; se omite.', 'err');
     return 'error';
   }
+  // VERIFICACION DE DESTINO: el mensaje debe concordar con el contacto (nombre + fila seleccionada)
+  var v = brVerificarDestino(c);
+  if (!v.ok && !brState.stop) {
+    brStatus('Destino no concuerda para ' + (c.nombre || '(contacto)') + '; reintentando...', 'warn');
+    brLog('Destino NO concuerda: esperado ' + (c.nombre || c.id) + ', vista fila "' + v.nombreVisto + '" (idOk:' + v.idOk + '). Reintento.');
+    await brAbrirChat(c);
+    v = brVerificarDestino(c);
+  }
+  if (!v.ok && !brState.stop) {
+    brState.stats.errores++;
+    brRenderStats();
+    brStatus('🛡 Se omite ' + (c.nombre || '(contacto)') + ': el chat abierto no concuerda (visto "' + v.nombreVisto + '").', 'err');
+    brLog('OMITIDO por destino no concordante: esperado ' + (c.nombre || c.id) + ' | visto "' + v.nombreVisto + '" | idOk:' + v.idOk);
+    return 'error';
+  }
+  brLog('Destino verificado: ' + (c.nombre || c.id) + ' (fila: "' + v.nombreVisto + '", idOk:' + v.idOk + ')');
   var res = await brEnviarSecuencia(c, en);
   brState.stats.procesados++;
   brRenderStats();
