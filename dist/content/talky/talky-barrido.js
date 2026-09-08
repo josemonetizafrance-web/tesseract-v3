@@ -27,6 +27,12 @@ var BR_SEL = {
   textarea: 'textarea#form-textarea[data-test-id*="type-your-message"], textarea#form-textarea.ui-textarea_control',
   send: '.add-message .send-button-wrapper, .send-button-wrapper',
   restriccion: ['.restriction-limits-wrapper .v-popper span > div', '.restriction-limits-wrapper [class*="tooltip"] span > div', '.restriction-limits-wrapper [class*="popper"] span > div', '[class*="restriction-limits"] [class*="tooltip"] span > div'],
+  contadorLimite: [
+    '#app .main-app-content .chat-header .user-info .chat-header__info .QkyaZZPx > div:nth-child(2) > div > div:nth-child(1) > span > div',
+    '.chat-header .chat-header__info [class="QkyaZZPx"] > div:nth-child(2) > div > div:nth-child(1) > span > div',
+    '.chat-header [class*="chat-header__info"] [class*="QkyaZZPx"] > div:nth-child(2) > div > div:nth-child(1) > span > div',
+    '.chat-header [class*="chat-header__info"] [class*="QkyaZZPx"] span > div'
+  ],
   ultimo: '.dialog-item__description .last-message-text, .last-message-text, [class*="last-message"] [class*="text"]'
 };
 
@@ -645,22 +651,36 @@ async function brTraducir(texto) {
   }
 }
 
-// Lee el limite de mensajes disponibles del tooltip de restricciones del cliente.
-// Devuelve null si no aplica, o un numero entre 1 y 5 con el maximo de mensajes a enviar.
+// Lee el limite de mensajes disponibles del chat abierto.
+// Fuente preferida: el contador del header del chat (chat-header .QkyaZZPx ... span > div).
+// Fallback: el tooltip de restricciones del cliente.
+// Devuelve null si no aplica, o un numero entre 1 y 5 = mensajes maximos a enviar
+// (limite 1 -> 1 mensaje, 2 -> 2, ... 5 -> 5).
 function brLimiteMensajes() {
-  var el = null;
-  for (var i = 0; i < BR_SEL.restriccion.length; i++) {
-    el = document.querySelector(BR_SEL.restriccion[i]);
+  for (var i = 0; i < BR_SEL.contadorLimite.length; i++) {
+    var el = document.querySelector(BR_SEL.contadorLimite[i]);
+    if (!el) continue;
+    var txt = String(el.textContent || '').trim();
+    var nums = String(txt).match(/\d+/g);
+    if (!nums || !nums.length) continue;
+    var lim = parseInt(nums[0], 10);
+    if (isNaN(lim) || lim < 1) continue;
+    brLog('Contador de limite del cliente: "' + txt + '" -> ' + Math.max(1, Math.min(5, lim)) + ' mensaje(s)');
+    return Math.max(1, Math.min(5, lim));
+  }
+  // fallback: tooltip de restriccion
+  for (var j = 0; j < BR_SEL.restriccion.length; j++) {
+    el = document.querySelector(BR_SEL.restriccion[j]);
     if (el) break;
   }
   if (!el) return null;
-  var txt = String(el.textContent || '').trim();
-  var nums = String(txt).match(/\d+/g);
-  brLog('Restriccion detectada: "' + txt + '"');
-  if (!nums || !nums.length) return null;
-  var lim = parseInt(nums[0], 10);
-  if (isNaN(lim)) return null;
-  return Math.max(1, Math.min(5, lim));
+  var txt2 = String(el.textContent || '').trim();
+  var nums2 = String(txt2).match(/\d+/g);
+  brLog('Restriccion detectada: "' + txt2 + '"');
+  if (!nums2 || !nums2.length) return null;
+  var lim2 = parseInt(nums2[0], 10);
+  if (isNaN(lim2)) return null;
+  return Math.max(1, Math.min(5, lim2));
 }
 
 // ===== Confirmacion y continuacion de cola =====
