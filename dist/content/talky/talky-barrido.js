@@ -282,10 +282,20 @@ async function brCapturarActive() {
   return out;
 }
 
-// Relocaliza una fila por data-id scrolleando desde arriba (robusto ante reordenamiento)
-async function brLocalizarId(id) {
+// Relocaliza una fila por data-id. Si aproxTop viene (posicion capturada de la
+// fila en el virtualizer), salta directo a esa zona en lugar de bajar desde arriba.
+async function brLocalizarId(id, aproxTop) {
   var sc = brScrollEl();
-  if (sc) { try { sc.scrollTop = 0; } catch (e) { } }
+  if (sc) {
+    try {
+      if (aproxTop) {
+        var maxT = sc.scrollHeight - sc.clientHeight;
+        sc.scrollTop = Math.max(0, Math.min(aproxTop - (sc.clientHeight / 2), maxT));
+      } else {
+        sc.scrollTop = 0;
+      }
+    } catch (e) { }
+  }
   var guard = 0;
   while (!brState.stop && guard++ < 400) {
     var node = document.querySelector('.virtualized-item[data-id="' + id + '"]');
@@ -294,14 +304,14 @@ async function brLocalizarId(id) {
     var bottom = sc.scrollHeight - sc.clientHeight;
     if (bottom > 0 && sc.scrollTop >= bottom - 4) return null;
     sc.scrollTop = Math.min(bottom, sc.scrollTop + Math.max(600, sc.clientHeight * 0.9));
-    await brSleep(450);
+    await brSleep(220);
   }
   return null;
 }
 
 // Abre el chat de un contacto haciendo click en su fila (relocalizada por data-id)
 async function brAbrirChat(c) {
-  var node = await brLocalizarId(c.id);
+  var node = await brLocalizarId(c.id, c.top);
   if (!node) { brLogE('No se pudo relocalizar la fila de ' + (c.nombre || c.id)); return false; }
   var content = node.querySelector('.dialog-item-content');
   if (!content) { brLogE('Fila sin .dialog-item-content para ' + (c.nombre || c.id)); return false; }
