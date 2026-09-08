@@ -25,7 +25,8 @@ var BR_SEL = {
   nombre: '.dialog-item__name, [class*="dialog-item__title"], [class*="dialog-item"] [class*="name"]',
   textarea: 'textarea#form-textarea[data-test-id*="type-your-message"], textarea#form-textarea.ui-textarea_control',
   send: '.add-message .send-button-wrapper, .send-button-wrapper',
-  restriccion: ['.restriction-limits-wrapper .v-popper span > div', '.restriction-limits-wrapper [class*="tooltip"] span > div', '.restriction-limits-wrapper [class*="popper"] span > div', '[class*="restriction-limits"] [class*="tooltip"] span > div']
+  restriccion: ['.restriction-limits-wrapper .v-popper span > div', '.restriction-limits-wrapper [class*="tooltip"] span > div', '.restriction-limits-wrapper [class*="popper"] span > div', '[class*="restriction-limits"] [class*="tooltip"] span > div'],
+  ultimo: '.dialog-item__description .last-message-text, .last-message-text, [class*="last-message"] [class*="text"]'
 };
 
 // Devuelve el primer contenedor candidato que contenga filas de dialogo.
@@ -49,18 +50,19 @@ function brBuscarBandeja() {
 // Prompt maestro de reenganche (genera 5 mensajes).
 function brPrompt() {
   return 'Actúa como un especialista en comunicación interpersonal y redacción de mensajes de reenganche para conversaciones incipientes.\n' +
-    'Tu tarea es generar una SECUENCIA DE 5 MENSAJES consecutivos dirigidos a una persona con quien solamente se han intercambiado uno o dos mensajes previamente y después no hubo continuidad.\n' +
-    'OBJETIVO: Despertar curiosidad y motivar una respuesta sin reclamar la falta de comunicación, sin parecer necesitado y sin asumir que existe una relación, vínculo afectivo o confianza que todavía no se ha construido.\n' +
-    'ESTRUCTURA OBLIGATORIA DE LOS 5 MENSAJES:\n' +
-    'MENSAJE 1 — SALUDO: Comenzar de manera natural y cordial. Puede incluir una pregunta sencilla sobre cómo está o cómo comenzó su día. No mencionar todavía la conversación anterior de forma evidente. Debe sentirse espontáneo, no como un mensaje preparado.\n' +
-    'MENSAJE 2 — INTERROGANTE: Continuar naturalmente desde el saludo anterior. Introducir una pregunta que permita conocer algo más de la persona. La pregunta debe despertar curiosidad, pero sin ser demasiado personal. Evitar interrogatorios o preguntas genéricas demasiado obvias.\n' +
-    'MENSAJE 3 — COMPLEMENTO: Hacer referencia indirecta a la pequeña conversación que tuvieron. Destacar sutilmente alguna impresión positiva sobre su manera de expresarse, pensar o conversar. El complemento debe ser elegante y moderado. No utilizar halagos físicos ni exagerados.\n' +
-    'MENSAJE 4 — SEMBRAR INTRIGA: Hacer notar indirectamente que la conversación quedó corta o incompleta. Nunca reclamar que la persona dejó de escribir. Utilizar una sensación de curiosidad: "me quedé pensando", "me llamó la atención", "sentí que apenas...", etc. Crear la sensación de que todavía hay algo por descubrir.\n' +
-    'MENSAJE 5 — CIERRE (PUSH & PULL MODERADO): Mostrar interés y, al mismo tiempo, conservar cierta distancia o incertidumbre. No sonar necesitado, insistente ni ansioso. Cerrar dejando abierta la posibilidad de continuar hablando. Terminar preferiblemente con una pregunta suave o una invitación indirecta a continuar. El cierre debe sentirse natural, no como una petición directa de respuesta.\n' +
-    'REGLAS DE TONO: Seductor, elegante, natural y ligeramente misterioso. Intriga sutil, nunca manipulación. Confianza moderada. Cercano, pero sin exceso de confianza. Lenguaje cotidiano y humano. Evitar frases demasiado románticas o intensas. Mantener "me llamaste la atención, pero todavía estoy descubriendo quién eres". Push and pull MODERADO. Cada mensaje debe conectar con el anterior como si hubiera sido escrito por la misma persona en momentos consecutivos.\n' +
-    'RESTRICCIONES: NO mencionar vínculo afectivo. NO asumir relación. NO usar "mi amor", "cariño", "mi vida", "te extraño", "te necesito". NO hablar de encuentros físicos reales. NO mencionar besos, abrazos, contacto físico, citas presenciales o planes para verse. NO referencias a experiencias compartidas que nunca ocurrieron. Plano intangible: conversación, curiosidad, pensamientos, personalidad, palabras e impresiones. NO reclamar "¿por qué no me escribiste?". NO frustración. NO exagerar la importancia de una conversación breve. NO clichés ("conexión real", "sin filtros", "sin máscaras", "sin prisa"). NO repetir estructuras o palabras innecesariamente. Que no parezca automatizado.\n' +
-    'LONGITUD: cada mensaje breve, de 15 a 35 palabras.\n' +
-    'RESULTADO: Responde ÚNICAMENTE con un bloque JSON válido y NADA más (sin markdown, sin títulos, sin explicaciones, sin comentarios antes ni después), con exactamente esta estructura y en este orden: {"1":"texto del saludo","2":"texto del interrogante","3":"texto del complemento","4":"texto de la intriga","5":"texto del cierre"}. Usa comillas dobles y respeta cada clave del 1 al 5.';
+    'Tu tarea es generar una SECUENCIA DE 5 MENSAJES consecutivos para intentar RECUPERAR UNA INTERACCIÓN que quedó a medias: solo hubo uno o dos mensajes previos y luego el chat nunca continuó.\n' +
+    'OBJETIVO: retomar el hilo de forma natural y concreta: reconocer con ligereza que la conversación quedó corta, mostrar curiosidad genuina por seguir hablando y dar pie a que respondan, sin presión, sin reclamo y sin culpa.\n' +
+    'ESTRUCTURA OBLIGATORIA:\n' +
+    'MENSAJE 1 — SALUDO: vuelta a saludar creíble y con un pequeño gancho propio de una persona real retomando un hilo cortado; puede retomar el tema del que iban o mencionar con humor que quedó pendiente. Nada de "hola, ¿cómo has estado?" de plantilla.\n' +
+    'MENSAJE 2 — INTERROGANTE: una pregunta abierta y concreta que invite a retomar, anclada (si existe) en el último tema del chat. Sin interrogatorio, sin preguntas de relleno.\n' +
+    'MENSAJE 3 — COMPLEMENTO: una impresión breve y honesta que justifique el retomar: algo específico de lo poco que se dijo o de cómo se expresa la persona. Sin halagos físicos, sin idealizar.\n' +
+    'MENSAJE 4 — RESCATE DEL HILO: reconocer con naturalidad que la conversación se quedó a medias y que quedó con ganas de saber más. Sin drama, sin culparte de nada, sin preguntar por qué no siguieron escribiendo.\n' +
+    'MENSAJE 5 — CIERRE: dejar la puerta abierta de forma despreocupada; puede terminar con una pregunta suave o una invitación casual. Sin urgencia, sin necesidad, sin exigir respuesta.\n' +
+    'REGLAS DE TONO: natural, cálido, humano, relajado; concreción antes que halago; humor sutil si encaja. Esto no es un ligue con tensión artificial: es un cruce de palabras interesante que se interrumpió y vale la pena retomar. Cada mensaje debe conectar con el anterior como escritos por la misma persona en momentos seguidos, y no deben sonar a plantilla.\n' +
+    'RESTRICCIONES: NO personalizar inventando datos de la persona (no repetir su nombre, ni inventar profesión, hobbies, familia, ciudad, planes ni experiencias compartidas). NO frases gastadas ("¿cómo has estado?", "vi que estabas...", "un café virtual", "hace mucho"). NO romantizar ni idealizar ("no sabes cuánto pensé en ti", "no por esto pero..."). NO disculparse por escribir. NO preguntar por qué dejaron de responder. NO referencias a vínculo afectivo ni a encuentros físicos. NO clichés ("conexión", "energía", "vibras", "sin filtros", "sin máscaras"). Que NO parezca automatizado ni reciclado.\n' +
+    'CONTEXTO DEL CHAT: si en el input del usuario hay un fragmento del último mensaje de la conversación, ÚSALO como ancla temática para retomar el hilo de forma creíble, sin citarlo textualmente y sin inventar nada sobre la persona.\n' +
+    'LONGITUD: cada mensaje breve, de 15 a 30 palabras.\n' +
+    'RESULTADO: Responde ÚNICAMENTE con un bloque JSON válido y NADA más (sin markdown, sin títulos, sin explicaciones, sin comentarios antes ni después), con exactamente esta estructura y en este orden: {"1":"texto del saludo","2":"texto del interrogante","3":"texto del complemento","4":"texto del rescate del hilo","5":"texto del cierre"}. Usa comillas dobles y respeta cada clave del 1 al 5.';
 }
 
 // ===== Utilidades =====
@@ -114,7 +116,7 @@ function brSleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); 
 
 // Extrae datos utiles de una fila renderizada (.virtua-item)
 function brInfoFila(fila) {
-  var info = { id: '', nombre: '', fechaRaw: '', esPinned: false, esSaved: false, top: 0 };
+  var info = { id: '', nombre: '', fechaRaw: '', ultimo: '', esPinned: false, esSaved: false, top: 0 };
   try {
     var vi = fila.querySelector('.virtualized-item[data-id], [data-id]');
     if (vi) info.id = vi.getAttribute('data-id') || '';
@@ -138,6 +140,8 @@ function brInfoFila(fila) {
     if (fFecha) info.fechaRaw = (fFecha.textContent || '').trim();
     info.esPinned = !!fila.querySelector(BR_SEL.pinned);
     info.esSaved = !!fila.querySelector(BR_SEL.saved);
+    var fUlt = fila.querySelector(BR_SEL.ultimo);
+    if (fUlt) info.ultimo = (fUlt.textContent || '').trim();
   } catch (e) { /* info parcial */ }
   return info;
 }
@@ -179,6 +183,7 @@ async function brCapturarActive() {
         id: info.id,
         nombre: info.nombre,
         fechaRaw: info.fechaRaw,
+        ultimo: info.ultimo,
         fechaTs: brParseFecha(info.fechaRaw),
         esPinned: info.esPinned,
         esSaved: info.esSaved,
@@ -280,7 +285,8 @@ async function brGenerarMensajes(contacto) {
   var token;
   try { token = await tessStorageGet('tess_jwt'); } catch (e) { token = null; }
   if (!token) throw new Error('No hay sesion activa');
-  var contexto = 'Genera la secuencia de reenganche para esta persona. Contexto: ' + (contacto.nombre || 'sin nombre identificado') + '. Conversacion incipiente (uno o dos mensajes) que se corto.';
+  var contexto = 'Genera la secuencia de reenganche para recuperar una interacción que quedó a medias. Nombre visible en el chat: ' + (contacto.nombre || 'sin nombre identificado') + '.' +
+    ((contacto.ultimo && contacto.ultimo.trim()) ? ' Último mensaje de la conversación (úsalo como ancla temática para retomar el hilo, sin citarlo textualmente): "' + contacto.ultimo.trim() + '".' : ' Conversación incipiente de uno o dos mensajes que se cortó; no hay fragmento disponible, retoma con naturalidad.');
   var resp = await fetch(BR_API + '/api/chatgpt/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
