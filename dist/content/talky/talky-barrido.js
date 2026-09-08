@@ -54,13 +54,13 @@ function brPrompt() {
     'Tu tarea es generar una SECUENCIA DE 5 MENSAJES consecutivos escritos por UNA PERSONA REAL que habló brevemente con alguien, la conversación se cortó, y esa persona se quedó con la duda de por qué no se volvieron a hablar y con ganas de retomar las cosas para ver a dónde llegan.\n' +
     'OBJETIVO: que suene EXACTAMENTE como un mensaje que escribiría esa persona horas o días después del corte: humano, natural, sin pensarle demasiado a las palabras. El eje es la ligera curiosidad de por qué no hubo continuación y el interés genuino por retomar, sin mendigar respuesta ni parecer necesitado.\n' +
     'ESTRUCTURA OBLIGATORIA (debe LEERSE natural, no como plantilla):\n' +
-    'MENSAJE 1 — SALUDO: retomar la palabra de forma casual y creíble, como quien vuelve a escribir sin ceremonia. Nada de "hola, ¿cómo estás?" genérico.\n' +
+    'MENSAJE 1 — SALUDO: retomar la palabra de forma casual y creíble, como quien vuelve a escribir sin ceremonia. Nada de "hola, ¿cómo estás?", "¿qué tal todo?" ni "¿qué cuentas?" genéricos.\n' +
     'MENSAJE 2 — INTERROGANTE: una pregunta abierta y ligera que invite a retomar el diálogo en general, sobre la persona, no sobre un tema concreto. Sin relleno ni interrogatorio.\n' +
     'MENSAJE 3 — COMPLEMENTO: una impresión breve, general y honesta de lo poco que se habló o de cómo conversa la otra persona; algo que justifique el interés por retomar. Sin halagos físicos, sin idealizar.\n' +
     'MENSAJE 4 — RESCATE DEL HILO: dejar caer con naturalidad y ligereza que se quedó con la duda de por qué no siguieron hablando y con ganas de retomar. Como "se quedó todo a medias", "me quedé con la duda de por qué no seguimos", "me dio curiosidad retomar la charla". Sin drama, sin culpa, sin pregunta directa del tipo "¿por qué no me escribiste?".\n' +
-    'MENSAJE 5 — CIERRE: abrir la puerta de forma despreocupada y genuina a retomar y ver a dónde llega el asunto. Que deje claro que sí quiere saber, pero sin urgencia ni necesidad de respuesta.\n' +
+    'MENSAJE 5 — CIERRE: abrir la puerta de forma despreocupada y genuina a retomar y ver a dónde llega el asunto. Sin esperar respuesta: nada de "si quieres aquí sigo", "aquí estoy", "we are still here", "te espero", "la pelota está en tu cancha" con tono de mendigar. Debe sonar a alguien seguro que seguirá con su vida igualmente ("a ver si retomamos eso un día", "yo me quedo con la curiosidad", "cuando quieras lo seguimos" con naturalidad).\n' +
     'REGLAS DE TONO: lengua real de un chat entre dos personas que se están conociendo: natural, humana, cálida, relajada, con salidas espontáneas y humor sutil si encaja. Nada de frases pulidas, nada de guion de ventas. Cada mensaje debe conectar con el anterior como escrito por la misma persona en momentos seguidos.\n' +
-    'RESTRICCIONES: NO mencionar ningún tema concreto del chat ni hacer referencia específica a lo que se escribió (el último mensaje visible suele ser del propio emisor, no del cliente; no lo uses como ancla). NO personalizar inventando datos de la persona (no repetir su nombre, ni inventar profesión, hobbies, familia, ciudad, planes ni experiencias). NO frases gastadas ("¿cómo has estado?", "vi que estabas...", "un café virtual", "hace mucho"). NO romantizar ni idealizar. NO mendigar: nada de disculpas por escribir, "solo a ti te escribo", "espero que me respondas", "eres de las pocas personas...". NO preguntar directamente por qué no respondieron. NO referencias a vínculo afectivo ni encuentros físicos. NO clichés ("conexión", "energía", "vibras", "sin filtros"). Que NO parezca automatizado ni reciclado.\n' +
+    'RESTRICCIONES: NO mencionar ningún tema concreto del chat ni hacer referencia específica a lo que se escribió (el último mensaje visible suele ser del propio emisor, no del cliente; no lo uses como ancla). NO personalizar inventando datos de la persona (no repetir su nombre, ni inventar profesión, hobbies, familia, ciudad, planes ni experiencias). NO abrir con genéricos: prohibidos "¿que tal todo?", "¿qué cuentas?", "¿cómo estás?", "sigues por ahí?". NO frases gastadas ("vi que estabas...", "un café virtual", "hace mucho"). NO romantizar ni idealizar. NO mendigar: prohibido ceder la pelota con tono de espera ("aquí sigo", "si quieres aquí estoy", "te espero", "we are still here", "la pelota está en tu cancha"), no disculparse por escribir, no "solo a ti te escribo". NO preguntar directamente por qué no respondieron. NO referencias a vínculo afectivo ni encuentros físicos. NO clichés ("conexión", "energía", "vibras", "buena vibra", "sin filtros"). Que NO parezca automatizado ni reciclado.\n' +
     'LONGITUD: cada mensaje breve, de 15 a 30 palabras.\n' +
     'RESULTADO: Responde ÚNICAMENTE con un bloque JSON válido y NADA más (sin markdown, sin títulos, sin explicaciones, sin comentarios antes ni después), con exactamente esta estructura y en este orden: {"1":"texto del saludo","2":"texto del interrogante","3":"texto del complemento","4":"texto del rescate del hilo","5":"texto del cierre"}. Usa comillas dobles y respeta cada clave del 1 al 5.';
 }
@@ -271,6 +271,19 @@ function brVerificarDestino(c) {
     // sin fila marcada como seleccionada: verificar solo que exista la fila con el id
     v.idOk = !!document.querySelector('.virtualized-item[data-id="' + c.id + '"]');
     v.ok = v.idOk;
+  }
+  return v;
+}
+
+// Espera (con polling corto) a que el chat recien abierto quede verificable:
+// la fila seleccionada y/o el data-id aparecen un instante despues de clickear.
+async function brEsperarDestino(c, pasos) {
+  pasos = pasos || 5;
+  var v = brVerificarDestino(c);
+  var i = 0;
+  while (!v.ok && !brState.stop && i++ < pasos) {
+    await brSleep(400);
+    v = brVerificarDestino(c);
   }
   return v;
 }
@@ -592,11 +605,11 @@ async function brConfirmarEnvio() {
       await brContinuarCola();
       return;
     }
-    var v = brVerificarDestino(c);
+    var v = await brEsperarDestino(c);
     if (!v.ok && !brState.stop) {
       brLog('Destino NO concuerda (manual): esperado ' + (c.nombre || c.id) + ', vista "' + v.nombreVisto + '". Reintento.');
       await brAbrirChat(c);
-      v = brVerificarDestino(c);
+      v = await brEsperarDestino(c);
     }
     if (!v.ok && !brState.stop) {
       brState.stats.errores++;
@@ -647,12 +660,12 @@ async function brProcesarContacto(c, msgs) {
     return 'error';
   }
   // VERIFICACION DE DESTINO: el mensaje debe concordar con el contacto (nombre + fila seleccionada)
-  var v = brVerificarDestino(c);
+  var v = await brEsperarDestino(c);
   if (!v.ok && !brState.stop) {
-    brStatus('Destino no concuerda para ' + (c.nombre || '(contacto)') + '; reintentando...', 'warn');
+    brStatus('Destino no concuerda para ' + (c.nombre || '(contacto)') + '; reabriendo y reintentando...', 'warn');
     brLog('Destino NO concuerda: esperado ' + (c.nombre || c.id) + ', vista fila "' + v.nombreVisto + '" (idOk:' + v.idOk + '). Reintento.');
     await brAbrirChat(c);
-    v = brVerificarDestino(c);
+    v = await brEsperarDestino(c);
   }
   if (!v.ok && !brState.stop) {
     brState.stats.errores++;
