@@ -90,6 +90,13 @@ function brParseFecha(raw) {
   // "Apr 14" -> Date. Año: se asume el del mensaje actual (podia ser de este anio).
   if (!raw) return Infinity;
   var txt = String(raw).trim();
+  // Etiquetas relativas de Talkytimes
+  if (/^hoy/i.test(txt) || /^today/i.test(txt)) {
+    var h = new Date(); h.setHours(0, 0, 0, 0); return h.getTime();
+  }
+  if (/^ayer/i.test(txt) || /^yesterday/i.test(txt)) {
+    var y = new Date(); y.setDate(y.getDate() - 1); y.setHours(0, 0, 0, 0); return y.getTime();
+  }
   var m = txt.match(/([A-Za-z]{3,})\s+(\d{1,2})(?:\s*,?\s*(\d{2,4}))?/);
   if (!m) {
     // unix ms
@@ -106,6 +113,16 @@ function brParseFecha(raw) {
   // si el mes esta 'futuro' respecto a hoy en mismo anio, asumir anio anterior
   if (!m[3] && d > today) d = new Date(year - 1, mo, parseInt(m[2], 10));
   return d.getTime();
+}
+
+// Orden de procesamiento: sigue el orden REAL de la lista infinita.
+// Cada .virtua-item tiene posicion absoluta; el contacto mas antiguo esta al final
+// (mayor top). Abajo -> arriba, sin depender del formato de la fecha.
+function brOrdenarBarrido(a, b) {
+  var ta = Number.isFinite(a.top) ? a.top : 0;
+  var tb = Number.isFinite(b.top) ? b.top : 0;
+  if (ta !== tb) return tb - ta; // primero el de mayor top (mas abajo / mas antiguo)
+  return (a.fechaTs || Infinity) - (b.fechaTs || Infinity);
 }
 
 function brOrdenarAsc(a, b) { return (a.fechaTs || Infinity) - (b.fechaTs || Infinity); }
@@ -188,6 +205,7 @@ async function brCapturarActive() {
         fechaTs: brParseFecha(info.fechaRaw),
         esPinned: info.esPinned,
         esSaved: info.esSaved,
+        top: info.top,
         bloqueado: false
       });
     });
@@ -198,13 +216,14 @@ async function brCapturarActive() {
     if (sc.scrollTop >= before) break; // no avanzo hacia arriba
     await brSleep(450);
   }
-  out.sort(brOrdenarAsc);
-  brLog('Capturados ' + out.length + ' contactos en Active (scroll completo, de abajo hacia arriba). Ordenados por fecha ascendente (mas antiguo primero).');
+  out.sort(brOrdenarBarrido);
+  brLog('Capturados ' + out.length + ' contactos en Active (scroll completo, de abajo hacia arriba). Cola inicia en el ultimo contacto del infinite list (el de abajo / mas antiguo).');
   var pin = out.filter(function (c) { return c.esPinned || c.esSaved; }).length;
   brLog('De los ' + out.length + ', ' + pin + ' son Pinned/Saved (se saltan).');
   out.slice(0, 3).forEach(function (c) {
-    brLog('  # ' + (c.nombre || '(sin nombre)') + ' | fecha: ' + (c.fechaRaw || '(sin fecha)') + ' | Pinned:' + c.esPinned + ' Saved:' + c.esSaved);
+    brLog('  # ' + (c.nombre || '(sin nombre)') + ' | fecha: ' + (c.fechaRaw || '(sin fecha)') + ' | top:' + c.top + ' | Pinned:' + c.esPinned + ' Saved:' + c.esSaved);
   });
+  brLog('  ... ultimo de la cola (el mas reciente / arriba): ' + (out[out.length - 1] && out[out.length - 1].nombre));
   if (!out.length) brLog('No se capturo ningun contacto. Revisa que la lista Active este visible y el contenedor .scroll de la lista virtualizada.');
   return out;
 }
