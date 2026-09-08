@@ -10,6 +10,7 @@ var brState = {
   running: false,
   paused: false,
   stop: false,
+  manual: false,
   queue: [],
   current: null,
   stats: { procesados: 0, bloqueados: 0, mensajes: 0, errores: 0 }
@@ -168,7 +169,8 @@ async function brCapturarActive() {
     return [];
   }
   var sc = brScrollEl();
-  if (sc) { try { sc.scrollTop = 0; } catch (e) { } } // empezar desde arriba de la lista
+  if (sc) { try { sc.scrollTop = sc.scrollHeight; } catch (e) { } } // ir al final: contacto mas antiguo abajo
+  await brSleep(600);
   var visto = {};
   var out = [];
   var pasos = 0, MAX = 600;
@@ -191,16 +193,14 @@ async function brCapturarActive() {
       });
     });
     if (!sc) break;
-    var bottom = sc.scrollHeight - sc.clientHeight;
-    if (bottom > 0 && sc.scrollTop >= bottom - 4) break;
+    if (sc.scrollTop <= 0) break; // llegamos arriba
     var before = sc.scrollTop;
-    sc.scrollTop = Math.min(bottom, sc.scrollTop + Math.max(600, sc.clientHeight * 0.9));
-    if (sc.scrollTop <= before) break;
+    sc.scrollTop = Math.max(0, sc.scrollTop - Math.max(600, sc.clientHeight * 0.9));
+    if (sc.scrollTop >= before) break; // no avanzo hacia arriba
     await brSleep(450);
   }
-  if (sc) { try { sc.scrollTop = 0; } catch (e) { } } // dejar la lista arriba para el usuario
   out.sort(brOrdenarAsc);
-  brLog('Capturados ' + out.length + ' contactos en Active (scroll completo). Ordenados por fecha ascendente (mas antigua primero).');
+  brLog('Capturados ' + out.length + ' contactos en Active (scroll completo, de abajo hacia arriba). Ordenados por fecha ascendente (mas antiguo primero).');
   var pin = out.filter(function (c) { return c.esPinned || c.esSaved; }).length;
   brLog('De los ' + out.length + ', ' + pin + ' son Pinned/Saved (se saltan).');
   out.slice(0, 3).forEach(function (c) {
@@ -455,7 +455,7 @@ function brMostrarEdicion(msgs) {
   }
   var cont = brEl('brEditMsgs');
   cont.innerHTML = '';
-  var labels = ['1 - SALUDO', '2 - INTERROGANTE', '3 - COMPLEMENTO', '4 - INTRIGA', '5 - CIERRE'];
+  var labels = ['1 - SALUDO', '2 - INTERROGANTE', '3 - COMPLEMENTO', '4 - RESCATE DEL HILO', '5 - CIERRE'];
   msgs.forEach(function (txt, i) {
     var wrap = document.createElement('div');
     wrap.style.cssText = 'margin-bottom:6px;';
@@ -524,15 +524,60 @@ function brLimiteMensajes() {
 
 // ===== Confirmacion y continuacion de cola =====
 async function brConfirmarEnvio() {
-  if (!brState.current) return;
-  var msgs = brLeerEditados();
-  if (!msgs.length) { showTessToast('No hay mensajes editados', 'error'); return; }
-  var c = brState.current;
-  brStatus('Traduciendo al ingles...', '');
+  if (brState.running) { showTessToast('El barrido ya esta en curso (envio automatico)', 'warning'); return; }
+  if (brState.manual) return; // evita doble clic / doble envio
+  brState.manual = true;
+  try {
+    if (!brState.current) return;
+    var msgs = brLeerEditados();
+    if (!msgs.length) { showTessToast('No hay mensajes editados', 'error'); return; }
+    var c = brState.current;
+    brStatus('Traduciendo al ingles...', '');
+    var en = [];
+    for (var i = 0; i < msgs.length; i++) {
+      en.push(await brTraducir(msgs[i]));
+      if (brState.stop) { brStatus('Barrido detenido.', 'warn'); return; }
+    }
+    var lim = brLimiteMensajes();
+    if (lim != null && lim < en.length) {
+      brLog('Cliente con limite de ' + lim + ' mensajes; se enviaran solo ' + lim + ' de ' + en.length + '.');
+      showTessToast('Límite: solo ' + lim + ' mensajes disponibles', 'warning');
+      en = en.slice(0, lim);
+    }
+    brLog('Enviando en ingles: ' + JSON.stringify(en));
+    var reabierto = await brAbrirChat(c);
+    if (!reabierto && !brState.stop) {
+      brState.stats.errores++;
+      brRenderStats();
+      brStatus('No se pudo reabrir el chat de ' + (c.nombre || '(contacto)') + '; se omite.', 'err');
+      await brEsperaPausaContactos();
+      await brContinuarCola();
+      return;
+    }
+    var res = await brEnviarSecuencia(c, en);
+    brState.stats.procesados++;
+    brRenderStats();
+    if (res !== 'stop') {
+      // continuar con el resto de la cola (el actual ya fue quitado por brContinuarCola)
+      await brContinuarCola();
+    } else {
+      brStatus('Barrido detenido.', 'warn');
+    }
+  } finally {
+    brState.manual = false;
+  }
+}
+
+var brQueue = [];
+
+// Envia automaticamente los mensajes de un contacto: traduce al ingles, aplica limite y envia en secuencia.
+async function brProcesarContacto(c, msgs) {
+  if (brState.stop) return 'stop';
+  brStatus('Traduciendo mensajes al ingles para ' + (c.nombre || '(contacto)') + '...', '');
   var en = [];
   for (var i = 0; i < msgs.length; i++) {
     en.push(await brTraducir(msgs[i]));
-    if (brState.stop) { brStatus('Barrido detenido.', 'warn'); return; }
+    if (brState.stop) { brStatus('Barrido detenido.', 'warn'); return 'stop'; }
   }
   var lim = brLimiteMensajes();
   if (lim != null && lim < en.length) {
@@ -540,28 +585,19 @@ async function brConfirmarEnvio() {
     showTessToast('Límite: solo ' + lim + ' mensajes disponibles', 'warning');
     en = en.slice(0, lim);
   }
-  brLog('Enviando en ingles: ' + JSON.stringify(en));
+  brLog('Enviando a ' + (c.nombre || c.id) + ' en ingles: ' + JSON.stringify(en));
   var reabierto = await brAbrirChat(c);
   if (!reabierto && !brState.stop) {
     brState.stats.errores++;
     brRenderStats();
     brStatus('No se pudo reabrir el chat de ' + (c.nombre || '(contacto)') + '; se omite.', 'err');
-    await brEsperaPausaContactos();
-    await brContinuarCola();
-    return;
+    return 'error';
   }
   var res = await brEnviarSecuencia(c, en);
   brState.stats.procesados++;
   brRenderStats();
-  if (res !== 'stop') {
-    // continuar con el resto de la cola (el actual ya fue quitado por brContinuarCola)
-    await brContinuarCola();
-  } else {
-    brStatus('Barrido detenido.', 'warn');
-  }
+  return res;
 }
-
-var brQueue = [];
 
 async function brContinuarCola() {
   brState.running = true;
@@ -569,7 +605,7 @@ async function brContinuarCola() {
   while (brQueue.length && !brState.stop) {
     if (guard++ > 1000) break;
     while (brState.paused && !brState.stop) { await new Promise(function (r) { setTimeout(r, 500); }); }
-    if (brState.stop) { brStatus('Barrido detenido.', 'warn'); brState.running = false; return; }
+    if (brState.stop) { brStatus('Barrido detenido.', 'warn'); break; }
     var c = brQueue.shift();
     brState.current = c;
     if (c.esPinned || c.esSaved) {
@@ -592,9 +628,13 @@ async function brContinuarCola() {
     brStatus('Generando 5 mensajes para ' + (c.nombre || '(contacto)') + '...', '');
     try {
       var msgs = await brGenerarMensajes(c);
+      if (!msgs || !msgs.length) throw new Error('No se generaron mensajes para ' + (c.nombre || '(contacto)'));
       brMostrarEdicion(msgs);
-      brStatus('Mensajes para ' + (c.nombre || '(contacto)') + ' listos. Revisa y pulsa CONFIRMAR ENVIAR.', 'ok');
-      return; // vuelve a esperar confirmacion
+      brStatus('Mensajes para ' + (c.nombre || '(contacto)') + ' generados. Enviando automaticamente en breve...', 'ok');
+      await brSleep(2500); // deja ver los mensajes editables antes de enviar
+      var res = await brProcesarContacto(c, msgs);
+      if (res === 'stop') break;
+      await brEsperaPausaContactos();
     } catch (e) {
       brState.stats.errores++;
       brRenderStats();
@@ -608,21 +648,25 @@ async function brContinuarCola() {
     showTessToast('Barrido completado.', 'success');
   }
   brState.running = false;
-  brEl('brStartBtn').disabled = false;
+  var b = brEl('brStartBtn'); if (b) b.disabled = false;
 }
 
 // ===== Controles UI =====
 async function brStart() {
   if (brState.running) { showTessToast('El barrido ya esta en curso', 'warning'); return; }
+  brState.running = true; // marca desde el inicio para evitar doble arranque
+  brState.stop = false;
+  brState.paused = false;
   brState.stats = { procesados: 0, bloqueados: 0, mensajes: 0, errores: 0 };
   brRenderStats();
   brEl('brStartBtn').disabled = true;
-  brStatus('Capturando lista de Active (scroll completo)...', '');
+  brStatus('Capturando lista de Active (de abajo hacia arriba)...', '');
   brQueue = await brCapturarActive();
   if (!brQueue.length) {
     brStatus('No se capturaron contactos en Active. Revisa la consola [BARRIDO] y confirma que estas en la pestana/filtro Active.', 'err');
     showTessToast('BARRIDO: no se capturaron contactos', 'error');
     brEl('brStartBtn').disabled = false;
+    brState.running = false;
     return;
   }
   brContinuarCola();
@@ -637,6 +681,16 @@ function brPauseToggle() {
 function brStop() {
   brState.stop = true;
   brStatus('Deteniendo...', 'warn');
+  var b = brEl('brStartBtn'); if (b) b.disabled = false;
+}
+
+// FRENO DE EMERGENCIA: corta de inmediato el proceso en curso (puede dejar un mensaje medio enviado).
+function brFreno() {
+  brState.stop = true;
+  brQueue = [];
+  brState.running = false;
+  brStatus('🛑 FRENO DE EMERGENCIA. Barrido detenido.', 'err');
+  showTessToast('FRENO: barrido detenido', 'warning');
   var b = brEl('brStartBtn'); if (b) b.disabled = false;
 }
 
@@ -676,7 +730,7 @@ function mountBarridoTab() {
   wrap.innerHTML = `
   <div class="br-sec">
     <h4>🧹 BARRIDO DE ACTIVE</h4>
-    <div class="br-desc">Recorre los contactos de Active desde la fecha m\u00e1s antigua hasta la actual. Los marcados con PINNED o SAVED se bloquean autom\u00e1ticamente; el resto recibe 5 mensajes IA editables y enviados uno a uno.</div>
+    <div class="br-desc">Recorre Active de abajo hacia arriba (mas antiguo a mas nuevo). PINNED/SAVED se bloquean; el resto recibe 5 mensajes IA generados, traducidos al ingles y enviados automaticamente uno a uno. Usa el FRENO en emergencias.</div>
     <div class="br-row">
       <label>Pausa entre mensajes (s):</label>
       <input id="brGapMsgs" type="number" value="20" min="2">
@@ -689,6 +743,9 @@ function mountBarridoTab() {
     <div class="br-ctls">
       <button id="brPauseBtn">⏸ PAUSAR</button>
       <button id="brStopBtn">⏹ DETENER</button>
+    </div>
+    <div class="br-ctls">
+      <button id="brBrakeBtn" style="flex:1.6;border-color:#f87171;background:linear-gradient(135deg,#dc2626,#991b1b);color:#fff;">🛑 FRENO DE EMERGENCIA</button>
     </div>
     <div class="br-stats">
       <div class="br-stat"><div class="v" id="brStProcesados">0</div><div class="l">Procesados</div></div>
@@ -709,6 +766,7 @@ function mountBarridoTab() {
   brEl('brStartBtn').addEventListener('click', brStart);
   brEl('brPauseBtn').addEventListener('click', brPauseToggle);
   brEl('brStopBtn').addEventListener('click', brStop);
+  brEl('brBrakeBtn').addEventListener('click', brFreno);
   brEl('brConfirmBtn').addEventListener('click', brConfirmarEnvio);
 
   console.log('[BARRIDO] ✅ Pestana BARRIDO montada (bot panel)');
