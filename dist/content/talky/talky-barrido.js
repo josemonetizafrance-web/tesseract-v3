@@ -495,6 +495,26 @@ function brClickSend() {
   return true;
 }
 
+// Vacía el textarea (borra el borrador que la app autoguarda al escribir) para que
+// el chat no quede con el indicador "Draft: ".
+function brLimpiarTextarea() {
+  var ta = document.querySelector(BR_SEL.textarea);
+  if (!ta) return false;
+  try {
+    ta.focus();
+    var setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
+    setter.call(ta, '');
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+    ta.dispatchEvent(new Event('change', { bubbles: true }));
+    ta.blur();
+    brLog('Borrador de textarea limpio.');
+    return true;
+  } catch (e) {
+    brLogE('limpiar textarea:', e.message);
+    return false;
+  }
+}
+
 async function brEnviarMensaje(texto) {
   try {
     brSetTextarea(texto);
@@ -514,26 +534,30 @@ async function brEnviarMensaje(texto) {
 
 // ===== Secuencia para un contacto (usa mensajes editados de la UI) =====
 async function brEnviarSecuencia(contacto, msgs) {
-  for (var i = 0; i < msgs.length; i++) {
-    if (brState.stop) return 'stop';
-    while (brState.paused && !brState.stop) { await new Promise(function (r) { setTimeout(r, 500); }); }
-    if (brState.stop) return 'stop';
-    brStatus('Enviando mensaje ' + (i + 1) + '/5 a ' + (contacto.nombre || '(contacto)') + '...', '');
-    var ok = await brEnviarMensaje(msgs[i]);
-    if (ok) {
-      brState.stats.mensajes++;
-      brRenderStats();
-    } else {
-      brState.stats.errores++;
-      brRenderStats();
-      brLogE('fallo enviar msg ' + (i + 1) + ' a ' + (contacto.nombre || '(contacto)'));
-    }
-    if (i < msgs.length - 1) {
-      await brEsperaPausa();
+  try {
+    for (var i = 0; i < msgs.length; i++) {
       if (brState.stop) return 'stop';
+      while (brState.paused && !brState.stop) { await new Promise(function (r) { setTimeout(r, 500); }); }
+      if (brState.stop) return 'stop';
+      brStatus('Enviando mensaje ' + (i + 1) + '/5 a ' + (contacto.nombre || '(contacto)') + '...', '');
+      var ok = await brEnviarMensaje(msgs[i]);
+      if (ok) {
+        brState.stats.mensajes++;
+        brRenderStats();
+      } else {
+        brState.stats.errores++;
+        brRenderStats();
+        brLogE('fallo enviar msg ' + (i + 1) + ' a ' + (contacto.nombre || '(contacto)'));
+      }
+      if (i < msgs.length - 1) {
+        await brEsperaPausa();
+        if (brState.stop) return 'stop';
+      }
     }
+    return 'ok';
+  } finally {
+    try { brLimpiarTextarea(); } catch (e) { /* sin efecto */ }
   }
-  return 'ok';
 }
 
 function brEsperaPausa() {
