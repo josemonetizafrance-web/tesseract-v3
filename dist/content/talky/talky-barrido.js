@@ -502,18 +502,19 @@ function brClickSend() {
 }
 
 // Vacía el textarea (borra el borrador que la app autoguarda al escribir) para que
-// el chat no quede con el indicador "Draft: ".
+// el chat no quede con el indicador "Draft: ". Devuelve true si habia contenido.
 function brLimpiarTextarea() {
   var ta = document.querySelector(BR_SEL.textarea);
   if (!ta) return false;
   try {
+    var antes = String(ta.value || '').trim();
     ta.focus();
     var setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
     setter.call(ta, '');
     ta.dispatchEvent(new Event('input', { bubbles: true }));
     ta.dispatchEvent(new Event('change', { bubbles: true }));
     ta.blur();
-    brLog('Borrador de textarea limpio.');
+    if (antes) brLog('Borrador de textarea limpio (tenia contenido).');
     return true;
   } catch (e) {
     brLogE('limpiar textarea:', e.message);
@@ -886,6 +887,38 @@ function brFreno() {
   var b = brEl('brStartBtn'); if (b) b.disabled = false;
 }
 
+// Recorre los chats de Active, abre cada uno y vacia su textarea (Draft:).
+// Sirve para limpiar los borradores que quedan tras un barrido.
+async function brLimpiarDrafts() {
+  var bandeja = brBuscarBandeja();
+  if (!bandeja) { brStatus('Bandeja no encontrada. Abre el apartado Active.', 'err'); return; }
+  if (brState.running) { showTessToast('Espera a que termine el barrido', 'warning'); return; }
+  var filas = [];
+  bandeja.querySelectorAll('.virtua-item').forEach(function (fila) {
+    var info = brInfoFila(fila);
+    if (info.id && info.nombre) filas.push({ id: info.id, top: info.top, nombre: info.nombre });
+  });
+  if (!filas.length) { brStatus('No se encontraron chats en Active.', 'err'); return; }
+  brStatus('Limpiando borradores de ' + filas.length + ' chats...', '');
+  var conDraft = 0;
+  for (var i = 0; i < filas.length; i++) {
+    if (brState.stop) { brStatus('Limpieza de drafts cancelada.', 'warn'); return; }
+    var row = filas[i];
+    var node = await brLocalizarId(row.id, row.top);
+    if (!node) continue;
+    var content = node.querySelector('.dialog-item-content');
+    if (!content) continue;
+    try { content.click(); } catch (e) { continue; }
+    await brSleep(900);
+    var ta = document.querySelector(BR_SEL.textarea);
+    if (!ta) continue;
+    var habia = brLimpiarTextarea();
+    if (habia) { conDraft++; brLog('Draft limpio en ' + row.nombre); }
+    if (i % 5 === 0) brStatus('Drafts: ' + (i + 1) + '/' + filas.length + ' | con draft: ' + conDraft, '');
+  }
+  brStatus('Borradores listos: ' + filas.length + ' chats revisados, ' + conDraft + ' con draft limpiado.', 'ok');
+}
+
 // ===== Montaje de la pestana =====
 function mountBarridoTab() {
   var host = document.getElementById('tabBarrido');
@@ -933,7 +966,7 @@ function mountBarridoTab() {
     </div>
     <button class="br-ctl" id="brStartBtn">▶ INICIAR BARRIDO</button>
     <div class="br-ctls">
-      <button id="brPauseBtn">⏸ PAUSAR</button>
+      <button id="brDraftBtn" style="border-color:#22c55e;color:#4ade80;">🧹 LIMPIAR DRAFTS</button>
       <button id="brStopBtn">⏹ DETENER</button>
     </div>
     <div class="br-ctls">
@@ -956,7 +989,7 @@ function mountBarridoTab() {
   host.appendChild(wrap);
 
   brEl('brStartBtn').addEventListener('click', brStart);
-  brEl('brPauseBtn').addEventListener('click', brPauseToggle);
+  brEl('brDraftBtn').addEventListener('click', function () { brLimpiarDrafts(); });
   brEl('brStopBtn').addEventListener('click', brStop);
   brEl('brBrakeBtn').addEventListener('click', brFreno);
   brEl('brConfirmBtn').addEventListener('click', brConfirmarEnvio);
