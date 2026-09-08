@@ -163,19 +163,64 @@ function brInfoFila(fila) {
   return info;
 }
 
-// Devuelve el contenedor scrolleable de la lista
+// Dice si un elemento responde de verdad al scroll vertical (scrollHeight con
+// margen y scrollTop escribible): asi se descartan contenedores estaticos.
+function brEsScrollReal(el) {
+  if (!el) return false;
+  if (el.scrollHeight <= el.clientHeight + 100) return false;
+  try {
+    var prev = el.scrollTop;
+    el.scrollTop = 1;
+    var ok = el.scrollTop > 0;
+    el.scrollTop = prev;
+    return ok;
+  } catch (e) { return false; }
+}
+
+// Devuelve el contenedor scrolleable REAL de la lista virtualizada:
+// sube desde una fila renderizada hasta el primer ancestro con scroll de verdad.
 function brScrollEl() {
-  var list = document.querySelector('.virt-list.list-infinite, [data-test-id="dialogs-list-items"], .dialogs__scroll-infinite-list');
-  if (!list) return null;
-  var sc = list.querySelector('.scroll[tabindex]') || list.querySelector('.scroll');
-  if (sc && sc.scrollHeight > sc.clientHeight) return sc;
-  var vz = list.querySelector('.virtualizer');
-  var el = vz;
-  while (el) {
-    if (el.scrollHeight > el.clientHeight + 100) return el;
-    el = el.parentElement;
+  var list = document.querySelector('.virt-list.list-infinite, [data-test-id="dialogs-list-items"], .dialogs__scroll-infinite-list, #app [class*="dialogs__scroll-infinite-list"]');
+  var base = list || document;
+  var fila = base.querySelector('.virtua-item');
+  if (fila) {
+    var el = fila.parentElement;
+    while (el && el !== document.documentElement) {
+      if (brEsScrollReal(el)) return el;
+      el = el.parentElement;
+    }
   }
-  return sc;
+  if (list) {
+    var sc = list.querySelector('.scroll[tabindex]') || list.querySelector('.scroll');
+    if (brEsScrollReal(sc)) return sc;
+    var vz = list.querySelector('.virtualizer');
+    var e2 = vz;
+    while (e2) {
+      if (brEsScrollReal(e2)) return e2;
+      e2 = e2.parentElement;
+    }
+  }
+  return null;
+}
+
+// Lee las filas .virtua-item actualmente renderizadas y las agrega sin duplicar.
+function brLeerFilasVisibles(bandeja, visto, out) {
+  bandeja.querySelectorAll('.virtua-item').forEach(function (fila) {
+    var info = brInfoFila(fila);
+    if (!info.id || visto[info.id] || !info.nombre) return;
+    visto[info.id] = true;
+    out.push({
+      id: info.id,
+      nombre: info.nombre,
+      fechaRaw: info.fechaRaw,
+      ultimo: info.ultimo,
+      fechaTs: brParseFecha(info.fechaRaw),
+      esPinned: info.esPinned,
+      esSaved: info.esSaved,
+      top: info.top,
+      bloqueado: false
+    });
+  });
 }
 
 async function brCapturarActive() {
@@ -185,36 +230,34 @@ async function brCapturarActive() {
     return [];
   }
   var sc = brScrollEl();
-  if (sc) { try { sc.scrollTop = sc.scrollHeight; } catch (e) { } } // ir al final: contacto mas antiguo abajo
-  await brSleep(600);
+  if (!sc) {
+    brLog('No se localizo el contenedor de scroll de la lista infinita. Revisa que el apartado Active este visible.');
+    return [];
+  }
+  brLog('Scroll container OK: <' + sc.tagName.toLowerCase() + (sc.className ? ' .' + String(sc.className).trim().split(/\s+/).join('.') : '') + '> scrollH:' + sc.scrollHeight + ' clientH:' + sc.clientHeight);
   var visto = {};
   var out = [];
+  // FASE 1: hundirse hasta el fondo y drenar la carga perezosa de la lista
+  // infinita (cada vez que llegas abajo cargan contactos mas antiguos).
+  var fondoIgual = 0;
+  for (var d = 0; d < 40 && !brState.stop && fondoIgual < 3; d++) {
+    var hAntes = sc.scrollHeight;
+    try { sc.scrollTop = sc.scrollHeight; } catch (e) { }
+    await brSleep(500);
+    var nAntes = out.length;
+    brLeerFilasVisibles(bandeja, visto, out);
+    if (sc.scrollHeight > hAntes + 50 || out.length > nAntes) { fondoIgual = 0; } else { fondoIgual++; }
+  }
+  brLog('Fondo de la lista alcanzado (scrollHeight estable: ' + sc.scrollHeight + '). Capturados hasta ahora: ' + out.length + '.');
+  // FASE 2: subir hasta arriba capturando todo
   var pasos = 0, MAX = 600;
   while (!brState.stop && pasos++ < MAX) {
-    bandeja.querySelectorAll('.virtua-item').forEach(function (fila) {
-      var info = brInfoFila(fila);
-      if (!info.id) return;
-      if (visto[info.id]) return;
-      visto[info.id] = true;
-      if (!info.nombre) return;
-      out.push({
-        id: info.id,
-        nombre: info.nombre,
-        fechaRaw: info.fechaRaw,
-        ultimo: info.ultimo,
-        fechaTs: brParseFecha(info.fechaRaw),
-        esPinned: info.esPinned,
-        esSaved: info.esSaved,
-        top: info.top,
-        bloqueado: false
-      });
-    });
-    if (!sc) break;
+    brLeerFilasVisibles(bandeja, visto, out);
     if (sc.scrollTop <= 0) break; // llegamos arriba
     var before = sc.scrollTop;
     sc.scrollTop = Math.max(0, sc.scrollTop - Math.max(600, sc.clientHeight * 0.9));
     if (sc.scrollTop >= before) break; // no avanzo hacia arriba
-    await brSleep(450);
+    await brSleep(420);
   }
   out.sort(brOrdenarBarrido);
   brLog('Capturados ' + out.length + ' contactos en Active (scroll completo, de abajo hacia arriba). Cola inicia en el ultimo contacto del infinite list (el de abajo / mas antiguo).');
