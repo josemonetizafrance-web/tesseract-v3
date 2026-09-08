@@ -521,6 +521,12 @@ function brStart() {
   brRenderStats();
   brEl('brStartBtn').disabled = true;
   brQueue = brCapturarActive();
+  if (!brQueue.length) {
+    brStatus('No se capturaron contactos en Active. Revisa la consola [BARRIDO] y confirma que estas en la pestana/filtro Active.', 'err');
+    showTessToast('BARRIDO: no se capturaron contactos', 'error');
+    brEl('brStartBtn').disabled = false;
+    return;
+  }
   brContinuarCola();
 }
 
