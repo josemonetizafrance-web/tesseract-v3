@@ -59,8 +59,8 @@ function brPrompt() {
     'MENSAJE 3 — COMPLEMENTO: una impresión breve, general y honesta de lo poco que se habló o de cómo conversa la otra persona; algo que justifique el interés por retomar. Sin halagos físicos, sin idealizar.\n' +
     'MENSAJE 4 — RESCATE DEL HILO: dejar caer con naturalidad y ligereza que se quedó con la duda de por qué no siguieron hablando y con ganas de retomar. Como "se quedó todo a medias", "me quedé con la duda de por qué no seguimos", "me dio curiosidad retomar la charla". Sin drama, sin culpa, sin pregunta directa del tipo "¿por qué no me escribiste?".\n' +
     'MENSAJE 5 — CIERRE: abrir la puerta de forma despreocupada y genuina a retomar y ver a dónde llega el asunto. Sin esperar respuesta: nada de "si quieres aquí sigo", "aquí estoy", "we are still here", "te espero", "la pelota está en tu cancha" con tono de mendigar. Debe sonar a alguien seguro que seguirá con su vida igualmente ("a ver si retomamos eso un día", "yo me quedo con la curiosidad", "cuando quieras lo seguimos" con naturalidad).\n' +
-    'REGLAS DE TONO: lengua real de un chat entre dos personas que se están conociendo: natural, humana, cálida, relajada, con salidas espontáneas y humor sutil si encaja. Nada de frases pulidas, nada de guion de ventas. Cada mensaje debe conectar con el anterior como escrito por la misma persona en momentos seguidos.\n' +
-    'RESTRICCIONES: NO mencionar ningún tema concreto del chat ni hacer referencia específica a lo que se escribió (el último mensaje visible suele ser del propio emisor, no del cliente; no lo uses como ancla). NO personalizar inventando datos de la persona (no repetir su nombre, ni inventar profesión, hobbies, familia, ciudad, planes ni experiencias). NO abrir con genéricos: prohibidos "¿que tal todo?", "¿qué cuentas?", "¿cómo estás?", "sigues por ahí?". NO frases gastadas ("vi que estabas...", "un café virtual", "hace mucho"). NO romantizar ni idealizar. NO mendigar: prohibido ceder la pelota con tono de espera ("aquí sigo", "si quieres aquí estoy", "te espero", "we are still here", "la pelota está en tu cancha"), no disculparse por escribir, no "solo a ti te escribo". NO preguntar directamente por qué no respondieron. NO referencias a vínculo afectivo ni encuentros físicos. NO clichés ("conexión", "energía", "vibras", "buena vibra", "sin filtros"). Que NO parezca automatizado ni reciclado.\n' +
+    'REGLAS DE TONO: lengua real de un chat entre dos personas que se están conociendo: natural, humana, cálida, relajada, con salidas espontáneas y humor sutil si encaja. Nada de frases pulidas, nada de guion de ventas. Cada mensaje debe conectar con el anterior como escrito por la misma persona en momentos seguidos. Una persona real diría el nombre de la otra con naturalidad: intégralo al menos una vez en la secuencia (saludo o pregunta), nunca repetido en cada mensaje.\n' +
+    'RESTRICCIONES: NO mencionar ningún tema concreto del chat ni hacer referencia específica a lo que se escribió (el último mensaje visible suele ser del propio emisor, no del cliente; no lo uses como ancla). NO personalizar inventando datos de la persona (no inventar profesión, hobbies, familia, ciudad, planes ni experiencias). El ÚNICO dato real permitido es el nombre de pila que viene en el contexto: úsalo de forma natural, una vez, en el saludo o en la pregunta, como lo haría una persona real. NO abrir con genéricos: prohibidos "¿que tal todo?", "¿qué cuentas?", "¿cómo estás?", "sigues por ahí?". NO frases gastadas ("vi que estabas...", "un café virtual", "hace mucho"). NO romantizar ni idealizar. NO mendigar: prohibido ceder la pelota con tono de espera ("aquí sigo", "si quieres aquí estoy", "te espero", "we are still here", "la pelota está en tu cancha"), no disculparse por escribir, no "solo a ti te escribo". NO preguntar directamente por qué no respondieron. NO referencias a vínculo afectivo ni encuentros físicos. NO clichés ("conexión", "energía", "vibras", "buena vibra", "sin filtros"). Que NO parezca automatizado ni reciclado.\n' +
     'LONGITUD: cada mensaje breve, de 15 a 30 palabras.\n' +
     'RESULTADO: Responde ÚNICAMENTE con un bloque JSON válido y NADA más (sin markdown, sin títulos, sin explicaciones, sin comentarios antes ni después), con exactamente esta estructura y en este orden: {"1":"texto del saludo","2":"texto del interrogante","3":"texto del complemento","4":"texto del rescate del hilo","5":"texto del cierre"}. Usa comillas dobles y respeta cada clave del 1 al 5.';
 }
@@ -126,6 +126,17 @@ function brOrdenarBarrido(a, b) {
 }
 
 function brOrdenarAsc(a, b) { return (a.fechaTs || Infinity) - (b.fechaTs || Infinity); }
+
+// Primer nombre limpio del contacto: quita sufijos de fecha/pais/edad y emojis.
+// "Jeff , 53 FR French" -> "Jeff" | "John Z" -> "John" | "Gildardoduque" -> "Gildardoduque"
+function brNombrePila(n) {
+  if (!n) return '';
+  return String(n)
+    .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, ' ')
+    .replace(/\d+/g, ' ')
+    .split(/[\s,\/\-_:]+/)
+    .filter(Boolean)[0] || '';
+}
 
 function brSleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
@@ -378,8 +389,10 @@ async function brGenerarMensajes(contacto) {
   var token;
   try { token = await tessStorageGet('tess_jwt'); } catch (e) { token = null; }
   if (!token) throw new Error('No hay sesion activa');
-  var contexto = 'Genera la secuencia de reenganche. Nombre visible en el chat: ' + (contacto.nombre || 'sin nombre identificado') + '. Conversación incipiente que se cortó.' +
-    ' IMPORTANTE: no uses ningún tema concreto ni menciones nada específico del chat (el único rastro visible suele ser un mensaje del propio emisor, no del cliente).' +
+  var np = brNombrePila(contacto.nombre);
+  var contexto = 'Genera la secuencia de reenganche para retomar un chat que se cortó. El contacto se llama: ' + (np || contacto.nombre || 'sin nombre identificado') + '.' +
+    ' IMPORTANTE: usa ese NOMBRE de pila de forma natural DENTRO de la secuencia (idealmente en el saludo o en la pregunta), como lo haría una persona real que conoce a la otra persona. Es el toque que hace único cada envío.' +
+    ' No uses ningún tema concreto ni menciones nada específico del chat (el único rastro visible suele ser un mensaje del propio emisor, no del cliente).' +
     ' La secuencia debe girar únicamente en torno a: la ligera duda de por qué no se volvieron a hablar y las ganas genuinas de retomar el diálogo, sin mendigar respuesta.';
   var resp = await fetch(BR_API + '/api/chatgpt/chat', {
     method: 'POST',
