@@ -108,58 +108,129 @@ function brParseFecha(raw) {
 
 function brOrdenarAsc(a, b) { return (a.fechaTs || Infinity) - (b.fechaTs || Infinity); }
 
-// ===== Captura de la bandeja Active =====
-function brCapturarActive() {
+function brSleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+// ===== Captura de la bandeja Active (lista virtualizada: scroll hasta el final) =====
+
+// Extrae datos utiles de una fila renderizada (.virtua-item)
+function brInfoFila(fila) {
+  var info = { id: '', nombre: '', fechaRaw: '', esPinned: false, esSaved: false, top: 0 };
+  try {
+    var vi = fila.querySelector('.virtualized-item[data-id], [data-id]');
+    if (vi) info.id = vi.getAttribute('data-id') || '';
+    info.top = parseInt((fila.style && fila.style.top) || '0', 10) || 0;
+    var nmT = fila.querySelector(BR_SEL.nombre);
+    var nmD = fila.querySelector('[class*="description"]');
+    var nm = nmT || nmD;
+    if (nm) {
+      var txtt = (nmT ? (nmT.textContent || '') : '').trim();
+      if (txtt && !/,\s*\d{1,3}\s*$/.test(txtt)) {
+        info.nombre = txtt;
+      } else {
+        var tx = (nm.textContent || '').trim();
+        info.nombre = tx.split(/\s*,\s*\d{1,3}\s*$/)[0].split('\n')[0].trim() || txtt || tx;
+      }
+    }
+    if (!info.nombre) {
+      info.nombre = (fila.textContent || '').split('\n').map(function (s) { return s.trim(); }).filter(Boolean).slice(0, 1).join(' ') || '';
+    }
+    var fFecha = fila.querySelector(BR_SEL.fecha);
+    if (fFecha) info.fechaRaw = (fFecha.textContent || '').trim();
+    info.esPinned = !!fila.querySelector(BR_SEL.pinned);
+    info.esSaved = !!fila.querySelector(BR_SEL.saved);
+  } catch (e) { /* info parcial */ }
+  return info;
+}
+
+// Devuelve el contenedor scrolleable de la lista
+function brScrollEl() {
+  var list = document.querySelector('.virt-list.list-infinite, [data-test-id="dialogs-list-items"], .dialogs__scroll-infinite-list');
+  if (!list) return null;
+  var sc = list.querySelector('.scroll[tabindex]') || list.querySelector('.scroll');
+  if (sc && sc.scrollHeight > sc.clientHeight) return sc;
+  var vz = list.querySelector('.virtualizer');
+  var el = vz;
+  while (el) {
+    if (el.scrollHeight > el.clientHeight + 100) return el;
+    el = el.parentElement;
+  }
+  return sc;
+}
+
+async function brCapturarActive() {
   var bandeja = brBuscarBandeja();
   if (!bandeja) {
     brLog('No se encontro ninguna bandeja. Debes estar en el apartado Active de Talkytimes.');
     return [];
   }
-  var filas = brObtenerFilas(bandeja);
+  var sc = brScrollEl();
+  if (sc) { try { sc.scrollTop = 0; } catch (e) { } } // empezar desde arriba de la lista
+  var visto = {};
   var out = [];
-  filas.forEach(function (fila) {
-    try {
-      var nombre = '';
-      var nmT = fila.querySelector(BR_SEL.nombre);
-      var nmD = fila.querySelector('[class*="description"]');
-      var nm = nmT || nmD;
-      if (nm) {
-        var txtt = (nmT ? (nmT.textContent || '') : '').trim();
-        if (txtt && !/,\s*\d{1,3}\s*$/.test(txtt)) {
-          nombre = txtt;
-        } else {
-          var tx = (nm.textContent || '').trim();
-          // quitar fragmentos externos tipo " , 45" (edad) o preview
-          nombre = tx.split(/\s*,\s*\d{1,3}\s*$/)[0].split('\n')[0].trim() || txtt || tx;
-        }
-      }
-      if (!nombre) {
-        nombre = (fila.textContent || '').split('\n').map(function (s) { return s.trim(); }).filter(Boolean).slice(0, 1).join(' ') || '';
-      }
-      var fechaRaw = '';
-      var fFecha = fila.querySelector(BR_SEL.fecha);
-      if (fFecha) fechaRaw = (fFecha.textContent || '').trim();
-      var esPinned = !!fila.querySelector(BR_SEL.pinned);
-      var esSaved = !!fila.querySelector(BR_SEL.saved);
+  var pasos = 0, MAX = 600;
+  while (!brState.stop && pasos++ < MAX) {
+    bandeja.querySelectorAll('.virtua-item').forEach(function (fila) {
+      var info = brInfoFila(fila);
+      if (!info.id) return;
+      if (visto[info.id]) return;
+      visto[info.id] = true;
+      if (!info.nombre) return;
       out.push({
-        fila: fila,
-        nombre: nombre,
-        fechaRaw: fechaRaw,
-        fechaTs: brParseFecha(fechaRaw),
-        esPinned: esPinned,
-        esSaved: esSaved,
+        id: info.id,
+        nombre: info.nombre,
+        fechaRaw: info.fechaRaw,
+        fechaTs: brParseFecha(info.fechaRaw),
+        esPinned: info.esPinned,
+        esSaved: info.esSaved,
         bloqueado: false
       });
-    } catch (e) { brLogE('fila skip:', e.message); }
-  });
+    });
+    if (!sc) break;
+    var bottom = sc.scrollHeight - sc.clientHeight;
+    if (bottom > 0 && sc.scrollTop >= bottom - 4) break;
+    var before = sc.scrollTop;
+    sc.scrollTop = Math.min(bottom, sc.scrollTop + Math.max(600, sc.clientHeight * 0.9));
+    if (sc.scrollTop <= before) break;
+    await brSleep(450);
+  }
+  if (sc) { try { sc.scrollTop = 0; } catch (e) { } } // dejar la lista arriba para el usuario
   out.sort(brOrdenarAsc);
-  brLog('Capturados ' + out.length + ' contactos en Active. Ordenados por fecha ascendente (mas antigua primero).');
+  brLog('Capturados ' + out.length + ' contactos en Active (scroll completo). Ordenados por fecha ascendente (mas antigua primero).');
   var pin = out.filter(function (c) { return c.esPinned || c.esSaved; }).length;
   brLog('De los ' + out.length + ', ' + pin + ' son Pinned/Saved (se saltan).');
   out.slice(0, 3).forEach(function (c) {
     brLog('  # ' + (c.nombre || '(sin nombre)') + ' | fecha: ' + (c.fechaRaw || '(sin fecha)') + ' | Pinned:' + c.esPinned + ' Saved:' + c.esSaved);
   });
+  if (!out.length) brLog('No se capturo ningun contacto. Revisa que la lista Active este visible y el contenedor .scroll de la lista virtualizada.');
   return out;
+}
+
+// Relocaliza una fila por data-id scrolleando desde arriba (robusto ante reordenamiento)
+async function brLocalizarId(id) {
+  var sc = brScrollEl();
+  if (sc) { try { sc.scrollTop = 0; } catch (e) { } }
+  var guard = 0;
+  while (!brState.stop && guard++ < 400) {
+    var node = document.querySelector('.virtualized-item[data-id="' + id + '"]');
+    if (node) return node;
+    if (!sc) return null;
+    var bottom = sc.scrollHeight - sc.clientHeight;
+    if (bottom > 0 && sc.scrollTop >= bottom - 4) return null;
+    sc.scrollTop = Math.min(bottom, sc.scrollTop + Math.max(600, sc.clientHeight * 0.9));
+    await brSleep(450);
+  }
+  return null;
+}
+
+// Abre el chat de un contacto haciendo click en su fila (relocalizada por data-id)
+async function brAbrirChat(c) {
+  var node = await brLocalizarId(c.id);
+  if (!node) { brLogE('No se pudo relocalizar la fila de ' + (c.nombre || c.id)); return false; }
+  var content = node.querySelector('.dialog-item-content');
+  if (!content) { brLogE('Fila sin .dialog-item-content para ' + (c.nombre || c.id)); return false; }
+  try { content.click(); } catch (e) { brLogE('click fila:', e.message); return false; }
+  await brSleep(1500);
+  return true;
 }
 
 // Obtiene las filas reales de la bandeja.
@@ -464,6 +535,15 @@ async function brConfirmarEnvio() {
     en = en.slice(0, lim);
   }
   brLog('Enviando en ingles: ' + JSON.stringify(en));
+  var reabierto = await brAbrirChat(c);
+  if (!reabierto && !brState.stop) {
+    brState.stats.errores++;
+    brRenderStats();
+    brStatus('No se pudo reabrir el chat de ' + (c.nombre || '(contacto)') + '; se omite.', 'err');
+    await brEsperaPausaContactos();
+    await brContinuarCola();
+    return;
+  }
   var res = await brEnviarSecuencia(c, en);
   brState.stats.procesados++;
   brRenderStats();
@@ -493,6 +573,16 @@ async function brContinuarCola() {
       await brEsperaPausaContactos();
       continue;
     }
+    brStatus('Abriendo chat de ' + (c.nombre || '(contacto)') + '...', '');
+    var abierto = await brAbrirChat(c);
+    if (!abierto && !brState.stop) {
+      brState.stats.errores++;
+      brRenderStats();
+      brStatus('No se pudo abrir el chat de ' + (c.nombre || '(contacto)') + '; se omite.', 'err');
+      brLogE('No se pudo abrir el chat: ' + String(c.id));
+      await brEsperaPausaContactos();
+      continue;
+    }
     brStatus('Generando 5 mensajes para ' + (c.nombre || '(contacto)') + '...', '');
     try {
       var msgs = await brGenerarMensajes(c);
@@ -516,12 +606,13 @@ async function brContinuarCola() {
 }
 
 // ===== Controles UI =====
-function brStart() {
+async function brStart() {
   if (brState.running) { showTessToast('El barrido ya esta en curso', 'warning'); return; }
   brState.stats = { procesados: 0, bloqueados: 0, mensajes: 0, errores: 0 };
   brRenderStats();
   brEl('brStartBtn').disabled = true;
-  brQueue = brCapturarActive();
+  brStatus('Capturando lista de Active (scroll completo)...', '');
+  brQueue = await brCapturarActive();
   if (!brQueue.length) {
     brStatus('No se capturaron contactos en Active. Revisa la consola [BARRIDO] y confirma que estas en la pestana/filtro Active.', 'err');
     showTessToast('BARRIDO: no se capturaron contactos', 'error');
