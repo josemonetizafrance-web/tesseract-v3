@@ -20,8 +20,9 @@ var BR_SEL = {
   bandejas: ['#active > div', '#active', '#app [class*="dialogs__scroll-infinite-list"]', '#app [class*="dialogs__list"]', 'main [class*="dialog-item"]'],
   items: ['.dialog-item-content', '[class*="dialog-item__content"]', '.dialog-item', '[class*="dialog-item"]', '.item-content', '[class*="dialogs__item"]'],
   fecha: '.dialog-item__date-row, [class*="date"]',
-  pinned: '.dialog-item__description > .dialog-item__icons, .dialog-item__icons',
-  saved: '.chat-actions-button.dialog-item__actions',
+  pinned: 'svg[id="CustomPushPin"], [data-ispinned="true"]',
+  saved: 'svg[id="Bookmark"]',
+  nombre: '.dialog-item__name, [class*="dialog-item__title"], [class*="dialog-item"] [class*="name"]',
   textarea: 'textarea#form-textarea[data-test-id*="type-your-message"], textarea#form-textarea.ui-textarea_control',
   send: '.add-message .send-button-wrapper, .send-button-wrapper',
   restriccion: ['.restriction-limits-wrapper .v-popper span > div', '.restriction-limits-wrapper [class*="tooltip"] span > div', '.restriction-limits-wrapper [class*="popper"] span > div', '[class*="restriction-limits"] [class*="tooltip"] span > div']
@@ -119,17 +120,17 @@ function brCapturarActive() {
   filas.forEach(function (fila) {
     try {
       var nombre = '';
-      var nmT = fila.querySelector('[class*="dialog-item__title"], [class*="dialog-item"] [class*="name"], [class*="dialog"] [class*="user-name"], [class*="dialog"] [class*="member-name"]');
+      var nmT = fila.querySelector(BR_SEL.nombre);
       var nmD = fila.querySelector('[class*="description"]');
       var nm = nmT || nmD;
       if (nm) {
         var txtt = (nmT ? (nmT.textContent || '') : '').trim();
-        if (txtt) {
+        if (txtt && !/,\s*\d{1,3}\s*$/.test(txtt)) {
           nombre = txtt;
         } else {
           var tx = (nm.textContent || '').trim();
           // quitar fragmentos externos tipo " , 45" (edad) o preview
-          nombre = tx.split(/\s*,\s*\d{1,3}\s*$/)[0].split('\n')[0].trim() || tx;
+          nombre = tx.split(/\s*,\s*\d{1,3}\s*$/)[0].split('\n')[0].trim() || txtt || tx;
         }
       }
       if (!nombre) {
