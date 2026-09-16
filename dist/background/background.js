@@ -56,7 +56,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           sendResponse({ data: json });
           return;
         }
-        const errMsg = json.error?.message || json.error || ('Error ' + res.status);
+        let errMsg = json.error?.message || json.error || ('Error ' + res.status);
+        if (Array.isArray(json.details) && json.details.length) {
+          errMsg = json.details.map((d) => d.provider + ': ' + d.reason).join(' | ');
+        }
         console.warn('[BG] AI proxy falló:', res.status, errMsg);
         sendResponse({ error: errMsg });
       } catch (e) {
@@ -90,7 +93,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           sendResponse({ data: json });
           return;
         }
-        const errMsg = json.error?.message || json.error || ('Error ' + res.status);
+        let errMsg = json.error?.message || json.error || ('Error ' + res.status);
+        if (Array.isArray(json.details) && json.details.length) {
+          errMsg = json.details.map((d) => d.provider + ': ' + d.reason).join(' | ');
+        }
         console.warn('[BG] Proxy falló:', res.status, errMsg);
         sendResponse({ error: errMsg });
       } catch (e) {

@@ -108,13 +108,16 @@ async function aiCascade(messages, requestedModel, maxTokens) {
     ['Groq', () => tryGroqWithFallback(messages, GROQ_MODEL, maxTokens)],
     ['OpenAI', () => tryOpenAI(messages, undefined, maxTokens)]
   ];
+  const details = [];
   for (const [name, fn] of attempts) {
     let r;
     try { r = await fn(); } catch (e) { r = { ok: false, status: 0, data: { error: e.message } }; }
-    if (r.ok && extractContent(r.data)) return { provider: name, data: r.data };
-    console.error(`[AI-PROXY] ${name} falló:`, JSON.stringify({ status: r.status, error: r.data?.error?.message || r.data?.error || r.data }));
+    const reason = r.data?.error?.message || r.data?.error || (typeof r.data === 'string' ? r.data : (r.data ? JSON.stringify(r.data).slice(0, 160) : 'sin respuesta'));
+    details.push({ provider: name, status: r.status, reason: String(reason) });
+    if (r.ok && extractContent(r.data)) return { ok: true, provider: name, data: r.data };
+    console.error(`[AI-PROXY] ${name} falló:`, JSON.stringify({ status: r.status, error: reason }));
   }
-  return null;
+  return { ok: false, details };
 }
 
 // GET /api/chatgpt/models - lista de modelos Groq disponibles (diagnostico)
@@ -137,13 +140,14 @@ router.post('/api/chatgpt/chat', validateToken, async (req, res) => {
     const { messages, model, max_tokens } = req.body;
 
     const winner = await aiCascade(messages, model, max_tokens);
-    if (winner) {
+    if (winner && winner.ok) {
       if (winner.provider !== 'OpenRouter') console.log('[AI-PROXY] respondió via', winner.provider);
       return res.json(winner.data);
     }
 
     res.status(503).json({
       error: 'Todos los proveedores AI fallaron',
+      details: winner && winner.details ? winner.details : [],
       fallback: true
     });
   } catch (err) {
@@ -260,7 +264,7 @@ router.post('/api/openai/translate', validateToken, async (req, res) => {
       { role: 'user', content: text }
     ], null, 500);
 
-    const content2 = winnerT ? extractContent(winnerT.data) : null;
+    const content2 = winnerT && winnerT.ok ? extractContent(winnerT.data) : null;
     if (content2) {
       return res.json({ success: true, data: { translations: [{ text: content2.trim() }] } });
     }
@@ -283,7 +287,7 @@ router.post('/api/deepl/translate', validateToken, async (req, res) => {
       { role: 'user', content: text }
     ], null, 500);
 
-    const content4 = winnerD ? extractContent(winnerD.data) : null;
+    const content4 = winnerD && winnerD.ok ? extractContent(winnerD.data) : null;
     if (content4) {
       return res.json({ translatedText: content4.trim() });
     }
