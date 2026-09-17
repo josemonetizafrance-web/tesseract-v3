@@ -1,6 +1,6 @@
 const MAILING_STORAGE_KEY = 'tess_mailing_config';
 const ML_CONTACTED_HISTORY_KEY = 'tess_ml_contacted_history';
-var TESSERACT_API = window.TESSERACT_API || 'https://tesseract-v3-production.up.railway.app';
+var TESSERACT_API = window.TESSERACT_API || 'https://tesseract-v3-xaqv.onrender.com';
 const ML_AUTOBLOCK_THRESHOLD = 10;
 const ML_MAX_LETTERS_TOTAL = 4;
 

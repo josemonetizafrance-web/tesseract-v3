@@ -1,5 +1,5 @@
 (function () {
-  var TESSERACT_API = (typeof TESSERACT_API_OVERRIDE !== 'undefined') ? TESSERACT_API_OVERRIDE : 'https://tesseract-v3-production.up.railway.app';
+  var TESSERACT_API = (typeof TESSERACT_API_OVERRIDE !== 'undefined') ? TESSERACT_API_OVERRIDE : 'https://tesseract-v3-xaqv.onrender.com';
   var storedToken = '';
 
   function formatTime(ms) {

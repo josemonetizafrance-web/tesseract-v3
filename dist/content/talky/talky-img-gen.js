@@ -2,7 +2,7 @@
 // Flujo: prompt + referencias -> generar (Pro por defecto / Lite opcional) -> auto-guardar en Downloads
 // -> boton UPLOAD navega a Manage Media y suelta la imagen en el drop zone para que se suba sola.
 
-var IG_API = (typeof Tesseract !== 'undefined' && Tesseract && Tesseract.API) || window.TESSERACT_API || 'https://tesseract-v3-production.up.railway.app';
+var IG_API = (typeof Tesseract !== 'undefined' && Tesseract && Tesseract.API) || window.TESSERACT_API || 'https://tesseract-v3-xaqv.onrender.com';
 
 var igState = {
   refs: [],

@@ -4,7 +4,7 @@
 // - Contactos sin esos tags -> generar 5 mensajes IA (prompt maestro de reenganche),
 //   mostrarlos editables, e inyectarlos/enviarlos uno a uno en orden.
 
-var BR_API = (typeof Tesseract !== 'undefined' && Tesseract && Tesseract.API) || window.TESSERACT_API || 'https://tesseract-v3-production.up.railway.app';
+var BR_API = (typeof Tesseract !== 'undefined' && Tesseract && Tesseract.API) || window.TESSERACT_API || 'https://tesseract-v3-xaqv.onrender.com';
 
 var brState = {
   running: false,

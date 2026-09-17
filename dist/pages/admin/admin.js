@@ -1,5 +1,5 @@
 // admin.js - TESSERACT v3 Panel Admin (usuarios, estadisticas, chat)
-const TESSERACT_API = (typeof TESSERACT_API_OVERRIDE !== 'undefined') ? TESSERACT_API_OVERRIDE : 'https://tesseract-v3-production.up.railway.app';
+const TESSERACT_API = (typeof TESSERACT_API_OVERRIDE !== 'undefined') ? TESSERACT_API_OVERRIDE : 'https://tesseract-v3-xaqv.onrender.com';
 const ONLINE_WINDOW_MS = 5 * 60 * 1000;
 const ROOT_EMAIL = 'chevyadmin@tesseract.com';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

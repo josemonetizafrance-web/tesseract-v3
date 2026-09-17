@@ -1448,7 +1448,7 @@ if (document.readyState === 'loading') {
 // ============ MENSAJES v3: ESTILO WHATSAPP (SOPORTE + CHAT PRIVADO) ============
 (function initSupportChat() {
   console.log('[TESSERACT] Chat v3.2 cargado');
-  const TAPI = (typeof TESSERACT_API_OVERRIDE !== 'undefined') ? TESSERACT_API_OVERRIDE : 'https://tesseract-v3-production.up.railway.app';
+  const TAPI = (typeof TESSERACT_API_OVERRIDE !== 'undefined') ? TESSERACT_API_OVERRIDE : 'https://tesseract-v3-xaqv.onrender.com';
   const ADMIN_PEER = 'ADMIN';
   const EMOJIS = ['😀','😁','😂','🤣','😊','😍','😘','😜','😎','🤩','😏','🙂','🙃','😉','😇','🥰','😭','😅','🥺','😢','😡','🤔','🤗','🤫','🙌','👏','👍','👎','💪','🙏','💯','🔥','✨','⭐','❤️','💔','🌹','🌸','🍀','🎉','☕','🍕','⚽','🚀','💤','🤑','👀'];
   let myEmail = '';
