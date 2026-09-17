@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
-    "name": "TESSERACT",
-    "version": "3.0.1",
+    "name": "TESSERACT1",
+    "version": "3.0.2",
     "description": "Asistente de productividad para chat en sitios de citas: redacción de mensajes y gestión del buzón con ayuda de IA.",
     "permissions": ["storage", "webNavigation", "downloads"],
     "host_permissions": [
