@@ -12,6 +12,7 @@ const GROQ_MODEL = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
 const GROQ_MODEL_FALLBACK = process.env.GROQ_MODEL_FALLBACK || 'qwen/qwen3.6-27b';
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.7-flash';
+const GEMINI_MODEL_FALLBACKS = (process.env.GEMINI_MODEL_FALLBACK || 'gemini-3.1-flash-lite,gemini-2.5-flash').split(',').map((s) => s.trim()).filter(Boolean);
 const IMAGE_MODEL = process.env.IMAGE_MODEL || 'google/gemini-3.1-flash-lite-image';
 
 // Reintenta con modelo alternativo si el primario no existe (404)
@@ -61,21 +62,33 @@ async function tryGemini(messages, maxTokens) {
   if (!key) return { ok: false, status: 0, data: { error: 'GEMINI_API_KEY no configurada' } };
   const body = geminiToContents(messages);
   if (maxTokens) body.generationConfig = { maxOutputTokens: Math.max(maxTokens, 300) };
-  try {
-    const r = await fetch(`${GEMINI_API}/${GEMINI_MODEL}:generateContent?key=${key}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    const j = await r.json();
-    if (!r.ok) return { ok: false, status: r.status, data: j };
-    const parts = (j && j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || [];
-    const text = parts.map((p) => p.text || '').join('');
-    if (!text) return { ok: false, status: r.status, data: { error: 'Gemini devolvió respuesta vacía' } };
-    return { ok: true, status: 200, data: { choices: [{ message: { role: 'assistant', content: text } }] } };
-  } catch (e) {
-    return { ok: false, status: 0, data: { error: e.message } };
+  const models = [GEMINI_MODEL, ...GEMINI_MODEL_FALLBACKS].filter((m, i, arr) => arr.indexOf(m) === i);
+  let last = null;
+  for (const model of models) {
+    try {
+      const r = await fetch(`${GEMINI_API}/${model}:generateContent?key=${key}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const j = await r.json();
+      last = { ok: r.ok, status: r.status, model, data: j };
+      if (!r.ok) {
+        console.warn(`[AI-PROXY] Gemini ${model} falló (${r.status}), probando siguiente modelo`);
+        continue;
+      }
+      const parts = (j && j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || [];
+      const text = parts.map((p) => p.text || '').join('');
+      if (!text) {
+        console.warn(`[AI-PROXY] Gemini ${model} respuesta vacía, probando siguiente modelo`);
+        continue;
+      }
+      return { ok: true, status: 200, model, data: { choices: [{ message: { role: 'assistant', content: text } }] } };
+    } catch (e) {
+      last = { ok: false, status: 0, model, data: { error: e.message } };
+    }
   }
+  return last || { ok: false, status: 0, data: { error: 'GEMINI_API_KEY no configurada' } };
 }
 
 // 3) Groq
