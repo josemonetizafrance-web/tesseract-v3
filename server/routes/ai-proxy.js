@@ -12,7 +12,7 @@ const GROQ_MODEL = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
 const GROQ_MODEL_FALLBACK = process.env.GROQ_MODEL_FALLBACK || 'qwen/qwen3.6-27b';
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.7-flash';
-const GEMINI_MODEL_FALLBACKS = (process.env.GEMINI_MODEL_FALLBACK || 'gemini-3.1-flash-lite,gemini-2.5-flash').split(',').map((s) => s.trim()).filter(Boolean);
+const GEMINI_MODEL_FALLBACKS = (process.env.GEMINI_MODEL_FALLBACK || 'gemini-3.1-flash-lite,gemini-3.6-flash').split(',').map((s) => s.trim()).filter(Boolean);
 const IMAGE_MODEL = process.env.IMAGE_MODEL || 'google/gemini-3.1-flash-lite-image';
 
 // Reintenta con modelo alternativo si el primario no existe (404)
@@ -174,9 +174,8 @@ async function geminiImageFallback(prompt) {
   const key = process.env.GEMINI_API_KEY;
   if (!key) return null;
   const candidates = [
-    String(process.env.GEMINI_IMAGE_MODEL || '').trim() || 'gemini-3.1-flash-image',
-    'gemini-3.1-flash-lite-image',
-    'gemini-2.5-flash-image'
+    String(process.env.GEMINI_IMAGE_MODEL || '').trim() || 'gemini-3.1-flash-lite-image',
+    'gemini-3.1-flash-image'
   ];
   const seen = new Set();
   for (const m of candidates) {
