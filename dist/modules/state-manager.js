@@ -1,5 +1,5 @@
 var Tesseract = (function () {
-  var API = typeof TESSERACT_CONFIG !== 'undefined' ? TESSERACT_CONFIG.API : 'https://tesseract-v3-production.up.railway.app';
+  var API = typeof TESSERACT_CONFIG !== 'undefined' ? TESSERACT_CONFIG.API : 'https://tesseract-v3-xaqv.onrender.com';
 
   // ============================================================
   // PROMPT MAESTRO UNIFICADO - fuente unica de verdad para TODAS

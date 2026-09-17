@@ -1,6 +1,6 @@
 ﻿// background.js - TESSERACT v24.0 (Backend Integrado)
 // API URL: defined in dist/modules/config.js, loaded via service worker registration
-var TESSERACT_API = (typeof TESSERACT_API_OVERRIDE !== 'undefined') ? TESSERACT_API_OVERRIDE : 'https://tesseract-v3-production.up.railway.app';
+var TESSERACT_API = (typeof TESSERACT_API_OVERRIDE !== 'undefined') ? TESSERACT_API_OVERRIDE : 'https://tesseract-v3-xaqv.onrender.com';
 
 // El token del panel admin se pasa por chrome.storage.session (no por la URL).
 // setAccessLevel permite que los content scripts (talkytimes) escriban/lean ese token.

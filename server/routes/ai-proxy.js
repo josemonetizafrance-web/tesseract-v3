@@ -156,7 +156,45 @@ router.post('/api/chatgpt/chat', validateToken, async (req, res) => {
   }
 });
 
-// POST /api/chatgpt/image - Generación de imágenes (OpenRouter: Nano Banana 2 Lite)
+// Fallback directo a Gemini (gratis, sin OpenRouter) para generación de imágenes.
+async function geminiImageFallback(prompt) {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) return null;
+  const candidates = [
+    String(process.env.GEMINI_IMAGE_MODEL || '').trim() || 'gemini-3.1-flash-image',
+    'gemini-3.1-flash-lite-image',
+    'gemini-2.5-flash-image'
+  ];
+  const seen = new Set();
+  for (const m of candidates) {
+    if (!m || seen.has(m)) continue;
+    seen.add(m);
+    try {
+      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent?key=${encodeURIComponent(key)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: String(prompt).trim() }] }],
+          generationConfig: { responseModalities: ['IMAGE', 'TEXT'] }
+        })
+      });
+      const j = await resp.json().catch(() => ({}));
+      if (!resp.ok) continue;
+      const parts = (j.candidates || []).flatMap(c => (c.content && c.content.parts) || []);
+      const img = parts.find(p => p.inlineData && p.inlineData.data);
+      if (!img) continue;
+      let gformat = 'png';
+      const gmt = String(img.inlineData.mimeType || '').toLowerCase();
+      if (gmt.includes('jpeg') || gmt.includes('jpg')) gformat = 'jpeg';
+      else if (gmt.includes('webp')) gformat = 'webp';
+      return { base64: img.inlineData.data, format: gformat, model: m };
+    } catch (e) { /* probar siguiente modelo */ }
+  }
+  console.log('[AI-PROXY][IMG] fallback Gemini no devolvió imagen');
+  return null;
+}
+
+// POST /api/chatgpt/image - Generación de imágenes (OpenRouter: Nano Banana 2 Lite, con fallback gratis a Gemini)
 router.post('/api/chatgpt/image', validateToken, async (req, res) => {
   try {
     const { prompt, model, size, preset, references } = req.body || {};
@@ -182,7 +220,11 @@ router.post('/api/chatgpt/image', validateToken, async (req, res) => {
       imageKey = process.env.OPENROUTER_IMAGE_API_KEY || process.env.OPENROUTER_API_KEY;
       imageModel = (model && String(model).trim()) || process.env.IMAGE_MODEL || 'google/gemini-3-pro-image';
     }
-    if (!imageKey) return res.status(500).json({ error: 'OPENROUTER_IMAGE_API_KEY/OPENROUTER_API_KEY no configurada' });
+    if (!imageKey) {
+      const g = await geminiImageFallback(String(prompt).trim());
+      if (g) return res.json({ success: true, provider: 'Gemini', model: g.model, format: g.format, base64: g.base64 });
+      return res.status(500).json({ error: 'Sin OPENROUTER_IMAGE_API_KEY/OPENROUTER_API_KEY y sin GEMINI_API_KEY para imágenes' });
+    }
 
     const targetModel = imageModel;
     // Nota: los modelos Gemini-image NO aceptan {size} ('330x330' -> 400 "Request contains an invalid argument").
@@ -209,11 +251,17 @@ router.post('/api/chatgpt/image', validateToken, async (req, res) => {
       out = await attempt(payload);
     }
     if (!out.ok) {
+      const g = await geminiImageFallback(String(prompt).trim());
+      if (g) return res.json({ success: true, provider: 'Gemini', model: g.model, format: g.format, base64: g.base64 });
       return res.status(out.status || 502).json({ error: (out.j && (out.j.error?.message || out.j.error)) || 'Error generando imagen' });
     }
 
     const item = out.j?.data?.[0];
-    if (!item) return res.status(502).json({ error: 'OpenRouter no devolvió imagen' });
+    if (!item) {
+      const g = await geminiImageFallback(String(prompt).trim());
+      if (g) return res.json({ success: true, provider: 'Gemini', model: g.model, format: g.format, base64: g.base64 });
+      return res.status(502).json({ error: 'OpenRouter no devolvió imagen' });
+    }
 
     let b64 = item.b64_json;
     let format = 'png';
