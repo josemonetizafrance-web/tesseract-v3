@@ -65,27 +65,32 @@ async function tryGemini(messages, maxTokens) {
   const models = [GEMINI_MODEL, ...GEMINI_MODEL_FALLBACKS].filter((m, i, arr) => arr.indexOf(m) === i);
   let last = null;
   for (const model of models) {
-    try {
-      const r = await fetch(`${GEMINI_API}/${model}:generateContent?key=${key}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-      const j = await r.json();
-      last = { ok: r.ok, status: r.status, model, data: j };
-      if (!r.ok) {
-        console.warn(`[AI-PROXY] Gemini ${model} falló (${r.status}), probando siguiente modelo`);
-        continue;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const r = await fetch(`${GEMINI_API}/${model}:generateContent?key=${key}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        const j = await r.json();
+        last = { ok: r.ok, status: r.status, model, data: j };
+        if (!r.ok) {
+          const transient = r.status === 429 || r.status === 503;
+          console.warn(`[AI-PROXY] Gemini ${model} falló (${r.status}${transient ? ', reintentando' : ''}), probando siguiente modelo`);
+          if (transient && attempt === 0) { await new Promise((res) => setTimeout(res, 1200)); continue; }
+          break;
+        }
+        const parts = (j && j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || [];
+        const text = parts.map((p) => p.text || '').join('');
+        if (!text) {
+          console.warn(`[AI-PROXY] Gemini ${model} respuesta vacía, probando siguiente modelo`);
+          break;
+        }
+        return { ok: true, status: 200, model, data: { choices: [{ message: { role: 'assistant', content: text } }] } };
+      } catch (e) {
+        last = { ok: false, status: 0, model, data: { error: e.message } };
+        break;
       }
-      const parts = (j && j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || [];
-      const text = parts.map((p) => p.text || '').join('');
-      if (!text) {
-        console.warn(`[AI-PROXY] Gemini ${model} respuesta vacía, probando siguiente modelo`);
-        continue;
-      }
-      return { ok: true, status: 200, model, data: { choices: [{ message: { role: 'assistant', content: text } }] } };
-    } catch (e) {
-      last = { ok: false, status: 0, model, data: { error: e.message } };
     }
   }
   return last || { ok: false, status: 0, data: { error: 'GEMINI_API_KEY no configurada' } };
