@@ -425,7 +425,32 @@ async function generateMailResponse(msgText, _unused, profileId, senderName) {
     const response = aiResponse.choices?.[0]?.message?.content;
     if (!response) { showTessToast('⚠ No se pudo generar respuesta', 'warning'); return; }
 
-    // Inject into compose area: SOLO el editor de carta (nunca el textarea del panel).
+    // Escribir la carta en el MISMO textarea del panel (Chat Cribs) y actualizar el estado del eater,
+    // para que el operador la revise y la copie/envíe como una respuesta normal de chat.
+    var panelArea = document.getElementById('eaterResponseArea');
+    if (panelArea) {
+      var cleanResponse = String(response).replace(/^["'\u201c\u201d\s]+/, '').replace(/["'\u201c\u201d\s]+$/, '');
+      panelArea.value = cleanResponse;
+      panelArea.style.color = '#e0e0e0';
+      panelArea.dispatchEvent(new Event('input', { bubbles: true }));
+      if (typeof Tesseract !== 'undefined' && Tesseract.set) {
+        Tesseract.set('eaterResponse', cleanResponse);
+        Tesseract.set('isUsingAI', true);
+      }
+      var cnEl = document.getElementById('eaterClientName');
+      if (cnEl && senderName) cnEl.textContent = senderName;
+      if (typeof ensurePanelVisible === 'function') ensurePanelVisible();
+      var sTab = document.getElementById('btnEaterToggle');
+      if (sTab && sTab.textContent && sTab.textContent.indexOf('OFF') !== -1) {
+        var ev = document.createEvent('MouseEvents');
+        ev.initEvent('click', true, false);
+        sTab.dispatchEvent(ev);
+      }
+      showTessToast('✉ Carta generada en el panel', 'success');
+      return;
+    }
+
+    // Fallback: editor de carta visible en la página
     var input = (typeof findEmailInput === 'function' ? findEmailInput() : null);
     if (!input) {
       var mailSels = [
@@ -438,14 +463,6 @@ async function generateMailResponse(msgText, _unused, profileId, senderName) {
         var mel = null;
         try { mel = document.querySelector(mailSels[mi]); } catch (e) {}
         if (mel && mel.offsetParent !== null) { input = mel; break; }
-      }
-    }
-    if (!input) {
-      var allT2 = document.querySelectorAll('textarea');
-      for (var ti2 = 0; ti2 < allT2.length; ti2++) {
-        var t2e = allT2[ti2];
-        if (t2e.id === 'eaterResponseArea') continue;
-        if (t2e.offsetParent && !/search/i.test(t2e.placeholder || '')) { input = t2e; break; }
       }
     }
     if (input) {
@@ -660,6 +677,44 @@ async function initMailCribs() {
   console.log('[MAIL-CRIBS] Module initialized, enabled:', mailCribsConfig.enabled);
 }
 
+// ============ VIEW WATCHER (chat <-> mail inbox) ============
+// Corre siempre (tambien fuera de /mails): detecta la vista actual (SPA) y avisa
+// al panel/eater para que se adapten (data-tess-view en <html> + evento tess-view-changed).
+var _lastTessView = null;
+var _tessViewLastPath = '';
+var _tessViewTimer = null;
+function _detectTessView() {
+  try {
+    var p = location.pathname;
+    var mail = !!document.querySelector('[data-test-id*="mail-history-item"], [class*="mail-history-item"]')
+      || /\/mails\/(view|inbox|outbox|sent|all)/.test(p)
+      || /\/mails?\//.test(p);
+    var chatSel = (typeof TALK_Y !== 'undefined' && TALK_Y.CHAT_TEXTAREA) || 'textarea[class*="chat"], textarea[class*="message"]';
+    var chat = /\/chat\/|\/messages\/|\/conversations\//.test(p)
+      || !!document.querySelector(chatSel);
+    var view = mail ? 'mail' : (chat ? 'chat' : 'other');
+    var changed = view !== _lastTessView || p !== _tessViewLastPath;
+    _lastTessView = view;
+    _tessViewLastPath = p;
+    document.documentElement.setAttribute('data-tess-view', view);
+    window._tessView = view;
+    if (changed) {
+      console.log('[MAIL-CRIBS] Vista detectada:', view, '@', p);
+      window.dispatchEvent(new CustomEvent('tess-view-changed', { detail: { view: view, path: p } }));
+      if (view === 'mail') setTimeout(scanExistingMessageTexts, 600);
+    }
+  } catch (e) {}
+}
+function startTessViewWatcher() {
+  if (_tessViewTimer) return;
+  _detectTessView();
+  _tessViewTimer = setInterval(_detectTessView, 1500);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) _detectTessView(); });
+}
+function stopTessViewWatcher() {
+  if (_tessViewTimer) { clearInterval(_tessViewTimer); _tessViewTimer = null; }
+}
+
 // ============ GLOBAL ACCESSORS ============
 window._setMailCribsEnabled = setMailCribsEnabled;
 window._getMailCribsConfig = () => mailCribsConfig;
@@ -667,11 +722,15 @@ window._initMailCribs = initMailCribs;
 window._startMailCribsObserver = startMailCribsObserver;
 window._stopMailCribsObserver = stopMailCribsObserver;
 window._captureLetterStyle = sendLetterStyleToCribs;
+window._startTessViewWatcher = startTessViewWatcher;
+window._stopTessViewWatcher = stopTessViewWatcher;
+window._detectTessView = _detectTessView;
 
 // Auto-init on page load (no panel dependency)
 (function autoInitMailCribs() {
   function init() {
     chrome.storage.local.get('tess_operator_id', function (d) { if (d.tess_operator_id) window._tessOperatorId = d.tess_operator_id; });
+    startTessViewWatcher();
     loadMailCribsConfig().then(function () { if (mailCribsConfig.enabled) startMailCribsObserver(); console.log('[MAIL-CRIBS] Auto-init, enabled:', mailCribsConfig.enabled); });
   }
   if (document.readyState === 'complete' || document.readyState === 'interactive') { setTimeout(init, 1000); }

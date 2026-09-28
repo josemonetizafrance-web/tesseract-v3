@@ -1953,3 +1953,39 @@ if (document.readyState === 'loading') {
     console.log('[TESSERACT] chat: identidad operador =', myEmail || '(vacía)');
   });
 })();
+
+// ============ INDICADOR DE MODO VISTA (chat <-> mail inbox) ============
+(function tessViewBadge() {
+  function update(view) {
+    var b = document.getElementById('tessViewBadge');
+    if (!b) return;
+    var lbl = view === 'mail' ? '📬 MAIL' : (view === 'chat' ? '💬 CHAT' : '🌐 SITIO');
+    b.textContent = lbl;
+    b.title = view === 'mail' ? 'Modo Cartas: responde desde los 🤖 de Mail' : (view === 'chat' ? 'Modo Chat: respuestas de Eater' : 'Vista sin detectar');
+    b.style.borderColor = view === 'mail' ? '#f59e0b' : (view === 'chat' ? '#8b5cf6' : '#555');
+  }
+  function ensure() {
+    try {
+      var h4 = document.querySelector('.eater-box h4');
+      if (!h4) return;
+      if (!document.getElementById('tessViewBadge')) {
+        var sp = document.createElement('span');
+        sp.id = 'tessViewBadge';
+        sp.style.cssText = 'display:inline-block;margin-left:6px;padding:1px 5px;border:1px solid #555;border-radius:3px;font-size:8px;color:#e0e0e0;';
+        h4.appendChild(sp);
+      }
+    } catch (e) {}
+  }
+  window.addEventListener('tess-view-changed', function (e) {
+    var d = e.detail || {};
+    update(d.view || 'other');
+  });
+  var cur = null;
+  setInterval(function () {
+    ensure();
+    var v = window._tessView || document.documentElement.getAttribute('data-tess-view') || 'other';
+    if (v !== cur) { cur = v; update(v); }
+  }, 2000);
+  if (document.readyState === 'complete' || document.readyState === 'interactive') { setTimeout(ensure, 800); }
+  else { document.addEventListener('DOMContentLoaded', function () { setTimeout(ensure, 800); }); }
+})();
