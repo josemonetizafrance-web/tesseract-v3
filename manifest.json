@@ -3,7 +3,7 @@
     "name": "TESSERACT1",
     "version": "3.0.2",
     "description": "Asistente de productividad para chat en sitios de citas: redacción de mensajes y gestión del buzón con ayuda de IA.",
-    "permissions": ["storage", "webNavigation", "downloads"],
+    "permissions": ["storage", "webNavigation", "downloads", "alarms"],
     "host_permissions": [
         "https://tesseract-v3-xaqv.onrender.com/*",
         "https://talkytimes.com/*",

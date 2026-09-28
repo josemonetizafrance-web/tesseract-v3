@@ -293,6 +293,7 @@ function scanAllIncomingMessages() {
       if (msg.classList.contains('tess-checked-outgoing')) continue;
       if (msg.matches && msg.matches('[class*="my-text-message"], [class*="my-message"], [class*="own"], [class*="sent"]')) continue;
       if (msg.closest && msg.closest('[class*="my-text-message"], [class*="my-message"], [class*="own"]')) continue;
+      if (isOutgoingMessage(msg)) continue;
       const text = (msg.textContent || '').trim();
       if (!text || text.length < 3) continue;
       const hash = text.substring(0, 80);
@@ -382,6 +383,7 @@ function checkForIncomingMessages(node) {
     if (el.classList.contains('tess-checked-outgoing')) continue;
     if (el.matches && el.matches('[class*="my-text-message"], [class*="my-message"], [class*="own"]')) continue;
     if (el.closest && el.closest('[class*="my-text-message"], [class*="my-message"], [class*="own"]')) continue;
+    if (isOutgoingMessage(el)) continue;
     for (const sel of selectors) {
       if (!el.matches || !el.matches(sel)) continue;
       const text = (el.textContent || '').trim();
@@ -401,7 +403,7 @@ function checkForIncomingMessages(node) {
 }
 
 function isOutgoingMessage(el) {
-  const outgoingClasses = ['own', 'sent', 'outgoing', 'self', 'my-text-message', 'my-message', 'right', 'msg--outgoing', 'message--sent', 'msg--right', 'bubble--right'];
+  const outgoingClasses = ['own', 'mine', 'self', 'my-text-message', 'my-message', 'message-sent', 'message--sent', 'msg--sent', 'msg--outgoing', 'message--outgoing', 'outgoing', 'bubble--right', 'msg--right', 'align-right', 'justify-end', 'ms-auto', 'ml-auto', 'flex-row-reverse', 'from-me', 'is-me', 'msg-mine', 'message-mine'];
   let current = el;
   while (current && current !== document.body) {
     const cls = typeof current.className === 'string' ? current.className : '';
@@ -516,6 +518,7 @@ function injectEaterTrigger(msgEl, messageText) {
   if (msgEl.querySelector('.tess-eater-trigger, .tess-capture-trigger')) return;
   if (msgEl.classList.contains('tess-checked-outgoing')) return;
   if (msgEl.matches && msgEl.matches('[class*="my-text-message"]')) return;
+  if (isOutgoingMessage(msgEl)) return;
   
   var eaterSenderId = extractSenderFromNode(msgEl);
   if (eaterSenderId && typeof isInAABlacklist === 'function' && isInAABlacklist(eaterSenderId)) return;

@@ -21,6 +21,17 @@ chrome.runtime.onStartup.addListener(() => {
   checkAuthStatus();
 });
 
+// Mantener el servidor (Render free) despierto mientras el navegador esta abierto,
+// para que las llamadas de IA no se topen con el cold start (port closed del SW).
+try { chrome.alarms.create('tess-warm', { periodInMinutes: 2 }); } catch (e) {}
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === 'tess-warm') {
+    fetch(TESSERACT_API + '/api/health', { method: 'GET' })
+      .then((r) => r.text())
+      .catch(() => {});
+  }
+});
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'LOGIN_SUCCESS') {
     console.log('[BG] Login:', message.email);

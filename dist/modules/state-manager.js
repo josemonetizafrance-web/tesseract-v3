@@ -307,36 +307,37 @@ Entrega ÚNICAMENTE el mensaje final listo para enviar. Sin explicaciones, sin a
     });
   }
 
-  function callGroq(messages, model, maxTokens) {
+  // Mensaje al background con keepalive (evita "port closed" cuando el servidor tarda en despertar)
+  function sendToBackground(message, timeoutMs) {
     return new Promise(function (resolve, reject) {
-      chrome.runtime.sendMessage({ action: 'GROQ_REQUEST', messages: messages, model: model, maxTokens: maxTokens || 500 }, function (response) {
-        if (chrome.runtime.lastError) {
-          reject(new Error(chrome.runtime.lastError.message));
-          return;
-        }
-        if (response && response.error) {
-          reject(new Error(response.error));
-          return;
-        }
-        resolve(response && response.data);
+      var done = false;
+      var port = null;
+      var timer = null;
+      try { port = chrome.runtime.connect({ name: 'tess-ai-keepalive' }); } catch (e) { port = null; }
+      function finish(err, val) {
+        if (done) return;
+        done = true;
+        if (timer) clearTimeout(timer);
+        try { if (port) port.disconnect(); } catch (e) {}
+        if (err) reject(err); else resolve(val);
+      }
+      timer = setTimeout(function () {
+        finish(new Error('El servidor IA tardó demasiado en responder (despertando...). Intenta de nuevo.'), null);
+      }, timeoutMs || 90000);
+      chrome.runtime.sendMessage(message, function (response) {
+        if (chrome.runtime.lastError) { finish(new Error(chrome.runtime.lastError.message), null); return; }
+        if (response && response.error) { finish(new Error(response.error), null); return; }
+        finish(null, response && response.data);
       });
     });
   }
 
+  function callGroq(messages, model, maxTokens) {
+    return sendToBackground({ action: 'GROQ_REQUEST', messages: messages, model: model, maxTokens: maxTokens || 500 }, 90000);
+  }
+
   function callAI(messages, maxTokens, provider) {
-    return new Promise(function (resolve, reject) {
-      chrome.runtime.sendMessage({ action: 'AI_REQUEST', messages: messages, maxTokens: maxTokens || 500, provider: provider }, function (response) {
-        if (chrome.runtime.lastError) {
-          reject(new Error(chrome.runtime.lastError.message));
-          return;
-        }
-        if (response && response.error) {
-          reject(new Error(response.error));
-          return;
-        }
-        resolve(response && response.data);
-      });
-    });
+    return sendToBackground({ action: 'AI_REQUEST', messages: messages, maxTokens: maxTokens || 500, provider: provider }, 90000);
   }
 
   return {
