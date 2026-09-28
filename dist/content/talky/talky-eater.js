@@ -557,16 +557,17 @@ function extractSenderFromNode(el) {
 }
 
 function injectEaterTrigger(msgEl, messageText) {
-  if (msgEl.querySelector('.tess-eater-trigger, .tess-capture-trigger')) return false;
-  if (isMailPageContext()) return false;
-  if (msgEl.classList.contains('tess-checked-outgoing')) return false;
-  if (msgEl.matches && msgEl.matches('[class*="my-text-message"], [class*="my-tu-message-wrapper"]')) return false;
-  if (isOutgoingMessage(msgEl)) return false;
-  if (!isChatBubble(msgEl)) return false;
+  if (msgEl.querySelector('.tess-eater-trigger, .tess-capture-trigger')) { if (window._tessEaterDebug) console.log('[EATER-DBG] skip hasTrigger', String(msgEl.className).slice(0,40)); return false; }
+  if (isMailPageContext()) { if (window._tessEaterDebug) console.log('[EATER-DBG] skip mailCtx', String(msgEl.className).slice(0,40)); return false; }
+  if (msgEl.classList.contains('tess-checked-outgoing')) { if (window._tessEaterDebug) console.log('[EATER-DBG] skip checked-outgoing', String(msgEl.className).slice(0,40)); return false; }
+  if (msgEl.matches && msgEl.matches('[class*="my-text-message"], [class*="my-tu-message-wrapper"]')) { if (window._tessEaterDebug) console.log('[EATER-DBG] skip myCls', String(msgEl.className).slice(0,40)); return false; }
+  if (isOutgoingMessage(msgEl)) { if (window._tessEaterDebug) console.log('[EATER-DBG] skip outgoing', String(msgEl.className).slice(0,40)); return false; }
+  if (!isChatBubble(msgEl)) { if (window._tessEaterDebug) console.log('[EATER-DBG] skip notBubble', String(msgEl.className).slice(0,40)); return false; }
   
   var eaterSenderId = extractSenderFromNode(msgEl);
-  if (eaterSenderId && typeof isInAABlacklist === 'function' && isInAABlacklist(eaterSenderId)) return false;
-  if (eaterSenderId && typeof window._isInMLBlacklist === 'function' && window._isInMLBlacklist(eaterSenderId)) return false;
+  if (eaterSenderId && typeof isInAABlacklist === 'function' && isInAABlacklist(eaterSenderId)) { if (window._tessEaterDebug) console.log('[EATER-DBG] skip AAbl', eaterSenderId); return false; }
+  if (eaterSenderId && typeof window._isInMLBlacklist === 'function' && window._isInMLBlacklist(eaterSenderId)) { if (window._tessEaterDebug) console.log('[EATER-DBG] skip MLbl', eaterSenderId); return false; }
+  if (window._tessEaterDebug) console.log('[EATER-DBG] INJECTOK', String(msgEl.className).slice(0,40), (messageText || '').slice(0,20));
   
   const nameSelectors = ['[class*="name"]', '[class*="sender"]', '[class*="author"]', '[class*="username"]', '[class*="contact-name"]'];
   let clientName = 'Cliente';
