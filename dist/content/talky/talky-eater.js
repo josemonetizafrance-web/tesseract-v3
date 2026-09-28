@@ -246,6 +246,7 @@ function startChatWatcher() {
   chatWatcherObserver.observe(chatContainer, { childList: true, subtree: true, characterData: true });
   
   msgPollInterval = setInterval(() => {
+    if (_debugOn()) console.log('[EATER-DBG] tick eaterActive=' + eaterActive + ' auth=' + isAuthenticated + ' mail=' + (document.querySelector('[data-test-id*="mail-history-item"], [class*="mail-history-item"]') ? 'SI' : 'no') + ' wrappers=' + document.querySelectorAll('[class*="tu-message-wrapper"]:not([class*="my-tu-message-wrapper"])').length + ' triggers=' + document.querySelectorAll('.tess-eater-trigger').length);
     if (!eaterActive || !isAuthenticated) return;
     scanAllIncomingMessages();
     scanAllOutgoingMessages();
