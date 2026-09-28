@@ -297,16 +297,16 @@ function scanAllIncomingMessages() {
     console.log('[TESSERACT] scanner selector', sel, 'matched', messages.length, 'messages');
     for (let i = messages.length - 1; i >= 0; i--) {
       const msg = messages[i];
-      if (msg.classList.contains('tess-checked-outgoing')) continue;
-      if (msg.matches && msg.matches('[class*="my-text-message"], [class*="my-message"], [class*="own"], [class*="sent"], [class*="my-tu-message-wrapper"]')) continue;
-      if (msg.closest && msg.closest('[class*="my-text-message"], [class*="my-message"], [class*="own"], [class*="my-tu-message-wrapper"]')) continue;
-      if (isOutgoingMessage(msg)) continue;
-      if (!isChatBubble(msg)) continue;
+      if (msg.classList.contains('tess-checked-outgoing')) { if (_debugOn()) console.log('[EATER-DBG] scan continue: checked-outgoing'); continue; }
+      if (msg.matches && msg.matches('[class*="my-text-message"], [class*="my-message"], [class*="own"], [class*="sent"], [class*="my-tu-message-wrapper"]')) { if (_debugOn()) console.log('[EATER-DBG] scan continue: my-match'); continue; }
+      if (msg.closest && msg.closest('[class*="my-text-message"], [class*="my-message"], [class*="own"], [class*="my-tu-message-wrapper"]')) { if (_debugOn()) console.log('[EATER-DBG] scan continue: my-closest'); continue; }
+      if (isOutgoingMessage(msg)) { if (_debugOn()) console.log('[EATER-DBG] scan continue: outgoing'); continue; }
+      if (!isChatBubble(msg)) { if (_debugOn()) console.log('[EATER-DBG] scan continue: notBubble', 'cls=' + String(msg.className).slice(0,45)); continue; }
       const text = (msg.textContent || '').trim();
-      if (!text || text.length < 3) continue;
+      if (!text || text.length < 3) { if (_debugOn()) console.log('[EATER-DBG] scan continue: shortText'); continue; }
       const hash = text.substring(0, 80);
-      if (_processedTexts.has(hash) && msg.querySelector('.tess-eater-trigger')) continue;
-      if (eaterResponse && (text === eaterResponse || text.startsWith(eaterResponse.substring(0, 40)))) continue;
+      if (_processedTexts.has(hash) && msg.querySelector('.tess-eater-trigger')) { if (_debugOn()) console.log('[EATER-DBG] scan continue: alreadyInjected'); continue; }
+      if (eaterResponse && (text === eaterResponse || text.startsWith(eaterResponse.substring(0, 40)))) { if (_debugOn()) console.log('[EATER-DBG] scan continue: isBotResponse'); continue; }
       if (injectEaterTrigger(msg, text)) {
         _processedTexts.add(hash);
         if (_processedTexts.size > 30) {
@@ -556,18 +556,27 @@ function extractSenderFromNode(el) {
   return null;
 }
 
+function _debugOn() {
+  try {
+    if (window._tessEaterDebug) return true;
+    if (document.documentElement && document.documentElement.dataset && document.documentElement.dataset.tessDebug === '1') return true;
+  } catch (e) {}
+  return false;
+}
+
 function injectEaterTrigger(msgEl, messageText) {
-  if (msgEl.querySelector('.tess-eater-trigger, .tess-capture-trigger')) { if (window._tessEaterDebug) console.log('[EATER-DBG] skip hasTrigger', String(msgEl.className).slice(0,40)); return false; }
-  if (isMailPageContext()) { if (window._tessEaterDebug) console.log('[EATER-DBG] skip mailCtx', String(msgEl.className).slice(0,40)); return false; }
-  if (msgEl.classList.contains('tess-checked-outgoing')) { if (window._tessEaterDebug) console.log('[EATER-DBG] skip checked-outgoing', String(msgEl.className).slice(0,40)); return false; }
-  if (msgEl.matches && msgEl.matches('[class*="my-text-message"], [class*="my-tu-message-wrapper"]')) { if (window._tessEaterDebug) console.log('[EATER-DBG] skip myCls', String(msgEl.className).slice(0,40)); return false; }
-  if (isOutgoingMessage(msgEl)) { if (window._tessEaterDebug) console.log('[EATER-DBG] skip outgoing', String(msgEl.className).slice(0,40)); return false; }
-  if (!isChatBubble(msgEl)) { if (window._tessEaterDebug) console.log('[EATER-DBG] skip notBubble', String(msgEl.className).slice(0,40)); return false; }
+  const __dbg = _debugOn();
+  if (msgEl.querySelector('.tess-eater-trigger, .tess-capture-trigger')) { if (__dbg) console.log('[EATER-DBG] skip hasTrigger', String(msgEl.className).slice(0,40)); return false; }
+  if (isMailPageContext()) { if (__dbg) console.log('[EATER-DBG] skip mailCtx', String(msgEl.className).slice(0,40)); return false; }
+  if (msgEl.classList.contains('tess-checked-outgoing')) { if (__dbg) console.log('[EATER-DBG] skip checked-outgoing', String(msgEl.className).slice(0,40)); return false; }
+  if (msgEl.matches && msgEl.matches('[class*="my-text-message"], [class*="my-tu-message-wrapper"]')) { if (__dbg) console.log('[EATER-DBG] skip myCls', String(msgEl.className).slice(0,40)); return false; }
+  if (isOutgoingMessage(msgEl)) { if (__dbg) console.log('[EATER-DBG] skip outgoing', String(msgEl.className).slice(0,40)); return false; }
+  if (!isChatBubble(msgEl)) { if (__dbg) console.log('[EATER-DBG] skip notBubble', String(msgEl.className).slice(0,40)); return false; }
   
   var eaterSenderId = extractSenderFromNode(msgEl);
-  if (eaterSenderId && typeof isInAABlacklist === 'function' && isInAABlacklist(eaterSenderId)) { if (window._tessEaterDebug) console.log('[EATER-DBG] skip AAbl', eaterSenderId); return false; }
-  if (eaterSenderId && typeof window._isInMLBlacklist === 'function' && window._isInMLBlacklist(eaterSenderId)) { if (window._tessEaterDebug) console.log('[EATER-DBG] skip MLbl', eaterSenderId); return false; }
-  if (window._tessEaterDebug) console.log('[EATER-DBG] INJECTOK', String(msgEl.className).slice(0,40), (messageText || '').slice(0,20));
+  if (eaterSenderId && typeof isInAABlacklist === 'function' && isInAABlacklist(eaterSenderId)) { if (__dbg) console.log('[EATER-DBG] skip AAbl', eaterSenderId); return false; }
+  if (eaterSenderId && typeof window._isInMLBlacklist === 'function' && window._isInMLBlacklist(eaterSenderId)) { if (__dbg) console.log('[EATER-DBG] skip MLbl', eaterSenderId); return false; }
+  if (__dbg) console.log('[EATER-DBG] INJECTOK', String(msgEl.className).slice(0,40), (messageText || '').slice(0,20));
   
   const nameSelectors = ['[class*="name"]', '[class*="sender"]', '[class*="author"]', '[class*="username"]', '[class*="contact-name"]'];
   let clientName = 'Cliente';
