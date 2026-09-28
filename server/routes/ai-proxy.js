@@ -172,6 +172,13 @@ function extractContent(data) {
   return data?.choices?.[0]?.message?.content || null;
 }
 
+// Detección de rechazo por política de contenido (OpenAI content_policy, Gemini SAFETY, etc.)
+function isContentRefusal(status, data) {
+  const text = JSON.stringify(data || {}).toLowerCase();
+  if (/404|not found|invalid_api_key|authentication|unauthorized|quota|rate.?limit|high demand|internal/.test(text)) return false;
+  return /content_policy|content policy|does not (allow|comply)|not allowed to|safety|moderation|responsible ai|sensitive content|sexual|erotic|explicit|policy violation|reject|refus|block.?reason|blockreason|safety_rating|harmcat/i.test(text);
+}
+
 // Cascada completa: OpenRouter -> Gemini -> Groq -> Venice -> OpenAI
 // Si llega preferProvider:'venice', Venice va primero (tono sin censura).
 async function aiCascade(messages, requestedModel, maxTokens, preferProvider) {
@@ -191,14 +198,33 @@ async function aiCascade(messages, requestedModel, maxTokens, preferProvider) {
   else attempts.push(openrouter, gemini, groq, venice, openai);
 
   const details = [];
+  let contentRefused = false;
   for (const [name, fn] of attempts) {
     let r;
     try { r = await fn(); } catch (e) { r = { ok: false, status: 0, data: { error: e.message } }; }
     const reason = r.data?.error?.message || r.data?.error || (typeof r.data === 'string' ? r.data : (r.data ? JSON.stringify(r.data).slice(0, 160) : 'sin respuesta'));
     details.push({ provider: name, status: r.status, reason: String(reason) });
     if (r.ok && extractContent(r.data)) return { ok: true, provider: name, data: r.data };
+    if (!r.ok && isContentRefusal(r.status, r.data)) {
+      contentRefused = true;
+      console.warn(`[AI-PROXY] "${name}" rechazó el contenido (política):`, String(reason).slice(0, 140));
+    }
     console.error(`[AI-PROXY] ${name} falló:`, JSON.stringify({ status: r.status, error: reason }));
   }
+
+  // Si algún proveedor rechazó el contenido (ej. OpenAI/Gemini con mensaje sexual),
+  // reintentar UNA vez con Venice adaptando la respuesta al tono del cliente.
+  if (contentRefused && veniceKeys().length) {
+    const toneNote = { role: 'system', content: 'El proveedor anterior rechazó el mensaje por política de contenido. Responde al cliente respetando EXACTAMENTE el tono que él usa: si su mensaje es picante, atrevido o con carga sensual, acompáñalo con el MISMO nivel de temperatura, natural y sin censura ni moralismo, SIN escalar más que él. Nunca subas el clima por encima de lo que el cliente puso. Usa el idioma del cliente y responde SOLO el texto de la respuesta.' };
+    console.log('[AI-PROXY] Reintento de generación con Venice (tono reflejado)');
+    let rv = null;
+    try { rv = await tryVeniceWithFallback(messages.concat([toneNote]), requestedModel && /venice/i.test(requestedModel) ? requestedModel : undefined, maxTokens); } catch (e) { rv = null; }
+    if (rv && rv.ok && extractContent(rv.data)) {
+      details.push({ provider: 'Venice (retry por política)', status: 200, reason: 'tono reflejado OK' });
+      return { ok: true, provider: 'Venice', data: rv.data };
+    }
+  }
+
   return { ok: false, details };
 }
 
