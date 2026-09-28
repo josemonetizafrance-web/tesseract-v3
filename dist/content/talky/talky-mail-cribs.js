@@ -55,7 +55,7 @@ function startMailCribsObserver() {
   stopMailCribsObserver();
   const container = document.querySelector(TALK_Y.MAIL_HISTORY_CONTAINER) || document.querySelector(TALK_Y.SECTION_INBOX) || document.body;
   mailCribsObserver = new MutationObserver((mutations) => {
-    if (!mailCribsConfig.enabled) return;
+    if (!mailCribsConfig.enabled || !_isMailPage()) return;
     for (const mutation of mutations) {
       if (mutation.type !== 'childList') continue;
       for (const node of mutation.addedNodes) {
@@ -80,12 +80,13 @@ function stopMailCribsObserver() {
 }
 
 function scanExistingMessageTexts() {
-  if (!mailCribsConfig.enabled) return;
+  if (!mailCribsConfig.enabled || !_isMailPage()) return;
   document.querySelectorAll(MAIL_MSG_SEL).forEach(el => processMessageText(el));
 }
 
 function processMessageText(msgText) {
   if (!msgText || !mailCribsConfig.enabled) return;
+  if (!_isMailPage()) return;
   if (mailCribsProcessed.has(msgText)) return;
 
   var mailItem = findMailItem(msgText);
@@ -194,7 +195,19 @@ function findMailItem(el) {
     }
     cur = cur.parentElement;
   }
+  // Fallback mails/view: los observables viven en divs sin clase; usar el ancestro mas
+  // cercano que contenga el header del remitente (nombre de la carta).
+  cur = el;
+  for (var j = 0; j < 15 && cur; j++) {
+    if (cur.querySelector && cur.querySelector(TALK_Y.MAIL_HEADER_NAME)) return cur;
+    cur = cur.parentElement;
+  }
   return null;
+}
+
+// El modulo de cartas solo opera en la seccion de Mail, no en chat ni en search.
+function _isMailPage() {
+  return !!document.querySelector('[data-test-id*="mail-history-item"]') || /\/mails\/(view|inbox|outbox|sent|all)/.test(location.pathname);
 }
 
 function findPrecedingMailHeader(msgText) {
