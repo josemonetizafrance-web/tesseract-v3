@@ -357,6 +357,7 @@ async function generateMailResponse(msgText, _unused, profileId, senderName) {
   const systemMsg = (typeof TESS_MASTER_PROMPT!=='undefined'?TESS_MASTER_PROMPT+'\n\n':'') + '\n\n' + 'Eres un asistente de cartas para una plataforma de citas. Responde a la carta recibida de forma personal, cálida y natural. '
     + 'Usa el mismo tono y estilo que el operador usa en sus cartas (se proporciona abajo). '
     + 'La carta debe tener entre ' + minLen + ' y ' + maxLen + ' caracteres (longitud similar a la carta recibida de ' + targetLen + ' caracteres). NO te extiendas más de lo necesario ni seas más breve de lo pedido. '
+    + 'Refleja el REGISTRO de la carta recibida: si ella escribe picante, atrevida o con carga sensual, responde con el MISMO nivel de temperatura (natural y sin censura, SIN escalar más que ella); si es sobria o formal, responde sobrio. Usa el idioma de la carta. '
     + 'Responde solo con el mensaje, sin explicaciones ni introducciones.'
     + styleHint;
 
@@ -364,18 +365,18 @@ async function generateMailResponse(msgText, _unused, profileId, senderName) {
     + '\n\nGenera una respuesta personal a esta carta usando el estilo del operador. Respeta la longitud indicada en las instrucciones.';
 
   try {
-    if (typeof Tesseract === 'undefined' || typeof Tesseract.callGroq !== 'function') {
+    if (typeof Tesseract === 'undefined' || typeof Tesseract.callAI !== 'function') {
       showTessToast('⚠ Motor IA no disponible', 'error');
       return;
     }
-    var maxTokensNeeded = Math.min(Math.max(2000, Math.round(targetLen * 1.8)), 12000);
-    const groqData = await Tesseract.callGroq(
+    var maxTokensNeeded = Math.min(Math.max(2000, Math.round(targetLen * 1.8)), 8192);
+    const aiResponse = await Tesseract.callAI(
       [{ role: 'system', content: systemMsg }, { role: 'user', content: userMsg }],
-      undefined,
-      maxTokensNeeded
+      maxTokensNeeded,
+      'venice'
     );
-    if (!groqData) { showTessToast('⚠ Error de API Groq', 'error'); return; }
-    const response = groqData.choices?.[0]?.message?.content;
+    if (!aiResponse) { showTessToast('⚠ Error de generación IA', 'error'); return; }
+    const response = aiResponse.choices?.[0]?.message?.content;
     if (!response) { showTessToast('⚠ No se pudo generar respuesta', 'warning'); return; }
 
     // Inject into compose area
