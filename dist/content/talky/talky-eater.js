@@ -1012,6 +1012,7 @@ async function generateWithAI(name, profile, accumulatedMsg) {
       'Sigue el tono del cliente: si bromea, sigue humor; si es directo, se directo; si es profundo, conectate. ' +
       'DETECTA DISCUSION: si el cliente discute, rete o cuestiona, responde con la misma intensidad defiende tu punto con firmeza, no te doblegues. ' +
       'Habla como WhatsApp, no como carta. ' +
+      'ATREVIMIENTO REFLEJADO: espejo EXACTO del registro del cliente. Si él escribe picante, atrevido o con sex appeal, responde con el MISMO nivel de temperatura (natural, directo, sin escalar más que él); si él es sobrio, sigue sobrio. Nunca subas el clima por encima de lo que el cliente puso ni inventes un tono que él no usó. Nunca respondas a una insinuación con más de lo que se insinúa. ' +
       (isMultiple ? 'Cubre todos los mensajes recibidos con la extensión necesaria, respetando la longitud proporcional indicada.' : 'Sé concreto, respeta la longitud de ' + targetLen + ' caracteres.') + ' Responde SOLO el texto de mi respuesta.';
 
     console.log('[EATER AI] Llamando a IA vía proxy');
@@ -1040,7 +1041,7 @@ async function generateWithAI(name, profile, accumulatedMsg) {
 
     aiMessages.push({ role: 'user', content: prompt });
 
-    const aiData = await Tesseract.callAI(aiMessages, isMultiple ? 900 : 600);
+    const aiData = await Tesseract.callAI(aiMessages, isMultiple ? 900 : 600, 'venice');
 
     if (aiData && aiData.usage) {
       console.log('[EATER AI] usage:', JSON.stringify(aiData.usage), '| finish:', aiData.choices && aiData.choices[0] && aiData.choices[0].finish_reason);

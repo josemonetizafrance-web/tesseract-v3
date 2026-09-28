@@ -323,9 +323,9 @@ Entrega ÚNICAMENTE el mensaje final listo para enviar. Sin explicaciones, sin a
     });
   }
 
-  function callAI(messages, maxTokens) {
+  function callAI(messages, maxTokens, provider) {
     return new Promise(function (resolve, reject) {
-      chrome.runtime.sendMessage({ action: 'AI_REQUEST', messages: messages, maxTokens: maxTokens || 500 }, function (response) {
+      chrome.runtime.sendMessage({ action: 'AI_REQUEST', messages: messages, maxTokens: maxTokens || 500, provider: provider }, function (response) {
         if (chrome.runtime.lastError) {
           reject(new Error(chrome.runtime.lastError.message));
           return;

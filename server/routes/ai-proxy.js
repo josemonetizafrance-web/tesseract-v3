@@ -13,6 +13,9 @@ const GROQ_MODEL_FALLBACK = process.env.GROQ_MODEL_FALLBACK || 'qwen/qwen3.6-27b
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.7-flash';
 const GEMINI_MODEL_FALLBACKS = (process.env.GEMINI_MODEL_FALLBACK || 'gemini-3.1-flash-lite,gemini-3.6-flash').split(',').map((s) => s.trim()).filter(Boolean);
+const VENICE_API = 'https://api.venice.ai/api/v1/chat/completions';
+const VENICE_MODEL = process.env.VENICE_MODEL || 'venice-uncensored';
+const VENICE_MODEL_FALLBACK = process.env.VENICE_MODEL_FALLBACK || 'most_uncensored';
 const IMAGE_MODEL = process.env.IMAGE_MODEL || 'google/gemini-3.1-flash-lite-image';
 
 // Reintenta con modelo alternativo si el primario no existe (404)
@@ -110,22 +113,83 @@ function tryOpenAI(messages, model, maxTokens) {
   return callAI(OPENAI_API, key, model || 'gpt-3.5-turbo', messages, maxTokens);
 }
 
+// 5) Venice.ai (uncensored, opcional: se usa con provider:'venice' o como último respaldo).
+function veniceKeys() {
+  const out = [];
+  if (process.env.VENICE_API_KEY) out.push(process.env.VENICE_API_KEY);
+  for (let i = 2; i <= 30; i++) {
+    const k = process.env['VENICE_API_KEY_' + i];
+    if (k) out.push(k);
+  }
+  return out;
+}
+
+async function tryVenice(messages, model, maxTokens) {
+  const keys = veniceKeys();
+  if (!keys.length) return { ok: false, status: 0, data: { error: 'VENICE_API_KEY no configurada' } };
+  const body = {
+    model: model || VENICE_MODEL,
+    messages,
+    max_tokens: Math.max(maxTokens || 500, 300),
+    venice_parameters: { include_venice_system_prompt: false }
+  };
+  let last = null;
+  for (const key of keys) {
+    try {
+      const resp = await fetch(VENICE_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+        body: JSON.stringify(body)
+      });
+      const j = await resp.json().catch(() => ({}));
+      last = { ok: resp.ok, status: resp.status, data: j };
+      if (!resp.ok) {
+        console.warn(`[AI-PROXY] Venice (${keys.indexOf(key) + 1}/${keys.length}) falló (${resp.status}), rotando clave`);
+        continue;
+      }
+      if (!extractContent(j)) {
+        console.warn('[AI-PROXY] Venice devolvió respuesta vacía, rotando clave');
+        continue;
+      }
+      return { ok: true, status: 200, data: j };
+    } catch (e) {
+      last = { ok: false, status: 0, data: { error: e.message } };
+    }
+  }
+  return last || { ok: false, status: 0, data: { error: 'VENICE_API_KEY no configurada' } };
+}
+
+async function tryVeniceWithFallback(messages, model, maxTokens) {
+  let result = await tryVenice(messages, model, maxTokens);
+  if ((!result.ok || !extractContent(result.data)) && result.status === 404 && model === VENICE_MODEL) {
+    console.warn('[AI-PROXY] Modelo Venice 404 (' + model + '), reintentando con:', VENICE_MODEL_FALLBACK);
+    result = await tryVenice(messages, VENICE_MODEL_FALLBACK, maxTokens);
+  }
+  return result;
+}
+
 function extractContent(data) {
   return data?.choices?.[0]?.message?.content || null;
 }
 
-// Cascada completa: OpenRouter -> Gemini -> Groq -> OpenAI
-async function aiCascade(messages, requestedModel, maxTokens) {
-  const attempts = [
-    ['OpenRouter', () => {
-      // Solo respetar el modelo pedido si es familia gemini/google; si no, usar el default de OR
-      const m = requestedModel && /gemini|google/i.test(requestedModel) ? requestedModel : undefined;
-      return tryOpenRouter(messages, m, maxTokens);
-    }],
-    ['Gemini', () => tryGemini(messages, maxTokens)],
-    ['Groq', () => tryGroqWithFallback(messages, GROQ_MODEL, maxTokens)],
-    ['OpenAI', () => tryOpenAI(messages, undefined, maxTokens)]
-  ];
+// Cascada completa: OpenRouter -> Gemini -> Groq -> Venice -> OpenAI
+// Si llega preferProvider:'venice', Venice va primero (tono sin censura).
+async function aiCascade(messages, requestedModel, maxTokens, preferProvider) {
+  const attempts = [];
+  const venice = ['Venice', () => tryVeniceWithFallback(messages, requestedModel && /venice/i.test(requestedModel) ? requestedModel : undefined, maxTokens)];
+  const openrouter = ['OpenRouter', () => {
+    // Solo respetar el modelo pedido si es familia gemini/google; si no, usar el default de OR
+    const m = requestedModel && /gemini|google/i.test(requestedModel) ? requestedModel : undefined;
+    if (preferProvider === 'venice' && /venice/i.test(requestedModel || '')) return { ok: false, status: 0, data: { error: 'Modelo Venice no aplica a OpenRouter' } };
+    return tryOpenRouter(messages, m, maxTokens);
+  }];
+  const gemini = ['Gemini', () => tryGemini(messages, maxTokens)];
+  const groq = ['Groq', () => tryGroqWithFallback(messages, GROQ_MODEL, maxTokens)];
+  const openai = ['OpenAI', () => tryOpenAI(messages, undefined, maxTokens)];
+
+  if (preferProvider === 'venice') attempts.push(venice, openrouter, gemini, groq, openai);
+  else attempts.push(openrouter, gemini, groq, venice, openai);
+
   const details = [];
   for (const [name, fn] of attempts) {
     let r;
@@ -155,9 +219,9 @@ router.get('/api/chatgpt/models', validateToken, async (req, res) => {
 // POST /api/chatgpt/chat - EATER AI (OpenRouter -> Gemini -> Groq -> OpenAI)
 router.post('/api/chatgpt/chat', validateToken, async (req, res) => {
   try {
-    const { messages, model, max_tokens } = req.body;
+    const { messages, model, max_tokens, provider } = req.body;
 
-    const winner = await aiCascade(messages, model, max_tokens);
+    const winner = await aiCascade(messages, model, max_tokens, provider);
     if (winner && winner.ok) {
       if (winner.provider !== 'OpenRouter') console.log('[AI-PROXY] respondió via', winner.provider);
       return res.json(winner.data);

@@ -49,7 +49,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const res = await fetch(TESSERACT_API + '/api/chatgpt/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + stored.tess_jwt },
-          body: JSON.stringify({ messages: message.messages, max_tokens: message.maxTokens || 500 })
+          body: JSON.stringify({ messages: message.messages, max_tokens: message.maxTokens || 500, provider: message.provider })
         });
         const json = await res.json();
         if (res.ok && json.choices) {
