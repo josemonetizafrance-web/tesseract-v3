@@ -305,14 +305,15 @@ function scanAllIncomingMessages() {
       const text = (msg.textContent || '').trim();
       if (!text || text.length < 3) continue;
       const hash = text.substring(0, 80);
-      if (_processedTexts.has(hash)) continue;
+      if (_processedTexts.has(hash) && msg.querySelector('.tess-eater-trigger')) continue;
       if (eaterResponse && (text === eaterResponse || text.startsWith(eaterResponse.substring(0, 40)))) continue;
-      _processedTexts.add(hash);
-      if (_processedTexts.size > 30) {
-        const first = _processedTexts.values().next().value;
-        _processedTexts.delete(first);
+      if (injectEaterTrigger(msg, text)) {
+        _processedTexts.add(hash);
+        if (_processedTexts.size > 30) {
+          const first = _processedTexts.values().next().value;
+          _processedTexts.delete(first);
+        }
       }
-      injectEaterTrigger(msg, text);
       return;
     }
   }
@@ -402,14 +403,15 @@ function checkForIncomingMessages(node) {
       const text = (el.textContent || '').trim();
       if (!text || text.length < 3) continue;
       const hash = text.substring(0, 80);
-      if (_processedTexts.has(hash)) continue;
+      if (_processedTexts.has(hash) && el.querySelector('.tess-eater-trigger')) continue;
       if (eaterResponse && (text === eaterResponse || text.startsWith(eaterResponse.substring(0, 40)))) continue;
-      _processedTexts.add(hash);
-      if (_processedTexts.size > 30) {
-        const first = _processedTexts.values().next().value;
-        _processedTexts.delete(first);
+      if (injectEaterTrigger(el, text)) {
+        _processedTexts.add(hash);
+        if (_processedTexts.size > 30) {
+          const first = _processedTexts.values().next().value;
+          _processedTexts.delete(first);
+        }
       }
-      injectEaterTrigger(el, text);
       return;
     }
   }
@@ -555,16 +557,16 @@ function extractSenderFromNode(el) {
 }
 
 function injectEaterTrigger(msgEl, messageText) {
-  if (msgEl.querySelector('.tess-eater-trigger, .tess-capture-trigger')) return;
-  if (isMailPageContext()) return;
-  if (msgEl.classList.contains('tess-checked-outgoing')) return;
-  if (msgEl.matches && msgEl.matches('[class*="my-text-message"], [class*="my-tu-message-wrapper"]')) return;
-  if (isOutgoingMessage(msgEl)) return;
-  if (!isChatBubble(msgEl)) return;
+  if (msgEl.querySelector('.tess-eater-trigger, .tess-capture-trigger')) return false;
+  if (isMailPageContext()) return false;
+  if (msgEl.classList.contains('tess-checked-outgoing')) return false;
+  if (msgEl.matches && msgEl.matches('[class*="my-text-message"], [class*="my-tu-message-wrapper"]')) return false;
+  if (isOutgoingMessage(msgEl)) return false;
+  if (!isChatBubble(msgEl)) return false;
   
   var eaterSenderId = extractSenderFromNode(msgEl);
-  if (eaterSenderId && typeof isInAABlacklist === 'function' && isInAABlacklist(eaterSenderId)) return;
-  if (eaterSenderId && typeof window._isInMLBlacklist === 'function' && window._isInMLBlacklist(eaterSenderId)) return;
+  if (eaterSenderId && typeof isInAABlacklist === 'function' && isInAABlacklist(eaterSenderId)) return false;
+  if (eaterSenderId && typeof window._isInMLBlacklist === 'function' && window._isInMLBlacklist(eaterSenderId)) return false;
   
   const nameSelectors = ['[class*="name"]', '[class*="sender"]', '[class*="author"]', '[class*="username"]', '[class*="contact-name"]'];
   let clientName = 'Cliente';
@@ -638,6 +640,7 @@ function injectEaterTrigger(msgEl, messageText) {
     }
   }
   if (convEl) startResponseTimer(convEl, clientName, trigger);
+  return true;
 }
 
 // ============ CAPTURA DE ESTILO ============
