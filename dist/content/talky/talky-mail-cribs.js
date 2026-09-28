@@ -99,11 +99,11 @@ function processMessageText(msgText) {
     first.forEach(function (k) { mailCribsProcessed.delete(k); });
   }
 
-  var isMe = senderName === TALK_Y.MAIL_OPERATOR_NAME;
+  var isMe = senderName === TALK_Y.MAIL_OPERATOR_NAME || mailLooksOutgoing(mailItem) || mailLooksOutgoing(msgText);
 
   if (isMe) {
     if (mailCribsLetterStyleEnabled) injectCaptureButton(msgText, mailItem);
-  } else {
+  } else if (senderName) {
     if (isLastIncomingInThread(msgText)) {
       injectResponseButton(msgText, mailItem, senderName);
     }
@@ -186,6 +186,22 @@ function findPrecedingMailHeader(msgText) {
   return findMailItem(msgText);
 }
 
+// Detecta cartas salientes (mías) por clases/markers del wrapper, no solo por nombre 'Me'
+function mailLooksOutgoing(el) {
+  if (!el) return false;
+  var stack = '';
+  var cur = el;
+  for (var i = 0; i < 5 && cur; i++) {
+    var cn = (cur.className && String(cur.className)) || '';
+    var tid = (cur.getAttribute && cur.getAttribute('data-test-id')) || '';
+    stack += ' ' + cn + ' ' + tid;
+    cur = cur.parentElement;
+  }
+  var s = ' ' + stack.toLowerCase() + ' ';
+  if (/ (out|mine|self|sent|my)([^a-z]|$)/.test(s)) return true;
+  return /my-text-message|message-out|outgoing|message-sent|sent-message|sent-letter|my-letter|my-message|align-right|right-align|from-me|is-me|user-msg|me-msg/.test(s);
+}
+
 function extractMailSenderName(mailItem) {
   if (!mailItem) return '';
   var nameEl = mailItem.querySelector(TALK_Y.MAIL_HEADER_NAME);
@@ -261,6 +277,8 @@ function injectCaptureButton(msgText, mailItem) {
     if (!profileId) {
       profileId = extractProfileIdFromMail(msgText, mailItem, false);
     }
+    if (!profileId && window._lastCribsPid) profileId = window._lastCribsPid;
+    if (!profileId && window._cribsChatIds && window._cribsChatIds.length > 1) profileId = String(window._cribsChatIds[1]).replace(/^0+/, '');
     if (!profileId) { showTessToast('⚠ No se pudo identificar el perfil', 'warning'); this._processing = false; this.style.opacity = '0.5'; return; }
     sendLetterStyleToCribs(profileId, capturedText, profileName).then(function () {
       trigger._processing = false;
