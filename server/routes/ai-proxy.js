@@ -229,74 +229,92 @@ router.post('/api/chatgpt/image', validateToken, async (req, res) => {
 
     // Preset 1 (default): Nano Banana Pro. Preset 2: Nano Banana 2 Lite (más barato).
     const useAlt = String(preset || '').toLowerCase() === '2';
-    let imageKey, imageModel;
-    if (useAlt) {
-      imageKey = process.env.OPENROUTER_IMAGE_API_KEY_2 || process.env.OPENROUTER_IMAGE_API_KEY || process.env.OPENROUTER_API_KEY;
-      imageModel = (model && String(model).trim()) || process.env.IMAGE_MODEL_2_2 || process.env.IMAGE_MODEL_2 || 'google/gemini-3.1-flash-lite-image';
-    } else {
-      imageKey = process.env.OPENROUTER_IMAGE_API_KEY || process.env.OPENROUTER_API_KEY;
-      imageModel = (model && String(model).trim()) || process.env.IMAGE_MODEL || 'google/gemini-3-pro-image';
+    const imageModel = (model && String(model).trim()) || (useAlt ? (process.env.IMAGE_MODEL_2_2 || process.env.IMAGE_MODEL_2 || 'google/gemini-3.1-flash-lite-image') : (process.env.IMAGE_MODEL || 'google/gemini-3-pro-image'));
+
+    // Rotación: N claves del tipo (PRO o LITE) + claves legacy de respaldo.
+    function collectImageKeys(prefix) {
+      const out = [];
+      for (let i = 1; i <= 60; i++) {
+        const k = process.env[prefix + String(i).padStart(2, '0')] || process.env[prefix + String(i)];
+        if (k) out.push(k);
+      }
+      return out;
     }
-    if (!imageKey) {
+    const legacyKeys = useAlt
+      ? [process.env.OPENROUTER_IMAGE_API_KEY_2, process.env.OPENROUTER_IMAGE_API_KEY, process.env.OPENROUTER_API_KEY]
+      : [process.env.OPENROUTER_IMAGE_API_KEY, process.env.OPENROUTER_API_KEY];
+    const imageKeys = collectImageKeys(useAlt ? 'OPENROUTER_IMAGE_LITE_KEY_' : 'OPENROUTER_IMAGE_PRO_KEY_')
+      .concat(legacyKeys.filter(Boolean))
+      .filter((v, i, a) => a.indexOf(v) === i);
+    if (!imageKeys.length) {
       const g = await geminiImageFallback(String(prompt).trim());
       if (g) return res.json({ success: true, provider: 'Gemini', model: g.model, format: g.format, base64: g.base64 });
-      return res.status(500).json({ error: 'Sin OPENROUTER_IMAGE_API_KEY/OPENROUTER_API_KEY y sin GEMINI_API_KEY para imágenes' });
+      return res.status(500).json({ error: 'Sin claves OpenRouter de imagen y sin GEMINI_API_KEY para imágenes' });
     }
 
     const targetModel = imageModel;
     // Nota: los modelos Gemini-image NO aceptan {size} ('330x330' -> 400 "Request contains an invalid argument").
     // Se usa resolution (tier normalizado) + aspect_ratio. Por defecto 1K cuadrado (~1024x1024).
-    const payload = { model: targetModel, prompt: String(prompt).trim(), n: 1, output_format: 'png', resolution: String(req.body.resolution || process.env.IMAGE_RESOLUTION || (useAlt ? '512' : '1K')), aspect_ratio: String(req.body.aspect_ratio || '1:1') };
-    if (refs.length) payload.input_references = refs;
+    const basePayload = { model: targetModel, prompt: String(prompt).trim(), n: 1, output_format: 'png', resolution: String(req.body.resolution || process.env.IMAGE_RESOLUTION || (useAlt ? '512' : '1K')), aspect_ratio: String(req.body.aspect_ratio || '1:1') };
+    if (refs.length) basePayload.input_references = refs;
 
-    async function attempt(opts) {
+    async function attemptKey(apiKey, opts) {
       const resp = await fetch(OPENROUTER_IMAGE_API, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${imageKey}` },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
         body: JSON.stringify(opts)
       });
       const j = await resp.json().catch(() => ({}));
       return { ok: resp.ok, status: resp.status, j };
     }
 
-    let out = await attempt(payload);
-    if (!out.ok && /output_format|input_references|size|aspect|resolution|invalid argument|not supported|unknown field|parameter/i.test(JSON.stringify(out.j))) {
-      delete payload.output_format;
-      delete payload.input_references;
-      delete payload.resolution;
-      delete payload.aspect_ratio;
-      out = await attempt(payload);
-    }
-    if (!out.ok) {
-      const g = await geminiImageFallback(String(prompt).trim());
-      if (g) return res.json({ success: true, provider: 'Gemini', model: g.model, format: g.format, base64: g.base64 });
-      return res.status(out.status || 502).json({ error: (out.j && (out.j.error?.message || out.j.error)) || 'Error generando imagen' });
+    let out = null;
+    let lastStatus = null;
+    let lastErr = '';
+    for (const imageKey of imageKeys) {
+      let opts = Object.assign({}, basePayload);
+      let r = await attemptKey(imageKey, opts);
+      if (!r.ok && /output_format|input_references|size|aspect|resolution|invalid argument|not supported|unknown field|parameter/i.test(JSON.stringify(r.j))) {
+        const stripped = {};
+        Object.keys(opts).forEach(function (k) {
+          if (typeof opts[k] === 'undefined') return;
+          if (/output_format|input_references|resolution|aspect_ratio|size/i.test(k)) return;
+          stripped[k] = opts[k];
+        });
+        opts = stripped;
+        r = await attemptKey(imageKey, opts);
+      }
+      out = r;
+      lastStatus = r.status;
+      lastErr = (r.j && (r.j.error?.message || r.j.error)) || 'Error generando imagen';
+      console.log(`[AI-PROXY] imagen clave ${imageKeys.indexOf(imageKey) + 1}/${imageKeys.length} (${r.status})${r.ok ? '' : ', rotando'}`);
+      if (!r.ok) continue;
+      const item = r.j?.data?.[0];
+      if (!item) { lastErr = 'OpenRouter no devolvió imagen'; continue; }
+
+      let b64 = item.b64_json;
+      let format = 'png';
+      const mt = String(item.media_type || '').toLowerCase();
+      if (mt.includes('jpeg') || mt.includes('jpg')) format = 'jpeg';
+      else if (mt.includes('webp')) format = 'webp';
+      else if (mt.includes('svg')) format = 'svg';
+      if (!b64 && item.url) {
+        const imgResp = await fetch(item.url);
+        if (!imgResp.ok) return res.status(502).json({ error: 'No se pudo descargar la imagen generada' });
+        b64 = Buffer.from(await imgResp.arrayBuffer()).toString('base64');
+        const ct = (imgResp.headers.get('content-type') || '').toLowerCase();
+        if (ct.includes('jpeg')) format = 'jpeg';
+        else if (ct.includes('webp')) format = 'webp';
+      }
+      if (!b64) { lastErr = 'Respuesta de imagen vacía'; continue; }
+
+      return res.json({ success: true, provider: 'OpenRouter', model: targetModel, format, base64: b64 });
     }
 
-    const item = out.j?.data?.[0];
-    if (!item) {
-      const g = await geminiImageFallback(String(prompt).trim());
-      if (g) return res.json({ success: true, provider: 'Gemini', model: g.model, format: g.format, base64: g.base64 });
-      return res.status(502).json({ error: 'OpenRouter no devolvió imagen' });
-    }
-
-    let b64 = item.b64_json;
-    let format = 'png';
-    const mt = String(item.media_type || '').toLowerCase();
-    if (mt.includes('jpeg') || mt.includes('jpg')) format = 'jpeg';
-    else if (mt.includes('webp')) format = 'webp';
-    else if (mt.includes('svg')) format = 'svg';
-    if (!b64 && item.url) {
-      const imgResp = await fetch(item.url);
-      if (!imgResp.ok) return res.status(502).json({ error: 'No se pudo descargar la imagen generada' });
-      b64 = Buffer.from(await imgResp.arrayBuffer()).toString('base64');
-      const ct = (imgResp.headers.get('content-type') || '').toLowerCase();
-      if (ct.includes('jpeg')) format = 'jpeg';
-      else if (ct.includes('webp')) format = 'webp';
-    }
-    if (!b64) return res.status(502).json({ error: 'Respuesta de imagen vacía' });
-
-    res.json({ success: true, provider: 'OpenRouter', model: targetModel, format, base64: b64 });
+    // Ninguna clave funcionó -> fallback gratis a Gemini (imágenes).
+    const g = await geminiImageFallback(String(prompt).trim());
+    if (g) return res.json({ success: true, provider: 'Gemini', model: g.model, format: g.format, base64: g.base64 });
+    return res.status(lastStatus || 502).json({ error: lastErr || 'Error generando imagen' });
   } catch (err) {
     console.error('[AI-PROXY] image error:', err.message);
     res.status(500).json({ error: err.message });
