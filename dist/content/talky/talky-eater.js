@@ -299,11 +299,8 @@ function scanAllIncomingMessages() {
     for (let i = messages.length - 1; i >= 0; i--) {
       const msg = messages[i];
       const _cls = String(msg.className || '').slice(0, 55);
-      if (msg.classList.contains('tess-checked-outgoing')) { if (_debugOn()) console.log('[EATER-DBG] cont:checked-outgoing', 'sel=' + sel.slice(0,40), 'cls=' + _cls); continue; }
-      if (msg.matches && msg.matches('[class*="my-text-message"], [class*="my-message"], [class*="own"], [class*="sent"], [class*="my-tu-message-wrapper"]')) { if (_debugOn()) console.log('[EATER-DBG] cont:my-match', 'sel=' + sel.slice(0,40), 'cls=' + _cls); continue; }
-      if (msg.closest && msg.closest('[class*="my-text-message"], [class*="my-message"], [class*="own"], [class*="my-tu-message-wrapper"]')) { if (_debugOn()) console.log('[EATER-DBG] cont:my-closest', 'sel=' + sel.slice(0,40), 'cls=' + _cls); continue; }
-      if (isOutgoingMessage(msg)) { if (_debugOn()) console.log('[EATER-DBG] cont:outgoing', 'sel=' + sel.slice(0,40), 'cls=' + _cls); continue; }
       if (!isChatBubble(msg)) { if (_debugOn()) console.log('[EATER-DBG] cont:notBubble', 'sel=' + sel.slice(0,40), 'cls=' + _cls); continue; }
+      if (msg.classList.contains('tess-checked-outgoing')) { if (_debugOn()) console.log('[EATER-DBG] cont:checked-outgoing', 'sel=' + sel.slice(0,40), 'cls=' + _cls); continue; }
       const text = (msg.textContent || '').trim();
       if (!text || text.length < 3) { if (_debugOn()) console.log('[EATER-DBG] cont:shortText', 'sel=' + sel.slice(0,40), 'cls=' + _cls); continue; }
       const hash = text.substring(0, 80);
@@ -395,11 +392,8 @@ function checkForIncomingMessages(node) {
   const nodes = node.nodeType === 1 ? [node, ...node.querySelectorAll('*')] : [];
   for (const el of nodes) {
     if (el.nodeType !== 1) continue;
-    if (el.classList.contains('tess-checked-outgoing')) continue;
-    if (el.matches && el.matches('[class*="my-text-message"], [class*="my-message"], [class*="own"], [class*="my-tu-message-wrapper"]')) continue;
-    if (el.closest && el.closest('[class*="my-text-message"], [class*="my-message"], [class*="own"], [class*="my-tu-message-wrapper"]')) continue;
-    if (isOutgoingMessage(el)) continue;
     if (!isChatBubble(el)) continue;
+    if (el.classList.contains('tess-checked-outgoing')) continue;
     for (const sel of selectors) {
       if (!el.matches || !el.matches(sel)) continue;
       const text = (el.textContent || '').trim();
@@ -422,10 +416,11 @@ function checkForIncomingMessages(node) {
 function isOutgoingMessage(el) {
   const outgoingClasses = ['own', 'mine', 'self', 'my-text-message', 'my-message', 'my-tu-message-wrapper', 'message-sent', 'message--sent', 'msg--sent', 'msg--outgoing', 'message--outgoing', 'outgoing', 'bubble--right', 'msg--right', 'align-right', 'justify-end', 'ms-auto', 'ml-auto', 'flex-row-reverse', 'from-me', 'is-me', 'msg-mine', 'message-mine'];
   let current = el;
-  while (current && current !== document.body) {
+  while (current && current !== document.documentElement) {
     const cls = typeof current.className === 'string' ? current.className : '';
+    const tokens = cls.split(/\s+/);
     for (const oc of outgoingClasses) {
-      if (cls.includes(oc)) return true;
+      if (tokens.includes(oc)) return true;
     }
     if (current.getAttribute && current.getAttribute('data-test-id')?.includes('msg--sent')) return true;
     current = current.parentElement;
@@ -571,9 +566,9 @@ function injectEaterTrigger(msgEl, messageText) {
   if (msgEl.querySelector('.tess-eater-trigger, .tess-capture-trigger')) { if (__dbg) console.log('[EATER-DBG] skip hasTrigger', String(msgEl.className).slice(0,40)); return false; }
   if (isMailPageContext()) { if (__dbg) console.log('[EATER-DBG] skip mailCtx', String(msgEl.className).slice(0,40)); return false; }
   if (msgEl.classList.contains('tess-checked-outgoing')) { if (__dbg) console.log('[EATER-DBG] skip checked-outgoing', String(msgEl.className).slice(0,40)); return false; }
+  if (!isChatBubble(msgEl)) { if (__dbg) console.log('[EATER-DBG] skip notBubble', String(msgEl.className).slice(0,40)); return false; }
   if (msgEl.matches && msgEl.matches('[class*="my-text-message"], [class*="my-tu-message-wrapper"]')) { if (__dbg) console.log('[EATER-DBG] skip myCls', String(msgEl.className).slice(0,40)); return false; }
   if (isOutgoingMessage(msgEl)) { if (__dbg) console.log('[EATER-DBG] skip outgoing', String(msgEl.className).slice(0,40)); return false; }
-  if (!isChatBubble(msgEl)) { if (__dbg) console.log('[EATER-DBG] skip notBubble', String(msgEl.className).slice(0,40)); return false; }
   
   var eaterSenderId = extractSenderFromNode(msgEl);
   if (eaterSenderId && typeof isInAABlacklist === 'function' && isInAABlacklist(eaterSenderId)) { if (__dbg) console.log('[EATER-DBG] skip AAbl', eaterSenderId); return false; }
