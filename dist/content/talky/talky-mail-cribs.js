@@ -6,6 +6,7 @@
 let mailCribsConfig = { enabled: true };
 let mailCribsObserver = null;
 let mailCribsProcessed = new Set();
+let _mailNoItemLogged = new WeakSet();
 let mailCribsLetterStyleEnabled = true;
 let capturedLetterCache = new Set();
 
@@ -88,7 +89,13 @@ function processMessageText(msgText) {
   if (mailCribsProcessed.has(msgText)) return;
 
   var mailItem = findMailItem(msgText);
-  if (!mailItem) { console.log('[MAIL-CRIBS] no mail-item found'); return; }
+  if (!mailItem) {
+    if (!_mailNoItemLogged.has(msgText)) {
+      _mailNoItemLogged.add(msgText);
+      console.log('[MAIL-CRIBS] no mail-item found (observer:', (msgText.className || ''), ')');
+    }
+    return;
+  }
 
   var senderName = extractMailSenderName(mailItem);
   if (!senderName) { console.log('[MAIL-CRIBS] no senderName'); return; }
@@ -174,9 +181,17 @@ function showCribsForMailContact(isMe, msgText, header, senderName) {
 }
 
 function findMailItem(el) {
+  const itemSelectors = [TALK_Y.MAIL_ITEM,
+    '[class*="mail-history-item"]',
+    '[class*="mail-item"]',
+    '[class*="letter-item"]',
+    '[class*="mail-letter"]',
+    '[class*="history-item"]'];
   var cur = el;
-  for (var i = 0; i < 12 && cur; i++) {
-    if (cur.matches && cur.matches(TALK_Y.MAIL_ITEM)) return cur;
+  for (var i = 0; i < 30 && cur; i++) {
+    for (var s = 0; s < itemSelectors.length; s++) {
+      if (cur.matches && cur.matches(itemSelectors[s])) return cur;
+    }
     cur = cur.parentElement;
   }
   return null;
