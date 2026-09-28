@@ -18,6 +18,36 @@ const VENICE_MODEL = process.env.VENICE_MODEL || 'venice-uncensored';
 const VENICE_MODEL_FALLBACK = process.env.VENICE_MODEL_FALLBACK || 'most_uncensored';
 const IMAGE_MODEL = process.env.IMAGE_MODEL || 'google/gemini-3.1-flash-lite-image';
 
+// Modelos de imagen validos en OpenRouter (verificados contra GET /api/v1/models).
+// OpenRouter responde 404 {"error":"No model found for X"} si el id no existe, y una
+// env var mal escrita rompe TODAS las imagenes. Se valida y se cae al siguiente.
+const OR_IMAGE_PRO_DEFAULT = 'google/gemini-3-pro-image';
+const OR_IMAGE_LITE_DEFAULT = 'google/gemini-3.1-flash-lite-image';
+const OR_IMAGE_MODELS_VALID = [
+  OR_IMAGE_PRO_DEFAULT,
+  OR_IMAGE_LITE_DEFAULT,
+  'google/gemini-2.5-flash-image'
+];
+
+// Devuelve la cadena de modelos a intentar: el de la env si es valido, el default
+// del preset y despues el resto de validos (degradacion elegante).
+function imageModelChain(envValue, defaultModel, requestModel) {
+  const explicit = String(requestModel || '').trim();
+  if (explicit) {
+    if (OR_IMAGE_MODELS_VALID.indexOf(explicit) !== -1) return [explicit];
+    console.warn(`[AI-PROXY][IMG] modelo solicitado "${explicit}" no existe en OpenRouter; se ignora`);
+  }
+  const out = [];
+  const envM = String(envValue || '').trim();
+  if (envM) {
+    if (OR_IMAGE_MODELS_VALID.indexOf(envM) !== -1) out.push(envM);
+    else console.warn(`[AI-PROXY][IMG] IMAGE_MODEL="${envM}" no es un modelo de imagen valido en OpenRouter; se ignora`);
+  }
+  if (out.indexOf(defaultModel) === -1) out.push(defaultModel);
+  for (const m of OR_IMAGE_MODELS_VALID) if (out.indexOf(m) === -1) out.push(m);
+  return out;
+}
+
 // Reintenta con modelo alternativo si el primario no existe (404)
 async function tryGroqWithFallback(messages, model, maxTokens) {
   let result = await tryGroq(messages, model, maxTokens);
@@ -319,7 +349,10 @@ router.post('/api/chatgpt/image', validateToken, async (req, res) => {
 
     // Preset 1 (default): Nano Banana Pro. Preset 2: Nano Banana 2 Lite (más barato).
     const useAlt = String(preset || '').toLowerCase() === '2';
-    const imageModel = (model && String(model).trim()) || (useAlt ? (process.env.IMAGE_MODEL_2_2 || process.env.IMAGE_MODEL_2 || 'google/gemini-3.1-flash-lite-image') : (process.env.IMAGE_MODEL || 'google/gemini-3-pro-image'));
+    const envImageModel = useAlt
+      ? (process.env.IMAGE_MODEL_2_2 || process.env.IMAGE_MODEL_2)
+      : process.env.IMAGE_MODEL;
+    const modelChain = imageModelChain(envImageModel, useAlt ? OR_IMAGE_LITE_DEFAULT : OR_IMAGE_PRO_DEFAULT, model);
 
     // Rotación: N claves del tipo (PRO o LITE) + claves legacy de respaldo.
     function collectImageKeys(prefix) {
@@ -342,10 +375,9 @@ router.post('/api/chatgpt/image', validateToken, async (req, res) => {
       return res.status(500).json({ error: 'Sin claves OpenRouter de imagen y sin GEMINI_API_KEY para imágenes' });
     }
 
-    const targetModel = imageModel;
     // Nota: los modelos Gemini-image NO aceptan {size} ('330x330' -> 400 "Request contains an invalid argument").
     // Se usa resolution (tier normalizado) + aspect_ratio. Por defecto 1K cuadrado (~1024x1024).
-    const basePayload = { model: targetModel, prompt: String(prompt).trim(), n: 1, output_format: 'png', resolution: String(req.body.resolution || process.env.IMAGE_RESOLUTION || (useAlt ? '512' : '1K')), aspect_ratio: String(req.body.aspect_ratio || '1:1') };
+    const basePayload = { prompt: String(prompt).trim(), n: 1, output_format: 'png', resolution: String(req.body.resolution || process.env.IMAGE_RESOLUTION || (useAlt ? '512' : '1K')), aspect_ratio: String(req.body.aspect_ratio || '1:1') };
     if (refs.length) basePayload.input_references = refs;
 
     async function attemptKey(apiKey, opts) {
@@ -361,8 +393,10 @@ router.post('/api/chatgpt/image', validateToken, async (req, res) => {
     let out = null;
     let lastStatus = null;
     let lastErr = '';
+    outer:
+    for (const targetModel of modelChain) {
     for (const imageKey of imageKeys) {
-      let opts = Object.assign({}, basePayload);
+      let opts = Object.assign({ model: targetModel }, basePayload);
       let r = await attemptKey(imageKey, opts);
       if (!r.ok && /output_format|input_references|size|aspect|resolution|invalid argument|not supported|unknown field|parameter/i.test(JSON.stringify(r.j))) {
         const stripped = {};
@@ -377,8 +411,15 @@ router.post('/api/chatgpt/image', validateToken, async (req, res) => {
       out = r;
       lastStatus = r.status;
       lastErr = (r.j && (r.j.error?.message || r.j.error)) || 'Error generando imagen';
-      console.log(`[AI-PROXY] imagen clave ${imageKeys.indexOf(imageKey) + 1}/${imageKeys.length} (${r.status})${r.ok ? '' : ', rotando'}`);
-      if (!r.ok) continue;
+      console.log(`[AI-PROXY] imagen modelo ${targetModel} clave ${imageKeys.indexOf(imageKey) + 1}/${imageKeys.length} (${r.status})${r.ok ? '' : ', rotando'}`);
+      if (!r.ok) {
+        // El modelo no existe (404 / "No model found"): inservible para TODAS las claves -> siguiente modelo.
+        if (r.status === 404 || /no model found|model not found/i.test(lastErr)) {
+          console.warn(`[AI-PROXY][IMG] OpenRouter no reconoce "${targetModel}"; probando siguiente modelo`);
+          continue outer;
+        }
+        continue;
+      }
       const item = r.j?.data?.[0];
       if (!item) { lastErr = 'OpenRouter no devolvió imagen'; continue; }
 
@@ -399,6 +440,7 @@ router.post('/api/chatgpt/image', validateToken, async (req, res) => {
       if (!b64) { lastErr = 'Respuesta de imagen vacía'; continue; }
 
       return res.json({ success: true, provider: 'OpenRouter', model: targetModel, format, base64: b64 });
+    }
     }
 
     // Ninguna clave funcionó -> fallback gratis a Gemini (imágenes).
