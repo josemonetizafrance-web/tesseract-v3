@@ -298,16 +298,17 @@ function scanAllIncomingMessages() {
     console.log('[TESSERACT] scanner selector', sel, 'matched', messages.length, 'messages');
     for (let i = messages.length - 1; i >= 0; i--) {
       const msg = messages[i];
-      if (msg.classList.contains('tess-checked-outgoing')) { if (_debugOn()) console.log('[EATER-DBG] scan continue: checked-outgoing'); continue; }
-      if (msg.matches && msg.matches('[class*="my-text-message"], [class*="my-message"], [class*="own"], [class*="sent"], [class*="my-tu-message-wrapper"]')) { if (_debugOn()) console.log('[EATER-DBG] scan continue: my-match'); continue; }
-      if (msg.closest && msg.closest('[class*="my-text-message"], [class*="my-message"], [class*="own"], [class*="my-tu-message-wrapper"]')) { if (_debugOn()) console.log('[EATER-DBG] scan continue: my-closest'); continue; }
-      if (isOutgoingMessage(msg)) { if (_debugOn()) console.log('[EATER-DBG] scan continue: outgoing'); continue; }
-      if (!isChatBubble(msg)) { if (_debugOn()) console.log('[EATER-DBG] scan continue: notBubble', 'cls=' + String(msg.className).slice(0,45)); continue; }
+      const _cls = String(msg.className || '').slice(0, 55);
+      if (msg.classList.contains('tess-checked-outgoing')) { if (_debugOn()) console.log('[EATER-DBG] cont:checked-outgoing', 'sel=' + sel.slice(0,40), 'cls=' + _cls); continue; }
+      if (msg.matches && msg.matches('[class*="my-text-message"], [class*="my-message"], [class*="own"], [class*="sent"], [class*="my-tu-message-wrapper"]')) { if (_debugOn()) console.log('[EATER-DBG] cont:my-match', 'sel=' + sel.slice(0,40), 'cls=' + _cls); continue; }
+      if (msg.closest && msg.closest('[class*="my-text-message"], [class*="my-message"], [class*="own"], [class*="my-tu-message-wrapper"]')) { if (_debugOn()) console.log('[EATER-DBG] cont:my-closest', 'sel=' + sel.slice(0,40), 'cls=' + _cls); continue; }
+      if (isOutgoingMessage(msg)) { if (_debugOn()) console.log('[EATER-DBG] cont:outgoing', 'sel=' + sel.slice(0,40), 'cls=' + _cls); continue; }
+      if (!isChatBubble(msg)) { if (_debugOn()) console.log('[EATER-DBG] cont:notBubble', 'sel=' + sel.slice(0,40), 'cls=' + _cls); continue; }
       const text = (msg.textContent || '').trim();
-      if (!text || text.length < 3) { if (_debugOn()) console.log('[EATER-DBG] scan continue: shortText'); continue; }
+      if (!text || text.length < 3) { if (_debugOn()) console.log('[EATER-DBG] cont:shortText', 'sel=' + sel.slice(0,40), 'cls=' + _cls); continue; }
       const hash = text.substring(0, 80);
-      if (_processedTexts.has(hash) && msg.querySelector('.tess-eater-trigger')) { if (_debugOn()) console.log('[EATER-DBG] scan continue: alreadyInjected'); continue; }
-      if (eaterResponse && (text === eaterResponse || text.startsWith(eaterResponse.substring(0, 40)))) { if (_debugOn()) console.log('[EATER-DBG] scan continue: isBotResponse'); continue; }
+      if (_processedTexts.has(hash) && msg.querySelector('.tess-eater-trigger')) { if (_debugOn()) console.log('[EATER-DBG] cont:alreadyInjected', 'sel=' + sel.slice(0,40), 'cls=' + _cls); continue; }
+      if (eaterResponse && (text === eaterResponse || text.startsWith(eaterResponse.substring(0, 40)))) { if (_debugOn()) console.log('[EATER-DBG] cont:isBotResponse', 'sel=' + sel.slice(0,40), 'cls=' + _cls); continue; }
       if (injectEaterTrigger(msg, text)) {
         _processedTexts.add(hash);
         if (_processedTexts.size > 30) {
