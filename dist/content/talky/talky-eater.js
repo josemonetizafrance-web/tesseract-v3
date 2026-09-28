@@ -273,6 +273,7 @@ function isMailPageContext() {
 
 function scanAllIncomingMessages() {
   if (isMailPageContext()) return;
+  _tidyMisplacedTriggers();
   const selectors = [
     '[class*="tu-message-wrapper"]:not([class*="my-tu-message-wrapper"])',
     '.text-message',
@@ -300,6 +301,7 @@ function scanAllIncomingMessages() {
       if (msg.matches && msg.matches('[class*="my-text-message"], [class*="my-message"], [class*="own"], [class*="sent"], [class*="my-tu-message-wrapper"]')) continue;
       if (msg.closest && msg.closest('[class*="my-text-message"], [class*="my-message"], [class*="own"], [class*="my-tu-message-wrapper"]')) continue;
       if (isOutgoingMessage(msg)) continue;
+      if (!isChatBubble(msg)) continue;
       const text = (msg.textContent || '').trim();
       if (!text || text.length < 3) continue;
       const hash = text.substring(0, 80);
@@ -318,19 +320,20 @@ function scanAllIncomingMessages() {
 
 function scanAllOutgoingMessages() {
   if (isMailPageContext()) return;
-  if (!clonacionActiva) return;
+  const view = window._tessView || document.documentElement.getAttribute('data-tess-view');
+  if (view !== 'chat') return;
   const sentSelectors = [
     '[class*="my-tu-message-wrapper"]', '[class*="my-text-message"]', '.text-message.own', '[class*="message-sent"]',
     '[class*="bubble-right"]', '[data-test-id*="msg--sent"]'
   ];
-  const chatContainer = document.querySelector(TALK_Y.PAGE_CHAT_BODY);
-  if (!chatContainer) return;
   for (const sel of sentSelectors) {
     const messages = document.querySelectorAll(sel + ':not(.tess-checked-outgoing)');
     if (messages.length === 0) continue;
     for (let i = messages.length - 1; i >= 0; i--) {
       const msg = messages[i];
-      if (!chatContainer.contains(msg)) continue;
+      const wrap = msg.closest ? msg.closest('[class*="tu-message-wrapper"]') : null;
+      const wrapCls = String((wrap && wrap.className) || msg.className || '');
+      if (wrapCls.indexOf('my') === -1) continue;
       msg.classList.add('tess-checked-outgoing');
       const text = (msg.textContent || '').trim();
       if (!text || text.length < 3) continue;
@@ -393,6 +396,7 @@ function checkForIncomingMessages(node) {
     if (el.matches && el.matches('[class*="my-text-message"], [class*="my-message"], [class*="own"], [class*="my-tu-message-wrapper"]')) continue;
     if (el.closest && el.closest('[class*="my-text-message"], [class*="my-message"], [class*="own"], [class*="my-tu-message-wrapper"]')) continue;
     if (isOutgoingMessage(el)) continue;
+    if (!isChatBubble(el)) continue;
     for (const sel of selectors) {
       if (!el.matches || !el.matches(sel)) continue;
       const text = (el.textContent || '').trim();
@@ -423,6 +427,33 @@ function isOutgoingMessage(el) {
     current = current.parentElement;
   }
   return false;
+}
+
+// SOLO burbujas reales de chat del cliente: dentro de un wrapper tu-message SIN prefijo 'my'
+// (excluye la lista de conversaciones lateral, avatares, botones y mis propios mensajes).
+function isChatBubble(el) {
+  try {
+    const w = el.closest ? el.closest('[class*="tu-message-wrapper"]') : null;
+    if (!w) return false;
+    const c = String(w.className || '');
+    if (c.indexOf('my-tu-message-wrapper') !== -1) return false;
+    if (c.indexOf('dialog-message') === -1) return false;
+    return true;
+  } catch (e) { return false; }
+}
+
+// Limpia triggers mal colocados (lista lateral, mis mensajes) inyectados por scans previos.
+function _tidyMisplacedTriggers() {
+  try {
+    const bad = document.querySelectorAll('.tess-eater-trigger');
+    for (let i = 0; i < bad.length; i++) {
+      const t = bad[i];
+      const w = t.closest ? t.closest('[class*="tu-message-wrapper"]') : null;
+      if (!w) { t.remove(); continue; }
+      const c = String(w.className || '');
+      if (c.indexOf('my-tu-message-wrapper') !== -1 || c.indexOf('dialog-message') === -1) t.remove();
+    }
+  } catch (e) {}
 }
 
 // Almacén de mensajes seleccionados + modo multi-select
@@ -529,6 +560,7 @@ function injectEaterTrigger(msgEl, messageText) {
   if (msgEl.classList.contains('tess-checked-outgoing')) return;
   if (msgEl.matches && msgEl.matches('[class*="my-text-message"], [class*="my-tu-message-wrapper"]')) return;
   if (isOutgoingMessage(msgEl)) return;
+  if (!isChatBubble(msgEl)) return;
   
   var eaterSenderId = extractSenderFromNode(msgEl);
   if (eaterSenderId && typeof isInAABlacklist === 'function' && isInAABlacklist(eaterSenderId)) return;
