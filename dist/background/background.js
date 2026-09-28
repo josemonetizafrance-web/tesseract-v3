@@ -23,12 +23,22 @@ chrome.runtime.onStartup.addListener(() => {
 
 // Mantener el servidor (Render free) despierto mientras el navegador esta abierto,
 // para que las llamadas de IA no se topen con el cold start (port closed del SW).
-try { chrome.alarms.create('tess-warm', { periodInMinutes: 2 }); } catch (e) {}
-chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === 'tess-warm') {
-    fetch(TESSERACT_API + '/api/health', { method: 'GET' })
-      .then((r) => r.text())
-      .catch(() => {});
+try {
+  chrome.alarms.create('tess-warm', { periodInMinutes: 2 });
+  chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === 'tess-warm') {
+      fetch(TESSERACT_API + '/api/health', { method: 'GET' })
+        .then((r) => r.text())
+        .catch(() => {});
+    }
+  });
+} catch (e) {}
+
+// Receptor para los puertos keepalive de los content scripts: hace que el puerto
+// establecido de verdad mantenga el SW vivo y evita "Could not establish connection".
+chrome.runtime.onConnect.addListener(function (port) {
+  if (port.name === 'tess-ai-keepalive') {
+    port.onMessage.addListener(() => {});
   }
 });
 

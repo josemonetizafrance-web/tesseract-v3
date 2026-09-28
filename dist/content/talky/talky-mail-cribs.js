@@ -425,12 +425,29 @@ async function generateMailResponse(msgText, _unused, profileId, senderName) {
     const response = aiResponse.choices?.[0]?.message?.content;
     if (!response) { showTessToast('⚠ No se pudo generar respuesta', 'warning'); return; }
 
-    // Inject into compose area
-    var input = (typeof findEmailInput === 'function' ? findEmailInput() : null)
-      || (typeof findChatInput === 'function' ? findChatInput() : null)
-      || document.querySelector(TALK_Y.EMAIL_TEXTAREA)
-      || document.querySelector(TALK_Y.CHAT_TEXTAREA)
-      || document.querySelector('textarea');
+    // Inject into compose area: SOLO el editor de carta (nunca el textarea del panel).
+    var input = (typeof findEmailInput === 'function' ? findEmailInput() : null);
+    if (!input) {
+      var mailSels = [
+        TALK_Y.EMAIL_TEXTAREA, TALK_Y.EMAIL_CONTENTEDITABLE, TALK_Y.EMAIL_COMPOSE,
+        TALK_Y.EMAIL_BODY, TALK_Y.EMAIL_LETTER_CONTENT,
+        'textarea[data-test-id*="letter"]', 'textarea[placeholder*="letter"]',
+        '[contenteditable="true"][class*="letter"]', '[contenteditable="true"][data-test-id*="letter"]'
+      ];
+      for (var mi = 0; mi < mailSels.length; mi++) {
+        var mel = null;
+        try { mel = document.querySelector(mailSels[mi]); } catch (e) {}
+        if (mel && mel.offsetParent !== null) { input = mel; break; }
+      }
+    }
+    if (!input) {
+      var allT2 = document.querySelectorAll('textarea');
+      for (var ti2 = 0; ti2 < allT2.length; ti2++) {
+        var t2e = allT2[ti2];
+        if (t2e.id === 'eaterResponseArea') continue;
+        if (t2e.offsetParent && !/search/i.test(t2e.placeholder || '')) { input = t2e; break; }
+      }
+    }
     if (input) {
       if (typeof typeIntoEmailInput === 'function') {
         typeIntoEmailInput(input, response);

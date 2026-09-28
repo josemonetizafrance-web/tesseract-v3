@@ -307,28 +307,47 @@ Entrega ÚNICAMENTE el mensaje final listo para enviar. Sin explicaciones, sin a
     });
   }
 
-  // Mensaje al background con keepalive (evita "port closed" cuando el servidor tarda en despertar)
+  // Mensaje al background con keepalive (evita "port closed" cuando el servidor tarda en despertar).
+  // Si el Service Worker no arranca a la primera ("Could not establish connection"), reintenta:
+  // el SW puedes tardar un instante en despertar tras estar suspendido.
   function sendToBackground(message, timeoutMs) {
     return new Promise(function (resolve, reject) {
-      var done = false;
-      var port = null;
-      var timer = null;
-      try { port = chrome.runtime.connect({ name: 'tess-ai-keepalive' }); } catch (e) { port = null; }
-      function finish(err, val) {
-        if (done) return;
-        done = true;
-        if (timer) clearTimeout(timer);
-        try { if (port) port.disconnect(); } catch (e) {}
-        if (err) reject(err); else resolve(val);
+      var deadline = Date.now() + (timeoutMs || 90000);
+      var attempts = 0;
+      function attemptSend() {
+        attempts++;
+        var done = false;
+        var port = null;
+        var timer = null;
+        function finish(err, val) {
+          if (done) return;
+          done = true;
+          if (timer) clearTimeout(timer);
+          try { if (port) port.disconnect(); } catch (e) {}
+          var retriable = err && /could not establish connection|receiving end does not exist|extension context invalidated|the message port closed/i.test(err.message || '');
+          if (retriable && attempts < 3 && Date.now() < deadline) {
+            setTimeout(attemptSend, 800);
+            return;
+          }
+          if (err) reject(err); else resolve(val);
+        }
+        try { port = chrome.runtime.connect({ name: 'tess-ai-keepalive' }); } catch (e) { port = null; }
+        if (port) {
+          port.onDisconnect.addListener(function () {
+            if (done) return;
+            finish(new Error((chrome.runtime.lastError && chrome.runtime.lastError.message) || 'Conexión con el background cerrada'), null);
+          });
+        }
+        timer = setTimeout(function () {
+          finish(new Error('El servidor IA tardó demasiado en responder (despertando...). Intenta de nuevo.'), null);
+        }, Math.max(1000, deadline - Date.now()));
+        chrome.runtime.sendMessage(message, function (response) {
+          if (chrome.runtime.lastError) { finish(new Error(chrome.runtime.lastError.message), null); return; }
+          if (response && response.error) { finish(new Error(response.error), null); return; }
+          finish(null, response && response.data);
+        });
       }
-      timer = setTimeout(function () {
-        finish(new Error('El servidor IA tardó demasiado en responder (despertando...). Intenta de nuevo.'), null);
-      }, timeoutMs || 90000);
-      chrome.runtime.sendMessage(message, function (response) {
-        if (chrome.runtime.lastError) { finish(new Error(chrome.runtime.lastError.message), null); return; }
-        if (response && response.error) { finish(new Error(response.error), null); return; }
-        finish(null, response && response.data);
-      });
+      attemptSend();
     });
   }
 
