@@ -3,7 +3,7 @@
 // Genera respuestas con IA para cartas recibidas (🤖 en mensajes entrantes)
 // Los íconos van dentro de .message-text .observer
 
-let mailCribsConfig = { enabled: false };
+let mailCribsConfig = { enabled: true };
 let mailCribsObserver = null;
 let mailCribsProcessed = new Set();
 let mailCribsLetterStyleEnabled = true;
@@ -15,7 +15,7 @@ const MAIL_MSG_SEL = '.observer';
 async function loadMailCribsConfig() {
   try {
     const r = await chrome.storage.local.get(['tess_mail_cribs']);
-    if (r.tess_mail_cribs) mailCribsConfig = Object.assign({ enabled: false }, r.tess_mail_cribs);
+    if (r.tess_mail_cribs) mailCribsConfig = Object.assign({ enabled: true }, r.tess_mail_cribs);
   } catch (e) {}
 }
 

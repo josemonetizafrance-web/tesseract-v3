@@ -267,7 +267,12 @@ function startChatWatcher() {
 }
 
 // ============ SCANNERS ============
+function isMailPageContext() {
+  return !!document.querySelector('[data-test-id*="mail-history-item"], [class*="mail-history-item"]');
+}
+
 function scanAllIncomingMessages() {
+  if (isMailPageContext()) return;
   const selectors = [
     '[class*="tu-message-wrapper"]:not([class*="my-tu-message-wrapper"])',
     '.text-message',
@@ -312,6 +317,7 @@ function scanAllIncomingMessages() {
 }
 
 function scanAllOutgoingMessages() {
+  if (isMailPageContext()) return;
   if (!clonacionActiva) return;
   const sentSelectors = [
     '[class*="my-tu-message-wrapper"]', '[class*="my-text-message"]', '.text-message.own', '[class*="message-sent"]',
@@ -363,6 +369,7 @@ function directInjectCaptureButton(msgEl, messageText) {
 }
 
 function checkForIncomingMessages(node) {
+  if (isMailPageContext()) return;
   const selectors = [
     '[class*="tu-message-wrapper"]:not([class*="my-tu-message-wrapper"])',
     '.text-message',
@@ -518,6 +525,7 @@ function extractSenderFromNode(el) {
 
 function injectEaterTrigger(msgEl, messageText) {
   if (msgEl.querySelector('.tess-eater-trigger, .tess-capture-trigger')) return;
+  if (isMailPageContext()) return;
   if (msgEl.classList.contains('tess-checked-outgoing')) return;
   if (msgEl.matches && msgEl.matches('[class*="my-text-message"], [class*="my-tu-message-wrapper"]')) return;
   if (isOutgoingMessage(msgEl)) return;
