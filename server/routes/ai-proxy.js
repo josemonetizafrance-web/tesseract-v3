@@ -393,6 +393,7 @@ router.post('/api/chatgpt/image', validateToken, async (req, res) => {
     let out = null;
     let lastStatus = null;
     let lastErr = '';
+    let creditFailures = 0;
     outer:
     for (const targetModel of modelChain) {
     for (const imageKey of imageKeys) {
@@ -418,6 +419,11 @@ router.post('/api/chatgpt/image', validateToken, async (req, res) => {
           console.warn(`[AI-PROXY][IMG] OpenRouter no reconoce "${targetModel}"; probando siguiente modelo`);
           continue outer;
         }
+        // Sin saldo / límite de tasa: es problema de la CUENTA de la clave, no del modelo.
+        if (r.status === 402 || r.status === 429 || /insufficient credits|insufficient_quota|rate limit|too many requests/i.test(lastErr)) {
+          creditFailures++;
+          console.warn(`[AI-PROXY][IMG] clave ${imageKeys.indexOf(imageKey) + 1}/${imageKeys.length} sin saldo/limite (${r.status}): ${String(lastErr).slice(0, 120)}`);
+        }
         continue;
       }
       const item = r.j?.data?.[0];
@@ -441,11 +447,25 @@ router.post('/api/chatgpt/image', validateToken, async (req, res) => {
 
       return res.json({ success: true, provider: 'OpenRouter', model: targetModel, format, base64: b64 });
     }
+    // Todas las claves fallaron por saldo/limite -> probar otro modelo con las MISMAS claves
+    // no va a funcionar. Salir al fallback gratis de Gemini.
+    if (creditFailures >= imageKeys.length) {
+      console.warn(`[AI-PROXY][IMG] las ${imageKeys.length} clave(s) de imagen fallaron por saldo/limite; no pruebo mas modelos`);
+      break outer;
+    }
     }
 
     // Ninguna clave funcionó -> fallback gratis a Gemini (imágenes).
     const g = await geminiImageFallback(String(prompt).trim());
     if (g) return res.json({ success: true, provider: 'Gemini', model: g.model, format: g.format, base64: g.base64 });
+    const allOutOfCredits = creditFailures >= imageKeys.length && imageKeys.length > 0;
+    if (allOutOfCredits) {
+      return res.status(402).json({
+        error: `OpenRouter: sin credito en las ${imageKeys.length} clave(s) de imagen. Anade creditos en https://openrouter.ai/settings/credits o configura GEMINI_API_KEY para el fallback gratis.`,
+        detail: lastErr,
+        outOfCredits: true
+      });
+    }
     return res.status(lastStatus || 502).json({ error: lastErr || 'Error generando imagen' });
   } catch (err) {
     console.error('[AI-PROXY] image error:', err.message);
