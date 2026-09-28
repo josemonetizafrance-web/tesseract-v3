@@ -269,6 +269,7 @@ function startChatWatcher() {
 // ============ SCANNERS ============
 function scanAllIncomingMessages() {
   const selectors = [
+    '[class*="tu-message-wrapper"]:not([class*="my-tu-message-wrapper"])',
     '.text-message',
     '[data-test-id*="text-msg"]',
     '[data-test-id*="message"]:not([class*="my"])',
@@ -291,8 +292,8 @@ function scanAllIncomingMessages() {
     for (let i = messages.length - 1; i >= 0; i--) {
       const msg = messages[i];
       if (msg.classList.contains('tess-checked-outgoing')) continue;
-      if (msg.matches && msg.matches('[class*="my-text-message"], [class*="my-message"], [class*="own"], [class*="sent"]')) continue;
-      if (msg.closest && msg.closest('[class*="my-text-message"], [class*="my-message"], [class*="own"]')) continue;
+      if (msg.matches && msg.matches('[class*="my-text-message"], [class*="my-message"], [class*="own"], [class*="sent"], [class*="my-tu-message-wrapper"]')) continue;
+      if (msg.closest && msg.closest('[class*="my-text-message"], [class*="my-message"], [class*="own"], [class*="my-tu-message-wrapper"]')) continue;
       if (isOutgoingMessage(msg)) continue;
       const text = (msg.textContent || '').trim();
       if (!text || text.length < 3) continue;
@@ -313,7 +314,7 @@ function scanAllIncomingMessages() {
 function scanAllOutgoingMessages() {
   if (!clonacionActiva) return;
   const sentSelectors = [
-    '[class*="my-text-message"]', '.text-message.own', '[class*="message-sent"]',
+    '[class*="my-tu-message-wrapper"]', '[class*="my-text-message"]', '.text-message.own', '[class*="message-sent"]',
     '[class*="bubble-right"]', '[data-test-id*="msg--sent"]'
   ];
   const chatContainer = document.querySelector(TALK_Y.PAGE_CHAT_BODY);
@@ -363,6 +364,7 @@ function directInjectCaptureButton(msgEl, messageText) {
 
 function checkForIncomingMessages(node) {
   const selectors = [
+    '[class*="tu-message-wrapper"]:not([class*="my-tu-message-wrapper"])',
     '.text-message',
     '[data-test-id*="text-msg"]',
     '[data-test-id*="message"]:not([class*="my"])',
@@ -381,8 +383,8 @@ function checkForIncomingMessages(node) {
   for (const el of nodes) {
     if (el.nodeType !== 1) continue;
     if (el.classList.contains('tess-checked-outgoing')) continue;
-    if (el.matches && el.matches('[class*="my-text-message"], [class*="my-message"], [class*="own"]')) continue;
-    if (el.closest && el.closest('[class*="my-text-message"], [class*="my-message"], [class*="own"]')) continue;
+    if (el.matches && el.matches('[class*="my-text-message"], [class*="my-message"], [class*="own"], [class*="my-tu-message-wrapper"]')) continue;
+    if (el.closest && el.closest('[class*="my-text-message"], [class*="my-message"], [class*="own"], [class*="my-tu-message-wrapper"]')) continue;
     if (isOutgoingMessage(el)) continue;
     for (const sel of selectors) {
       if (!el.matches || !el.matches(sel)) continue;
@@ -403,7 +405,7 @@ function checkForIncomingMessages(node) {
 }
 
 function isOutgoingMessage(el) {
-  const outgoingClasses = ['own', 'mine', 'self', 'my-text-message', 'my-message', 'message-sent', 'message--sent', 'msg--sent', 'msg--outgoing', 'message--outgoing', 'outgoing', 'bubble--right', 'msg--right', 'align-right', 'justify-end', 'ms-auto', 'ml-auto', 'flex-row-reverse', 'from-me', 'is-me', 'msg-mine', 'message-mine'];
+  const outgoingClasses = ['own', 'mine', 'self', 'my-text-message', 'my-message', 'my-tu-message-wrapper', 'message-sent', 'message--sent', 'msg--sent', 'msg--outgoing', 'message--outgoing', 'outgoing', 'bubble--right', 'msg--right', 'align-right', 'justify-end', 'ms-auto', 'ml-auto', 'flex-row-reverse', 'from-me', 'is-me', 'msg-mine', 'message-mine'];
   let current = el;
   while (current && current !== document.body) {
     const cls = typeof current.className === 'string' ? current.className : '';
@@ -517,7 +519,7 @@ function extractSenderFromNode(el) {
 function injectEaterTrigger(msgEl, messageText) {
   if (msgEl.querySelector('.tess-eater-trigger, .tess-capture-trigger')) return;
   if (msgEl.classList.contains('tess-checked-outgoing')) return;
-  if (msgEl.matches && msgEl.matches('[class*="my-text-message"]')) return;
+  if (msgEl.matches && msgEl.matches('[class*="my-text-message"], [class*="my-tu-message-wrapper"]')) return;
   if (isOutgoingMessage(msgEl)) return;
   
   var eaterSenderId = extractSenderFromNode(msgEl);
