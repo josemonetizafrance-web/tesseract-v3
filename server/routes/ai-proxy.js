@@ -17,6 +17,7 @@ const VENICE_API = 'https://api.venice.ai/api/v1/chat/completions';
 const VENICE_MODEL = process.env.VENICE_MODEL || 'venice-uncensored';
 const VENICE_MODEL_FALLBACK = process.env.VENICE_MODEL_FALLBACK || 'most_uncensored';
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-3.5-turbo';
+const OPENAI_MODEL_FALLBACKS = (process.env.OPENAI_MODEL_FALLBACK || '').split(',').map((s) => s.trim()).filter(Boolean);
 const IMAGE_MODEL = process.env.IMAGE_MODEL || 'google/gemini-3.1-flash-lite-image';
 
 // Modelos de imagen validos en OpenRouter (verificados contra GET /api/v1/models).
@@ -144,6 +145,32 @@ function tryOpenAI(messages, model, maxTokens) {
   return callAI(OPENAI_API, key, model || OPENAI_MODEL, messages, maxTokens);
 }
 
+// OpenAI es el ÚLTIMO proveedor de la cascada: si su modelo no existe o se ha
+// retirado (404/400), no queda nadie detrás. Reintenta con OPENAI_MODEL_FALLBACK
+// (lista separada por comas) antes de rendirse.
+async function tryOpenAIWithFallback(messages, model, maxTokens) {
+  const primary = model || OPENAI_MODEL;
+  const result = await tryOpenAI(messages, primary, maxTokens);
+  if (result.ok || !OPENAI_MODEL_FALLBACKS.length) {
+    if (!result.ok && result.status === 404) {
+      console.warn(`[AI-PROXY] OpenAI no reconoce el modelo "${primary}"; revisa OPENAI_MODEL en Render`);
+    }
+    return result;
+  }
+  if (result.status !== 404 && result.status !== 400 && result.status !== 403) return result;
+  console.warn(`[AI-PROXY] OpenAI falló con "${primary}" (${result.status}); probando modelo de respaldo`);
+  let last = result;
+  for (const fb of OPENAI_MODEL_FALLBACKS) {
+    const r = await tryOpenAI(messages, fb, maxTokens);
+    if (r.ok) {
+      console.log(`[AI-PROXY] OpenAI respondió con el modelo de respaldo "${fb}"`);
+      return r;
+    }
+    last = r;
+  }
+  return last;
+}
+
 // 5) Venice.ai (uncensored, opcional: se usa con provider:'venice' o como último respaldo).
 function veniceKeys() {
   const out = [];
@@ -223,7 +250,7 @@ async function aiCascade(messages, requestedModel, maxTokens, preferProvider) {
   }];
   const gemini = ['Gemini', () => tryGemini(messages, maxTokens)];
   const groq = ['Groq', () => tryGroqWithFallback(messages, GROQ_MODEL, maxTokens)];
-  const openai = ['OpenAI', () => tryOpenAI(messages, undefined, maxTokens)];
+  const openai = ['OpenAI', () => tryOpenAIWithFallback(messages, undefined, maxTokens)];
 
   if (preferProvider === 'venice') attempts.push(venice, openrouter, gemini, groq, openai);
   else attempts.push(openrouter, gemini, groq, venice, openai);
