@@ -111,7 +111,8 @@ async function tryGemini(messages, maxTokens) {
         last = { ok: r.ok, status: r.status, model, data: j };
         if (!r.ok) {
           const transient = r.status === 429 || r.status === 503;
-          console.warn(`[AI-PROXY] Gemini ${model} falló (${r.status}${transient ? ', reintentando' : ''}), probando siguiente modelo`);
+          const gErr = (j && j.error && (j.error.message || j.error.status)) || (typeof j === 'string' ? j.slice(0, 160) : 'sin detalle');
+          console.warn(`[AI-PROXY] Gemini ${model} falló (${r.status}${transient ? ', reintentando' : ''}): ${String(gErr).slice(0, 180)} -> probando siguiente modelo`);
           if (transient && attempt === 0) { await new Promise((res) => setTimeout(res, 1200)); continue; }
           break;
         }
