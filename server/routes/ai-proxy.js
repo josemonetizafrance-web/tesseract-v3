@@ -92,14 +92,27 @@ function geminiToContents(messages) {
   return body;
 }
 
+// Rotacion de claves Gemini: GEMINI_API_KEY + GEMINI_API_KEY_2.._10.
+// Util cuando una clave se queda sin cuota (429 free_tier) o esta mal.
+function geminiKeys() {
+  const out = [];
+  if (process.env.GEMINI_API_KEY) out.push(process.env.GEMINI_API_KEY);
+  for (let i = 2; i <= 10; i++) {
+    const k = process.env['GEMINI_API_KEY_' + i];
+    if (k) out.push(k);
+  }
+  return out.filter((v, i, a) => a.indexOf(v) === i);
+}
+
 async function tryGemini(messages, maxTokens) {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) return { ok: false, status: 0, data: { error: 'GEMINI_API_KEY no configurada' } };
+  const keys = geminiKeys();
+  if (!keys.length) return { ok: false, status: 0, data: { error: 'GEMINI_API_KEY no configurada' } };
   const body = geminiToContents(messages);
   if (maxTokens) body.generationConfig = { maxOutputTokens: Math.max(maxTokens, 300) };
   const models = [GEMINI_MODEL, ...GEMINI_MODEL_FALLBACKS].filter((m, i, arr) => arr.indexOf(m) === i);
   let last = null;
   for (const model of models) {
+    for (const key of keys) {
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const r = await fetch(`${GEMINI_API}/${model}:generateContent?key=${key}`, {
@@ -112,7 +125,8 @@ async function tryGemini(messages, maxTokens) {
         if (!r.ok) {
           const transient = r.status === 429 || r.status === 503;
           const gErr = (j && j.error && (j.error.message || j.error.status)) || (typeof j === 'string' ? j.slice(0, 160) : 'sin detalle');
-          console.warn(`[AI-PROXY] Gemini ${model} falló (${r.status}${transient ? ', reintentando' : ''}): ${String(gErr).slice(0, 180)} -> probando siguiente modelo`);
+          const kN = keys.indexOf(key) + 1;
+          console.warn(`[AI-PROXY] Gemini ${model} clave ${kN}/${keys.length} falló (${r.status}${transient ? ', reintentando' : ''}): ${String(gErr).slice(0, 180)}`);
           if (transient && attempt === 0) { await new Promise((res) => setTimeout(res, 1200)); continue; }
           break;
         }
@@ -127,6 +141,7 @@ async function tryGemini(messages, maxTokens) {
         last = { ok: false, status: 0, model, data: { error: e.message } };
         break;
       }
+    }
     }
   }
   return last || { ok: false, status: 0, data: { error: 'GEMINI_API_KEY no configurada' } };
@@ -238,10 +253,18 @@ function isContentRefusal(status, data) {
   return /content_policy|content policy|does not (allow|comply)|not allowed to|safety|moderation|responsible ai|sensitive content|sexual|erotic|explicit|policy violation|reject|refus|block.?reason|blockreason|safety_rating|harmcat/i.test(text);
 }
 
-// Cascada completa: OpenRouter -> Gemini -> Groq -> Venice -> OpenAI
-// Si llega preferProvider:'venice', Venice va primero (tono sin censura).
+// Cascada de texto. Solo se intentan los proveedores que TIENEN clave configurada:
+// si quitas una clave en Render, el proveedor desaparece de la cascada en vez de
+// gastar un intento fallando. Orden por defecto: Gemini -> Groq -> OpenAI.
+// Si llega preferProvider:'venice' y Venice esta configurado, va primero (tono sin censura).
 async function aiCascade(messages, requestedModel, maxTokens, preferProvider) {
   const attempts = [];
+  const hasOR = !!process.env.OPENROUTER_API_KEY;
+  const hasVenice = veniceKeys().length > 0;
+  const hasGemini = geminiKeys().length > 0;
+  const hasGroq = !!process.env.GROQ_API_KEY;
+  const hasOpenAI = !!process.env.OPENAI_API_KEY;
+
   const venice = ['Venice', () => tryVeniceWithFallback(messages, requestedModel && /venice/i.test(requestedModel) ? requestedModel : undefined, maxTokens)];
   const openrouter = ['OpenRouter', () => {
     // Solo respetar el modelo pedido si es familia gemini/google; si no, usar el default de OR
@@ -253,8 +276,18 @@ async function aiCascade(messages, requestedModel, maxTokens, preferProvider) {
   const groq = ['Groq', () => tryGroqWithFallback(messages, GROQ_MODEL, maxTokens)];
   const openai = ['OpenAI', () => tryOpenAIWithFallback(messages, undefined, maxTokens)];
 
-  if (preferProvider === 'venice') attempts.push(venice, openrouter, gemini, groq, openai);
-  else attempts.push(openrouter, gemini, groq, venice, openai);
+  if (preferProvider === 'venice' && hasVenice) attempts.push(venice);
+  if (hasOR) attempts.push(openrouter);
+  if (hasGemini) attempts.push(gemini);
+  if (hasGroq) attempts.push(groq);
+  if (hasVenice) attempts.push(venice);
+  if (hasOpenAI) attempts.push(openai);
+
+  if (!attempts.length) {
+    console.error('[AI-PROXY] Ningun proveedor IA tiene clave configurada (GEMINI_API_KEY / GROQ_API_KEY / OPENAI_API_KEY)');
+    return { ok: false, details: [{ provider: 'ninguno', status: 0, reason: 'sin claves de IA configuradas en el servidor' }] };
+  }
+  console.log('[AI-PROXY] cascada:', attempts.map((a) => a[0]).join(' -> '));
 
   const details = [];
   let contentRefused = false;
@@ -325,14 +358,15 @@ router.post('/api/chatgpt/chat', validateToken, async (req, res) => {
 
 // Fallback directo a Gemini (gratis, sin OpenRouter) para generación de imágenes.
 async function geminiImageFallback(prompt) {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) return null;
+  const keys = geminiKeys();
+  if (!keys.length) return null;
   const candidates = [
     String(process.env.GEMINI_IMAGE_MODEL || '').trim() || 'gemini-3.1-flash-lite-image',
     'gemini-3.1-flash-image'
   ];
   const seen = new Set();
   let lastImgErr = '';
+  for (const key of keys) {
   for (const m of candidates) {
     if (!m || seen.has(m)) continue;
     seen.add(m);
@@ -365,6 +399,7 @@ async function geminiImageFallback(prompt) {
       else if (gmt.includes('webp')) gformat = 'webp';
       return { base64: img.inlineData.data, format: gformat, model: m };
     } catch (e) { lastImgErr = `${m} -> ${e.message}`; }
+  }
   }
   console.log(`[AI-PROXY][IMG] fallback Gemini no devolvió imagen${lastImgErr ? ' | último error: ' + String(lastImgErr).slice(0, 200) : ''}`);
   return null;
