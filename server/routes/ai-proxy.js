@@ -332,6 +332,7 @@ async function geminiImageFallback(prompt) {
     'gemini-3.1-flash-image'
   ];
   const seen = new Set();
+  let lastImgErr = '';
   for (const m of candidates) {
     if (!m || seen.has(m)) continue;
     seen.add(m);
@@ -345,18 +346,27 @@ async function geminiImageFallback(prompt) {
         })
       });
       const j = await resp.json().catch(() => ({}));
-      if (!resp.ok) continue;
+      if (!resp.ok) {
+        lastImgErr = `${m} -> ${resp.status} ${(j && j.error && j.error.message) || ''}`;
+        // 429 con "free_tier" = la clave no tiene facturacion activada: quota 0 para imagenes.
+        if (/free_tier|quota|RESOURCE_EXHAUSTED/i.test(String(j && j.error && j.error.message))) {
+          console.warn(`[AI-PROXY][IMG] Gemini ${m} sin cuota (${resp.status}). Si dice "free_tier limit: 0", activa la FACTURACION del proyecto en Google Cloud: https://ai.google.dev/gemini-api/docs/billing`);
+        } else {
+          console.warn(`[AI-PROXY][IMG] Gemini ${m} falló (${resp.status})`);
+        }
+        continue;
+      }
       const parts = (j.candidates || []).flatMap(c => (c.content && c.content.parts) || []);
       const img = parts.find(p => p.inlineData && p.inlineData.data);
-      if (!img) continue;
+      if (!img) { lastImgErr = `${m} -> 200 sin inlineData`; continue; }
       let gformat = 'png';
       const gmt = String(img.inlineData.mimeType || '').toLowerCase();
       if (gmt.includes('jpeg') || gmt.includes('jpg')) gformat = 'jpeg';
       else if (gmt.includes('webp')) gformat = 'webp';
       return { base64: img.inlineData.data, format: gformat, model: m };
-    } catch (e) { /* probar siguiente modelo */ }
+    } catch (e) { lastImgErr = `${m} -> ${e.message}`; }
   }
-  console.log('[AI-PROXY][IMG] fallback Gemini no devolvió imagen');
+  console.log(`[AI-PROXY][IMG] fallback Gemini no devolvió imagen${lastImgErr ? ' | último error: ' + String(lastImgErr).slice(0, 200) : ''}`);
   return null;
 }
 
