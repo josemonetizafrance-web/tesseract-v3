@@ -76,6 +76,7 @@ app.get('/api/health', async (req, res) => {
     groq: process.env.GROQ_API_KEY ? 'configurada' : 'no configurada',
     venice: (process.env.VENICE_API_KEY || countKeys('VENICE_API_KEY_', 30)) ? 'configurada' : 'no configurada',
     openai: process.env.OPENAI_API_KEY ? 'configurada' : 'no configurada',
+    openaiModel: process.env.OPENAI_MODEL || 'gpt-3.5-turbo',
     imageKeysPro: countKeys('OPENROUTER_IMAGE_PRO_KEY_', 60) + (process.env.OPENROUTER_IMAGE_API_KEY ? 1 : 0) + (process.env.OPENROUTER_IMAGE_API_KEY_2 ? 1 : 0) + (process.env.OPENROUTER_API_KEY ? 1 : 0),
     imageKeysLite: countKeys('OPENROUTER_IMAGE_LITE_KEY_', 60) + (process.env.OPENROUTER_IMAGE_API_KEY_2 ? 1 : 0) + (process.env.OPENROUTER_IMAGE_API_KEY ? 1 : 0) + (process.env.OPENROUTER_API_KEY ? 1 : 0),
     imageModelPro: process.env.IMAGE_MODEL || 'google/gemini-3-pro-image',

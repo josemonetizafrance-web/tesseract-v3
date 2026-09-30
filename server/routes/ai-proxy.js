@@ -16,6 +16,7 @@ const GEMINI_MODEL_FALLBACKS = (process.env.GEMINI_MODEL_FALLBACK || 'gemini-3.1
 const VENICE_API = 'https://api.venice.ai/api/v1/chat/completions';
 const VENICE_MODEL = process.env.VENICE_MODEL || 'venice-uncensored';
 const VENICE_MODEL_FALLBACK = process.env.VENICE_MODEL_FALLBACK || 'most_uncensored';
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-3.5-turbo';
 const IMAGE_MODEL = process.env.IMAGE_MODEL || 'google/gemini-3.1-flash-lite-image';
 
 // Modelos de imagen validos en OpenRouter (verificados contra GET /api/v1/models).
@@ -140,7 +141,7 @@ function tryGroq(messages, model, maxTokens) {
 function tryOpenAI(messages, model, maxTokens) {
   const key = process.env.OPENAI_API_KEY;
   if (!key) return Promise.resolve({ ok: false, status: 0, data: { error: 'OPENAI_API_KEY no configurada' } });
-  return callAI(OPENAI_API, key, model || 'gpt-3.5-turbo', messages, maxTokens);
+  return callAI(OPENAI_API, key, model || OPENAI_MODEL, messages, maxTokens);
 }
 
 // 5) Venice.ai (uncensored, opcional: se usa con provider:'venice' o como último respaldo).
