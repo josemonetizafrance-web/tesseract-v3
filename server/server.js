@@ -60,14 +60,44 @@ app.get('/api/health', async (req, res) => {
   } catch (e) { dbStatus = 'down'; }
   const uri = process.env.MONGODB_URI || '';
   const m = uri.match(/@([^/?]+)/);
+  // Diagnostico de proveedores IA: solo presencia de claves, NUNCA el valor.
+  function countKeys(prefix, max) {
+    let n = 0;
+    for (let i = 1; i <= max; i++) {
+      if (process.env[prefix + String(i).padStart(2, '0')] || process.env[prefix + i]) n++;
+    }
+    return n;
+  }
+  const ia = {
+    openrouter: process.env.OPENROUTER_API_KEY ? 'configurada' : 'no configurada',
+    openrouterModel: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
+    gemini: process.env.GEMINI_API_KEY ? 'configurada' : 'no configurada',
+    geminiModel: process.env.GEMINI_MODEL || 'gemini-3.7-flash',
+    groq: process.env.GROQ_API_KEY ? 'configurada' : 'no configurada',
+    venice: (process.env.VENICE_API_KEY || countKeys('VENICE_API_KEY_', 30)) ? 'configurada' : 'no configurada',
+    openai: process.env.OPENAI_API_KEY ? 'configurada' : 'no configurada',
+    imageKeysPro: countKeys('OPENROUTER_IMAGE_PRO_KEY_', 60) + (process.env.OPENROUTER_IMAGE_API_KEY ? 1 : 0) + (process.env.OPENROUTER_IMAGE_API_KEY_2 ? 1 : 0) + (process.env.OPENROUTER_API_KEY ? 1 : 0),
+    imageKeysLite: countKeys('OPENROUTER_IMAGE_LITE_KEY_', 60) + (process.env.OPENROUTER_IMAGE_API_KEY_2 ? 1 : 0) + (process.env.OPENROUTER_IMAGE_API_KEY ? 1 : 0) + (process.env.OPENROUTER_API_KEY ? 1 : 0),
+    imageModelPro: process.env.IMAGE_MODEL || 'google/gemini-3-pro-image',
+    imageModelLite: process.env.IMAGE_MODEL_2_2 || process.env.IMAGE_MODEL_2 || 'google/gemini-3.1-flash-lite-image'
+  };
+  ia.proveedoresTexto = [
+    ia.openrouter !== 'configurada' ? null : 'OpenRouter',
+    ia.gemini !== 'configurada' ? null : 'Gemini',
+    ia.groq !== 'configurada' ? null : 'Groq',
+    ia.venice !== 'configurada' ? null : 'Venice',
+    ia.openai !== 'configurada' ? null : 'OpenAI'
+  ].filter(Boolean);
+  ia.textoSinProveedor = ia.proveedoresTexto.length === 0;
   res.json({
     status: 'ok',
     version: '3.0.0',
     timestamp: Date.now(),
     db: dbStatus,
     mongoHost: m ? m[1] : 'no configurada',
-    groq: process.env.GROQ_API_KEY ? 'configurada' : 'no configurada',
-    model: process.env.GROQ_MODEL || 'openai/gpt-oss-120b'
+    groq: ia.groq,
+    model: process.env.GROQ_MODEL || 'openai/gpt-oss-120b',
+    ia: ia
   });
 });
 
