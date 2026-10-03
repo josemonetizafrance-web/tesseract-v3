@@ -270,27 +270,34 @@ async function executeIcebreakerSweep() {
   var total = toSend.length;
   document.getElementById('ibStatus').textContent = 'Enviando 1/' + total + '\u2026';
   try {
-                    var link = document.querySelector(TALK_Y.ICEBREAKER_SIDEBAR_LINK);
+                        var link = document.querySelector(TALK_Y.ICEBREAKER_SIDEBAR_LINK);
     if (!link) {
       try {
-        var list = Array.from(document.querySelectorAll('a,p,div,span,li'));
-        for (var i=0;i<list.length;i++){
-          var el=list[i];
+        var allLinks = Array.from(document.querySelectorAll('a, [role="link"], button'));
+        for (var i=0;i<allLinks.length;i++){
+          var el = allLinks[i];
           if (!_tessElVisible(el)) continue;
-          var txt=(el.textContent||'').trim().toLowerCase();
-          if (txt==='icebreakers'){ link = el.closest('a')||el; break; }
+          var tx = (el.textContent||'').trim().toLowerCase();
+          if (tx === 'icebreakers'){ link = el; break; }
         }
       } catch(_e){}
     }
     if (!link) {
       try {
-        var cand2 = document.querySelector('#app > div > div.main-app-content > div.nIxoGEDs > div > main > div > div > aside > div:nth-child(2) > div.side-menu-body > div > div > p:nth-child(2)');
-        if (cand2) link = cand2.closest('a')||cand2;
+        var cand = document.querySelector('#app > div > div.main-app-content > div.nIxoGEDs > div > main > div > div > aside > div:nth-child(2) > div.side-menu-body > div > div > p:nth-child(2)');
+        if (cand){ link = cand.closest('a,[role="link"],button') || cand; }
+      } catch(_e){}
+    }
+    if (!link) {
+      try {
+        var ibs = Array.from(document.querySelectorAll('[data-test-id*="icebreaker" i], [href*="icebreaker" i]'));
+        link = ibs.find(function(x){ return _tessElVisible(x); }) || ibs[0] || null;
       } catch(_e){}
     }
     if (link) {
-      try{link.click();}catch(_e){link.dispatchEvent(new Event('click',{bubbles:true}));}
+      try{ link.click(); }catch(_e){ link.dispatchEvent(new Event('click',{bubbles:true})); }
       await sleep(900);
+    };
     }
     }
     }
