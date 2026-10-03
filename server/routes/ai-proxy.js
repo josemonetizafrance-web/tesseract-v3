@@ -11,8 +11,12 @@ const OPENROUTER_IMAGE_API = 'https://openrouter.ai/api/v1/images/generations';
 const GROQ_MODEL = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
 const GROQ_MODEL_FALLBACK = process.env.GROQ_MODEL_FALLBACK || 'qwen/qwen3.6-27b';
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash';
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
-const GEMINI_MODEL_FALLBACKS = (process.env.GEMINI_MODEL_FALLBACK || 'gemini-3.7-flash,gemini-3.6-flash,gemini-3.5-flash').split(',').map((s) => s.trim()).filter(Boolean);
+// gemini-3.1-flash-lite va primero a proposito: medido con el prompt real de
+// Icebreakers, los gemini-3.5/3.6/3.7/3.8 devolvian 503 "high demand" para
+// esta clave, mientras 3.1-flash-lite respondia siempre. Los nuevos quedan como
+// respaldo por si 3.1 se retira (shutdown anunciado 2027-05-07).
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
+const GEMINI_MODEL_FALLBACKS = (process.env.GEMINI_MODEL_FALLBACK || 'gemini-3.8-flash,gemini-3.7-flash,gemini-3.6-flash,gemini-3.5-flash-lite').split(',').map((s) => s.trim()).filter(Boolean);
 const VENICE_API = 'https://api.venice.ai/api/v1/chat/completions';
 const VENICE_MODEL = process.env.VENICE_MODEL || 'venice-uncensored';
 const VENICE_MODEL_FALLBACK = process.env.VENICE_MODEL_FALLBACK || 'most_uncensored';
@@ -113,7 +117,7 @@ async function tryGemini(messages, maxTokens) {
   let last = null;
   for (const model of models) {
     for (const key of keys) {
-    for (let attempt = 0; attempt < 2; attempt++) {
+    for (let attempt = 0; attempt < 3; attempt++) {
       try {
         const r = await fetch(`${GEMINI_API}/${model}:generateContent?key=${key}`, {
           method: 'POST',
@@ -126,8 +130,12 @@ async function tryGemini(messages, maxTokens) {
           const transient = r.status === 429 || r.status === 503;
           const gErr = (j && j.error && (j.error.message || j.error.status)) || (typeof j === 'string' ? j.slice(0, 160) : 'sin detalle');
           const kN = keys.indexOf(key) + 1;
-          console.warn(`[AI-PROXY] Gemini ${model} clave ${kN}/${keys.length} falló (${r.status}${transient ? ', reintentando' : ''}): ${String(gErr).slice(0, 180)}`);
-          if (transient && attempt === 0) { await new Promise((res) => setTimeout(res, 1200)); continue; }
+          if (transient && attempt < 2) {
+            console.warn(`[AI-PROXY] Gemini ${model} clave ${kN}/${keys.length} ${r.status} (${attempt + 1}/3, reintento): ${String(gErr).slice(0, 120)}`);
+            await new Promise((res) => setTimeout(res, 1200 * (attempt + 1)));
+            continue;
+          }
+          console.warn(`[AI-PROXY] Gemini ${model} clave ${kN}/${keys.length} falló (${r.status}): ${String(gErr).slice(0, 180)}`);
           break;
         }
         const parts = (j && j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || [];
