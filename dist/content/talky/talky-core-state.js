@@ -270,31 +270,27 @@ async function executeIcebreakerSweep() {
   var total = toSend.length;
   document.getElementById('ibStatus').textContent = 'Enviando 1/' + total + '\u2026';
   try {
-    var link = document.querySelector(TALK_Y.ICEBREAKER_SIDEBAR_LINK);
-    if (link && !document.querySelector('.sidebar-statistics .accordion__header')?.classList.contains('active')) {
-      link.click();
-      await sleep(800);
+        var link = document.querySelector(TALK_Y.ICEBREAKER_SIDEBAR_LINK);
+    if (!link) {
+      try {
+        var list = Array.from(document.querySelectorAll('a,p,div,span,li'));
+        link = list.find(function (el) {
+          var txt = (el.textContent || '').trim().toLowerCase();
+          return txt === 'icebreakers' && _tessElVisible(el);
+        }) || null;
+        if (link) link = link.closest('a') || link;
+      } catch (_e) {}
     }
-    for (var i = 0; i < toSend.length; i++) {
-      if (window._ibMode !== 'sending') break;
-      var msg = toSend[i];
-      document.getElementById('ibStatus').textContent = 'Enviando ' + (i + 1) + '/' + total + '\u2026';
-      var createBtn = null;
-      for (var cbw = 0; cbw < 12; cbw++) {
-        createBtn = document.evaluate('//label[.//p[contains(translate(text(),"ABCDEFGHIJKLMNOPQRSTUVWXYZ","abcdefghijklmnopqrstuvwxyz"),"create new")]]', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-        if (!createBtn) createBtn = document.querySelector('label.chip-root[data-test-id*="tab-mode-create-icebreaker"]');
-        if (!createBtn) createBtn = document.querySelector(TALK_Y.ICEBREAKER_CREATE_NEW);
-        if (!createBtn) createBtn = Array.from(document.querySelectorAll('label.chip-root')).find(function (l) { return /create\s*new/i.test(l.textContent || ''); }) || null;
-        if (createBtn && _tessElVisible(createBtn)) break;
-        createBtn = null;
-        await sleep(300);
-      }
-      if (!createBtn) { console.error('[IB] Create new NO encontrado tras 3.6s | URL actual:', location.pathname); showTessToast('No se encontró el botón Create new en la página Icebreakers', 'error'); break; }
-      var createInput = createBtn.querySelector('input.chip-input');
-      (createInput || createBtn).click();
-      try { if (createInput) createInput.dispatchEvent(new Event('change', { bubbles: true })); } catch (_ce) {}
-      console.log('[IB] createBtn clicked for msg', i, 'category:', msg.category, '| via:', createInput ? 'input.chip-input' : 'label');
-      await sleep(800);
+    if (!link) {
+      try {
+        var cand2 = document.querySelector('#app > div > div.main-app-content > div.nIxoGEDs > div > main > div > div > aside > div:nth-child(2) > div.side-menu-body > div > div > p:nth-child(2)');
+        if (cand2) link = cand2.closest('a') || cand2;
+      } catch (_e) {}
+    }
+    if (link) {
+      try { link.click(); } catch (_e) { link.dispatchEvent(new Event('click', { bubbles: true })); }
+      await sleep(900);
+    }
       var textarea = null;
       var formOpen = false;
       for (var tw = 0; tw < 12; tw++) {
