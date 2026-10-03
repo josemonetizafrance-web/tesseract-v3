@@ -270,7 +270,7 @@ async function executeIcebreakerSweep() {
   var total = toSend.length;
   document.getElementById('ibStatus').textContent = 'Enviando 1/' + total + '\u2026';
   try {
-            var link = document.querySelector(TALK_Y.ICEBREAKER_SIDEBAR_LINK);
+                    var link = document.querySelector(TALK_Y.ICEBREAKER_SIDEBAR_LINK);
     if (!link) {
       try {
         var list = Array.from(document.querySelectorAll('a,p,div,span,li'));
@@ -291,6 +291,8 @@ async function executeIcebreakerSweep() {
     if (link) {
       try{link.click();}catch(_e){link.dispatchEvent(new Event('click',{bubbles:true}));}
       await sleep(900);
+    }
+    }
     }
     }
       var textarea = null;
